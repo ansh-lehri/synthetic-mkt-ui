@@ -1,0 +1,83 @@
+/* ============================================================================
+   Design tokens — Synthetic Market Simulator
+   Night (dark) + Lab (light), from the Foundation boards (design canvas v2).
+
+   RULES
+   - Components reference var(--token), NEVER a raw hex value.
+   - Night is default (dark). [data-theme="lab"] on <html> switches to light.
+   - Semantic roles (surface/ink/line/signal/buy/sell) are what components use;
+     the palette hexes below exist only to define those roles.
+
+   NOTE ON ORIGIN
+   - Values transcribed from the agreed Foundation boards. If a shade is ever
+     found to differ from the board, the board wins — correct it here in one place.
+   ============================================================================ */
+
+   :root,
+   :root[data-theme="night"] {
+     /* ---- Night (dark) palette ---- */
+     --bg:            #14120F;  /* page background */
+     --surface:       #1D1A16;  /* cards, panels */
+     --surface-raised:#26221D;  /* inputs, raised chips */
+     --line:          #38332B;  /* borders, dividers */
+     --ink:           #F3EEE6;  /* primary text */
+     --muted:         #A59E92;  /* secondary text */
+     --signal:        #FFB224;  /* accent / primary action (amber) */
+     --signal-ink:    #14120F;  /* text on --signal */
+     --focus:         #F3EEE6;  /* focus ring */
+   
+     /* ---- Semantic trade colours (shared across themes, tuned per theme) ---- */
+     --buy:           #3FB97A;  /* Buy / long / gain */
+     --buy-ink:       #06130C;  /* text on --buy */
+     --buy-soft:      #12382B;  /* buy depth bar / subtle fill */
+     --sell:          #E5484D;  /* Sell / short / loss / Exit */
+     --sell-ink:      #1A0708;  /* text on --sell */
+     --sell-soft:     #3D1F24;  /* sell depth bar / subtle fill */
+     --warn:          #FFB224;  /* halts, warnings (reuses signal) */
+     --neutral:       #A59E92;  /* flat / unchanged */
+   
+     /* ---- Radii / spacing / type (shared) ---- */
+     --r-sm: 8px;  --r-md: 12px;  --r-lg: 16px;  --r-pill: 999px;
+     --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+   
+     --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+     --font-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+     --font-mono: "IBM Plex Mono", ui-monospace, monospace; /* tabular numerals */
+   
+     --fs-xs: 11px; --fs-sm: 13px; --fs-md: 15px; --fs-lg: 18px;
+     --fs-xl: 24px; --fs-2xl: 32px; --fs-3xl: 48px;
+     --fw-reg: 400; --fw-med: 500; --fw-semi: 600; --fw-bold: 700;
+   }
+   
+   :root[data-theme="lab"] {
+     /* ---- Lab (light) palette ---- */
+     --bg:            #E7EAEE;
+     --surface:       #F6F7F9;
+     --surface-raised:#FFFFFF;
+     --line:          #C9CFD8;
+     --ink:           #12161C;
+     --muted:         #566170;
+     --signal:        #FFB224;
+     --signal-ink:    #12161C;
+     --focus:         #12161C;
+   
+     --buy:           #1F9D57;
+     --buy-ink:       #FFFFFF;
+     --buy-soft:      #D6F0E2;
+     --sell:          #D13438;
+     --sell-ink:      #FFFFFF;
+     --sell-soft:     #F7D9DA;
+     --warn:          #B8780E;
+     --neutral:       #566170;
+   }
+   
+   /* Respect OS preference on first paint when no explicit data-theme is set.
+      An explicit [data-theme] (user toggle) always wins over this. */
+   @media (prefers-color-scheme: light) {
+     :root:not([data-theme]) {
+       --bg:#E7EAEE; --surface:#F6F7F9; --surface-raised:#FFFFFF; --line:#C9CFD8;
+       --ink:#12161C; --muted:#566170; --signal:#FFB224; --signal-ink:#12161C; --focus:#12161C;
+       --buy:#1F9D57; --buy-ink:#FFFFFF; --buy-soft:#D6F0E2;
+       --sell:#D13438; --sell-ink:#FFFFFF; --sell-soft:#F7D9DA; --warn:#B8780E; --neutral:#566170;
+     }
+   }

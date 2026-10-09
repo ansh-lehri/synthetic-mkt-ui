@@ -1,0 +1,846 @@
+openapi: 3.0.3
+info:
+  title: Synthetic Market Simulator — REST contract
+  version: 0.1.0
+  description: >
+    Single source of truth for the REST surface. Three axes:
+    broker (account/order, account_id-keyed), market-data history (public,
+    instrument-keyed), and session/reference (markets/instruments/session — PROVISIONAL).
+    Conventions: all money and prices are bare int64 (no currency field anywhere);
+    enums are lowercase snake_case strings; timestamps on the broker axis are RFC3339,
+    on the market-data + session axes they are naive-local ISO-8601 paired with a
+    `timezone` field. No auth: account_id is passed explicitly and trusted.
+servers:
+  - url: /
+    description: Base URL is swapped (mock vs real) by the frontend client; paths are identical.
+
+tags:
+  - name: orders
+  - name: money
+  - name: account-live
+  - name: account-durable
+  - name: market-data
+  - name: session-reference
+
+paths:
+
+  # ============================ BROKER — ORDERS ============================
+
+  /v1/orders:
+    post:
+      tags: [orders]
+      summary: Place order (202 = accepted, not executed — poll for terminal state)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlaceOrderRequest' }
+      responses:
+        '202':
+          description: Locally accepted and punched to the exchange.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderIdResponse' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409':
+          description: No live session (reason=no_session).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReasonEnvelope' }
+        '422':
+          description: >
+            Business reject. reason ∈ {unknown_instrument, bad_qty, bad_side,
+            bad_price, bad_type, insufficient_funds, no_market_price}.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReasonEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/orders/cancel:
+    post:
+      tags: [orders]
+      summary: Cancel order (202 = cancel accepted locally, NOT "cancelled")
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancelOrderRequest' }
+      responses:
+        '202':
+          description: Cancel accepted locally and punched. Outcome arrives async.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderIdResponse' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409':
+          description: >
+            CancelFailed. reason ∈ {no_session, unknown_order, not_cancellable}.
+            unknown_order deliberately merges "not found" and "belongs to another account".
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReasonEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/orders/modify:
+    post:
+      tags: [orders]
+      summary: Modify order (composed cancel+replace; can leave you with no order)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModifyOrderRequest' }
+      responses:
+        '200':
+          description: modify_status = "ok" or "partial". Surface warning on partial.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModifyResponse' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409':
+          description: modify_status = "rejected" (cancel leg failed; no place attempted).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModifyResponse' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  # ============================ BROKER — MONEY ============================
+
+  /v1/account/transfer:
+    post:
+      tags: [money]
+      summary: Bank ↔ trading transfer. Never emits 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferRequest' }
+      responses:
+        '200':
+          description: Post-move balances.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransferResponse' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '404': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '422':
+          description: Insufficient funds (error envelope, not reason).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  # ===================== BROKER — LIVE ACCOUNT READS =====================
+
+  /v1/account/balance:
+    get:
+      tags: [account-live]
+      summary: Four cash buckets of the live account.
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Balance' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/account/positions:
+    get:
+      tags: [account-live]
+      summary: Open positions. mark_available currently always false (Phase 7).
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+        - name: instrument
+          in: query
+          required: false
+          schema: { type: string }
+          description: Optional single-instrument filter. Flat on an instrument → empty, not an error.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [positions]
+                properties:
+                  positions:
+                    type: array
+                    items: { $ref: '#/components/schemas/Position' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/account/orders:
+    get:
+      tags: [account-live]
+      summary: Working set only (working / partially_filled). Terminals live under /trades.
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orders]
+                properties:
+                  orders:
+                    type: array
+                    items: { $ref: '#/components/schemas/OpenOrder' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/account/observation:
+    get:
+      tags: [account-live]
+      summary: PREFERRED dashboard read — atomic balance+positions+orders + recent trades.
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+      responses:
+        '200':
+          description: >
+            Atomic live snapshot. trades_degraded=true means the durable half failed
+            (recent_trades=[]) but the live half is correct — still 200.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Observation' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  # =================== BROKER — DURABLE ACCOUNT READS ===================
+
+  /v1/account/trades:
+    get:
+      tags: [account-durable]
+      summary: Closed trades, keyset-paginated newest-first. Empty is 200, never 404/409/504.
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 50, minimum: 1 }
+        - name: before
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: Pass the previous response's next_before to page older.
+      responses:
+        '200':
+          description: OK (incl. empty)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradesPage' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/account/pnl:
+    get:
+      tags: [account-durable]
+      summary: Account-wide P&L aggregate. Empty account → zero-filled 200.
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PnlSummary' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/account/costs:
+    get:
+      tags: [account-durable]
+      summary: Per-trade cost/tax breakdown. Country-dispatched (IN only; US → 501).
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+        - { $ref: '#/components/parameters/Country' }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 50, minimum: 1 }
+        - name: before
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK (incl. empty). Only non-zero cost lines are present.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CostsPage' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '501': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/account/costs/summary:
+    get:
+      tags: [account-durable]
+      summary: Account-wide cost aggregate. Same country rules as /costs.
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+        - { $ref: '#/components/parameters/Country' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CostsSummary' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '501': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  # ===================== MARKET-DATA — CANDLE HISTORY =====================
+
+  /v1/candles:
+    get:
+      tags: [market-data]
+      summary: >
+        Candle history (pull). Durable-read family: 200 (incl. empty) / 400 / 503.
+        Never 404/409/504. Times are naive-local ISO; timezone named in the response.
+      parameters:
+        - name: market
+          in: query
+          required: true
+          schema: { type: string, example: IN }
+        - name: instrument
+          in: query
+          required: true
+          schema: { type: string, example: ACME }
+        - name: timeframe
+          in: query
+          required: true
+          schema: { type: string, enum: ["1m", "5m", "30m", "60m"] }
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, example: "2026-10-09T09:15:00" }
+          description: Naive-local ISO-8601 in the market's timezone.
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, example: "2026-10-09T15:30:00" }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+          description: Pass the previous response's next_cursor to page forward.
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer }
+          description: Absent/oversized → engine default/clamp.
+      responses:
+        '200':
+          description: OK (incl. empty candles[])
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CandleResponse' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  # ===================== SESSION / REFERENCE (PROVISIONAL) =====================
+
+  /v1/markets:
+    get:
+      tags: [session-reference]
+      summary: Market list for the dropdown + Home live-session card. PROVISIONAL.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [markets]
+                properties:
+                  markets:
+                    type: array
+                    items: { $ref: '#/components/schemas/Market' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/instruments:
+    get:
+      tags: [session-reference]
+      summary: >
+        Instrument list for a market + the tick/price formatting contract. PROVISIONAL.
+      parameters:
+        - name: market
+          in: query
+          required: true
+          schema: { type: string, example: IN }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [market, instruments]
+                properties:
+                  market: { type: string }
+                  instruments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Instrument' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/session:
+    get:
+      tags: [session-reference]
+      summary: What session the account is in right now (one-session gate). PROVISIONAL.
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+      responses:
+        '200':
+          description: OK. active=null when the account is in no session.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionState' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/session/live/join:
+    post:
+      tags: [session-reference]
+      summary: Join the live session for a market. PROVISIONAL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account_id, market]
+              properties:
+                account_id: { type: string }
+                market: { type: string }
+      responses:
+        '200':
+          description: Session binding.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActiveSession' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409':
+          description: Already in another session (must exit first).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReasonEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/session/practice/start:
+    post:
+      tags: [session-reference]
+      summary: Start a practice session with a scenario + length. PROVISIONAL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account_id, market, condition, length_minutes]
+              properties:
+                account_id: { type: string }
+                market: { type: string }
+                condition:
+                  type: string
+                  enum: [normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity]
+                length_minutes:
+                  type: integer
+                  enum: [60, 75, 90, 105]
+      responses:
+        '200':
+          description: Session binding.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActiveSession' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409':
+          description: Already in another session, or below minimum balance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReasonEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/session/exit:
+    post:
+      tags: [session-reference]
+      summary: Exit the current session. PROVISIONAL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account_id]
+              properties:
+                account_id: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+
+components:
+
+  parameters:
+    AccountId:
+      name: account_id
+      in: query
+      required: true
+      schema: { type: string }
+    Country:
+      name: country
+      in: query
+      required: true
+      schema: { type: string, enum: [IN, US] }
+      description: CASE-SENSITIVE two-letter uppercase. US → 501.
+
+  responses:
+    ErrorEnvelope:
+      description: '{"error":"<human message>"}'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+
+  schemas:
+
+    # ---- envelopes ----
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    ReasonEnvelope:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, description: snake_case business-reject tag }
+
+    OrderIdResponse:
+      type: object
+      required: [order_id]
+      properties:
+        order_id: { type: string, description: 'shape "<account_id>:<seq>"; opaque' }
+
+    # ---- orders ----
+    PlaceOrderRequest:
+      type: object
+      required: [account_id, instrument, side, type, tif, qty]
+      properties:
+        account_id: { type: string }
+        instrument: { type: string }
+        side: { type: string, enum: [buy, sell] }
+        type: { type: string, enum: [limit, market] }
+        tif: { type: string, enum: [gtc, ioc, fok], description: FOK accepted on wire but exchange-rejected today }
+        qty: { type: integer, format: int64, description: '> 0' }
+        limit_price:
+          type: integer
+          format: int64
+          description: Ticks. Required > 0 iff type==limit; ignored for market.
+
+    CancelOrderRequest:
+      type: object
+      required: [account_id, order_id]
+      properties:
+        account_id: { type: string }
+        order_id: { type: string }
+
+    ModifyOrderRequest:
+      type: object
+      required: [account_id, order_id, instrument, side, is_market, new_qty]
+      properties:
+        account_id: { type: string }
+        order_id: { type: string, description: the OLD order to cancel }
+        instrument: { type: string }
+        side: { type: string, enum: [buy, sell] }
+        is_market: { type: boolean, description: 'true→IOC market replacement; false→GTC limit' }
+        new_qty: { type: integer, format: int64 }
+        new_price:
+          type: integer
+          format: int64
+          description: Required > 0 iff is_market==false; ignored for market.
+
+    ModifyLeg:
+      type: object
+      properties:
+        status: { type: string, description: 'e.g. pending/accepted/rejected/failed' }
+        order_id: { type: string }
+        reason: { type: string }
+    ModifyResponse:
+      type: object
+      required: [modify_status, cancel]
+      properties:
+        modify_status: { type: string, enum: [ok, partial, rejected] }
+        cancel: { $ref: '#/components/schemas/ModifyLeg' }
+        replace:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/ModifyLeg' }]
+        warning: { type: string, description: present on partial; surface verbatim }
+
+    # ---- money ----
+    TransferRequest:
+      type: object
+      required: [account_id, direction, amount]
+      properties:
+        account_id: { type: string }
+        direction: { type: string, enum: [to_bank, to_trading] }
+        amount: { type: integer, format: int64, description: '> 0' }
+        unit: { type: string, description: parsed but IGNORED (reserved) }
+    TransferResponse:
+      type: object
+      required: [available, bank]
+      properties:
+        available: { type: integer, format: int64 }
+        bank: { type: integer, format: int64 }
+
+    # ---- live reads ----
+    Balance:
+      type: object
+      required: [available, reserved, settled, bank]
+      properties:
+        available: { type: integer, format: int64, description: may be negative (debt legal) }
+        reserved: { type: integer, format: int64 }
+        settled: { type: integer, format: int64 }
+        bank: { type: integer, format: int64 }
+
+    Position:
+      type: object
+      required: [instrument, qty, reserved_qty, weighted_avg_entry, mark_available, ltp, gross_unrealized]
+      properties:
+        instrument: { type: string }
+        qty: { type: integer, format: int64 }
+        reserved_qty: { type: integer, format: int64 }
+        weighted_avg_entry: { type: integer, format: int64, description: ticks; 0 iff flat }
+        mark_available: { type: boolean, description: currently always false (Phase 7) }
+        ltp: { type: integer, format: int64, description: 0 when mark_available false }
+        gross_unrealized: { type: integer, format: int64, description: 0 when mark_available false }
+
+    OpenOrder:
+      type: object
+      required: [order_id, instrument, side, is_market, limit_price, orig_qty, remaining_qty, filled_qty, reserved_cash, reserved_units, status, cancel_in_flight]
+      properties:
+        order_id: { type: string }
+        instrument: { type: string }
+        side: { type: string, enum: [buy, sell] }
+        is_market: { type: boolean }
+        limit_price: { type: integer, format: int64, description: ticks; 0 for market }
+        orig_qty: { type: integer, format: int64 }
+        remaining_qty: { type: integer, format: int64 }
+        filled_qty: { type: integer, format: int64 }
+        reserved_cash: { type: integer, format: int64 }
+        reserved_units: { type: integer, format: int64 }
+        status: { type: string, enum: [working, partially_filled] }
+        cancel_in_flight: { type: boolean }
+
+    Observation:
+      type: object
+      required: [balance, positions, orders, recent_trades, trades_degraded]
+      properties:
+        balance: { $ref: '#/components/schemas/Balance' }
+        positions:
+          type: array
+          items: { $ref: '#/components/schemas/Position' }
+        orders:
+          type: array
+          items: { $ref: '#/components/schemas/OpenOrder' }
+        recent_trades:
+          type: array
+          items: { $ref: '#/components/schemas/Trade' }
+          description: up to 20, newest-first
+        trades_degraded: { type: boolean }
+
+    # ---- durable reads ----
+    Trade:
+      type: object
+      required: [trade_id, instrument, direction, quantity, entry_price, exit_price, entry_at, exit_at, gross_pnl, total_costs, net_pnl, pnl_pct, exit_reason]
+      properties:
+        trade_id: { type: string }
+        instrument: { type: string }
+        direction: { type: string, enum: [long, short] }
+        quantity: { type: integer, format: int64 }
+        entry_price: { type: integer, format: int64 }
+        exit_price: { type: integer, format: int64 }
+        entry_at: { type: string, format: date-time }
+        exit_at: { type: string, format: date-time }
+        gross_pnl: { type: integer, format: int64 }
+        total_costs: { type: integer, format: int64 }
+        net_pnl: { type: integer, format: int64 }
+        pnl_pct: { type: number, format: float }
+        exit_reason: { type: string }
+    TradesPage:
+      type: object
+      required: [trades, next_before]
+      properties:
+        trades:
+          type: array
+          items: { $ref: '#/components/schemas/Trade' }
+        next_before:
+          type: string
+          format: date-time
+          nullable: true
+          description: null = last page
+
+    PnlSummary:
+      type: object
+      required: [trade_count, gross_pnl, total_costs, net_pnl, win_count, loss_count]
+      properties:
+        trade_count: { type: integer }
+        gross_pnl: { type: integer, format: int64 }
+        total_costs: { type: integer, format: int64 }
+        net_pnl: { type: integer, format: int64 }
+        win_count: { type: integer }
+        loss_count: { type: integer, description: 'breakeven counted in neither' }
+
+    CostLine:
+      type: object
+      required: [name, amount]
+      properties:
+        name: { type: string, description: 'IN: stt/exchange/sebi/stamp/gst/autosquare_fee' }
+        amount: { type: integer, format: int64 }
+    CostsTrade:
+      type: object
+      required: [trade_id, lines, total]
+      properties:
+        trade_id: { type: string }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/CostLine' }
+          description: only non-zero lines present
+        total: { type: integer, format: int64 }
+    CostsPage:
+      type: object
+      required: [trades, next_before]
+      properties:
+        trades:
+          type: array
+          items: { $ref: '#/components/schemas/CostsTrade' }
+        next_before:
+          type: string
+          format: date-time
+          nullable: true
+    CostsSummary:
+      type: object
+      required: [trade_count, lines, total]
+      properties:
+        trade_count: { type: integer }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/CostLine' }
+        total: { type: integer, format: int64 }
+
+    # ---- market-data history ----
+    Bar:
+      type: object
+      required: [start, end, open, high, low, close, volume]
+      properties:
+        start: { type: string, description: naive-local ISO }
+        end: { type: string, description: naive-local ISO, exclusive }
+        open: { type: integer, format: int64 }
+        high: { type: integer, format: int64 }
+        low: { type: integer, format: int64 }
+        close: { type: integer, format: int64 }
+        volume: { type: integer, format: int64 }
+    CandleResponse:
+      type: object
+      required: [market, instrument, timeframe, timezone, from, to, candles, next_cursor]
+      properties:
+        market: { type: string }
+        instrument: { type: string }
+        timeframe: { type: string, enum: ["1m", "5m", "30m", "60m"] }
+        timezone: { type: string, example: Asia/Kolkata }
+        from: { type: string }
+        to: { type: string }
+        candles:
+          type: array
+          items: { $ref: '#/components/schemas/Bar' }
+        next_cursor:
+          type: string
+          nullable: true
+          description: null = last page
+
+    # ---- session / reference (provisional) ----
+    LiveSessionInfo:
+      type: object
+      required: [phase, opens_at, closes_at]
+      properties:
+        phase: { type: string, enum: [preopen, open, closing, closed] }
+        opens_at: { type: string, description: naive-local ISO }
+        closes_at: { type: string, description: naive-local ISO }
+    Market:
+      type: object
+      required: [code, name, timezone, live_session]
+      properties:
+        code: { type: string, example: IN }
+        name: { type: string, example: India }
+        timezone: { type: string, example: Asia/Kolkata }
+        live_session: { $ref: '#/components/schemas/LiveSessionInfo' }
+    Instrument:
+      type: object
+      required: [instrument, name, tick_size, lot_size, price_decimals]
+      properties:
+        instrument: { type: string, example: ACME }
+        name: { type: string, example: Acme Industries }
+        tick_size: { type: integer, format: int64, description: smallest price increment in ticks }
+        lot_size: { type: integer, format: int64 }
+        price_decimals: { type: integer, description: decimals to show when rendering price }
+    ActiveSession:
+      type: object
+      required: [type, market, phase]
+      properties:
+        type: { type: string, enum: [live, practice] }
+        market: { type: string }
+        exchange_id: { type: string, description: backend-internal; UI treats as opaque or ignores }
+        phase: { type: string, enum: [preopen, open, closing, closed] }
+        closes_at: { type: string, nullable: true, description: naive-local ISO; practice may carry ends_at instead }
+        condition:
+          type: string
+          nullable: true
+          enum: [normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity]
+    SessionState:
+      type: object
+      required: [active]
+      properties:
+        active:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/ActiveSession' }]
