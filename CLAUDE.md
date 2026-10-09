@@ -165,3 +165,14 @@ change run `make generate` and commit the result; `make check` fails if it drift
 - Practice condition enum strings: `normal_day, calm_range, trending_day, whipsaw,
   unstable_day, thin_liquidity` (confirm).
 - Auth + account-creation + refill-mechanic: no contract yet — mock ad-hoc, keep isolated.
+
+
+## Git rules
+
+- Do NOT add `Co-Authored-By: Claude` or `Generated with Claude Code` trailers to commits
+  or PR descriptions.
+- Commit under the repo's configured git user (the owner), not a bot identity.
+- Use the branch name given in the task prompt. Never auto-generate a branch name.
+- Before pushing any task: run the dev server / mock and confirm it starts clean (no
+  console or PostCSS errors) — don't hand back work that doesn't run.
+- Tailwind is pinned to v3. Do not upgrade it or switch the PostCSS config to v4.
