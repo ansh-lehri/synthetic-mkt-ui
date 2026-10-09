@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  html[data-theme='lab'] {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+    font-size: var(--fs-md);
+  }
+  /* Visible focus ring on every interactive element (token-driven). */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+}

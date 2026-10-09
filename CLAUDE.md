@@ -105,15 +105,59 @@ The Terminal runs **two transports at once**. Do not collapse them:
 |---|---|
 | `contract/openapi.yaml` | REST contract (broker + candle history + session/ref) — source of truth |
 | `contract/ws-schemas.md` | WebSocket message shapes (connected/subscribe/ack/candle/snapshot) |
-| `contract/generated/` | Committed codegen output (Go structs + TS types) |
+| `contract/generated/` | Committed codegen output: `go/types.gen.go` + `ts/api.d.ts` (generated), `go/ws.go` + `ts/ws.ts` (hand-authored from `ws-schemas.md`) |
+| `Makefile` | `make generate` (regen Go+TS from the contract), `make check` (fail on drift), `make mock`, `make frontend` |
 | `mock/` | Go mock server (HTTP + WS), serves the contract |
 | `frontend/src/tokens/` | Night + Lab design tokens |
 | `frontend/src/lib/ticks.ts` | The tick formatter — all numeric display goes through it |
+| `frontend/src/lib/theme.ts` | Night/Lab theme state (`data-theme` on `<html>`, persisted) |
+| `frontend/.env.example` | `VITE_API_BASE` / `VITE_WS_BASE` — the only place base URLs live |
 | `frontend/src/api/` | Generated TS types + the base-URL-swappable client |
 | `frontend/src/features/` | One folder per screen |
 | `docs/` | The broker + market-data design docs (contract sources) |
 | `UI-API-Coverage-Tracker.md` | Living map of UI function → API → status |
 | `DEVELOPMENT-PLAN.md` | The phased plan |
+
+## Phase 0 decisions (made by the scaffold task — flag if wrong, don't silently redo)
+
+Run the project: `make mock` (Go mock on :8080) + `make frontend` (Vite). Tests:
+`cd frontend && npm test`, `cd mock && go test ./...`. After any `contract/openapi.yaml`
+change run `make generate` and commit the result; `make check` fails if it drifts.
+
+- **Tick formatter semantics (CONFIRM with the backend owner).** REPO-SETUP §6 said price =
+  "value scaled by `tick_size`". The contract's own examples (all prices are multiples of 5;
+  `tick_size` = "smallest price increment") say `tick_size` is a *grid*, not a multiplier. So:
+  display = `raw / 10^price_decimals` (10050 → `100.50`); `tick_size` drives
+  `isTickAligned` / `snapToTick` / `stepPrice` for the order ticket. If the real backend means
+  otherwise, the fix is confined to `ticks.ts` + its tests.
+- **Money decimals.** No field carries them, so money/P&L divides by `MONEY_DECIMALS = 2`
+  (raw minor units), en-IN grouping, plain "units" label. One constant in `ticks.ts`.
+- **Minus sign** is U+2212 (`−`), plus is `+`; zero carries no sign and is `flat`.
+  Percent direction follows the *rounded* value (never "▲ 0.00%").
+- **Theme.** `data-theme` is always set explicitly (`night`|`lab`) — never removed — because
+  `tokens.css` falls back to the OS preference when the attribute is absent, which would
+  override a user who toggled to Night. First visit: saved choice → OS preference → Night.
+  An inline script in `index.html` applies it before first paint (keep in sync with `theme.ts`).
+- **Tailwind v3** (not v4): `tailwind.tokens.md` is a v3 `tailwind.config.js`. `npm audit`
+  flags transitive build-time deps of Tailwind 3 (braces/postcss-selector-parser); they never
+  ship to the browser. Revisit when migrating to v4.
+- **TypeScript is pinned to 5.9** (the Vite template ships 6.0) because `openapi-typescript`
+  7.x peers on `typescript@^5`.
+- **Contract refactor (no wire change).** Inline bodies were hoisted into named schemas so the
+  mock and frontend share types: `MarketsResponse`, `InstrumentsResponse`, `PositionsResponse`,
+  `OrdersResponse`, `JoinLiveRequest`, `StartPracticeRequest`, `ExitSessionRequest`,
+  `ExitSessionResponse`, `PracticeCondition` (enum, reused by `ActiveSession.condition`).
+- **Go layout.** `contract/generated/go` is its own module; `mock/go.mod` uses a `replace`
+  directive to it. Mock-only HTTP helpers live in `mock/internal/httpx`. Codegen tools are
+  pinned in the Makefile (`oapi-codegen v2.5.1`); `openapi-typescript` is a frontend devDependency.
+- **Mock Phase 0 behaviour.** Stateless placeholders. Market orders already reject `422
+  no_market_price` (matches the real backend). `/v1/account/costs*` with `country=US` → `501`.
+  `/ws` sends `connected` then only drains frames (no ack/snapshot/candle yet — Phase 3).
+  Mock markets: `IN` (Asia/Kolkata) and `US` (America/New_York); instruments ACME/BETA/GAMA.
+- **`docs/` is missing from the repo.** REPO-SETUP lists it, but the folder was never added;
+  the contract files are enough for Phase 0. Drop the broker + market-data design docs in
+  `docs/` when available.
+- **`App.tsx` is a smoke harness, not a screen.** It is replaced by the real TopBar/router in Phase 1.
 
 ## Still-open product decisions (don't block; flag if you hit them)
 
