@@ -5,6 +5,8 @@
    RULES
    - Components reference var(--token), NEVER a raw hex value.
    - Night is default (dark). [data-theme="lab"] on <html> switches to light.
+   - The theme selectors are NOT limited to :root, so any element can pin a theme for its
+     subtree (<div data-theme="lab">) — the /kit gallery shows both themes side by side.
    - Semantic roles (surface/ink/line/signal/buy/sell) are what components use;
      the palette hexes below exist only to define those roles.
 
@@ -14,7 +16,7 @@
    ============================================================================ */
 
    :root,
-   :root[data-theme="night"] {
+   [data-theme="night"] {
      /* ---- Night (dark) palette ---- */
      --bg:            #14120F;  /* page background */
      --surface:       #1D1A16;  /* cards, panels */
@@ -49,7 +51,7 @@
      --fw-reg: 400; --fw-med: 500; --fw-semi: 600; --fw-bold: 700;
    }
    
-   :root[data-theme="lab"] {
+   [data-theme="lab"] {
      /* ---- Lab (light) palette ---- */
      --bg:            #E7EAEE;
      --surface:       #F6F7F9;

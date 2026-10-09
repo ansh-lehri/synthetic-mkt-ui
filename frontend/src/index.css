@@ -3,10 +3,11 @@
 @tailwind utilities;
 
 @layer base {
-  html {
+  /* Native controls (select, scrollbars, dialog) follow the theme, also when pinned to a subtree. */
+  [data-theme='night'] {
     color-scheme: dark;
   }
-  html[data-theme='lab'] {
+  [data-theme='lab'] {
     color-scheme: light;
   }
   body {
@@ -18,4 +19,9 @@
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
+}
+
+/* Modal backdrop for <dialog> (ConfirmDialog): token-derived, so it follows the theme. */
+dialog::backdrop {
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
 }

@@ -159,6 +159,36 @@ change run `make generate` and commit the result; `make check` fails if it drift
   `docs/` when available.
 - **`App.tsx` is a smoke harness, not a screen.** It is replaced by the real TopBar/router in Phase 1.
 
+## Phase 1a decisions (component kit)
+
+All shared components live in `frontend/src/components/` (barrel: `index.ts`). `/kit` renders
+every one in Night and Lab side by side with static props (no API calls). Verified in a real
+browser at 1600px and 375px (no console errors, no horizontal scroll, all targets >= 44px).
+
+- **`/kit` routing** is a pathname check in `main.tsx` (no router dependency yet). Replace it
+  when the real router lands.
+- **Per-subtree themes.** `tokens.css` theme selectors are no longer `:root`-only
+  (`[data-theme="lab"]`, `:root, [data-theme="night"]`), so any element can pin a theme. This is
+  how `/kit` shows both at once. `color-scheme` follows the same scoping in `index.css`.
+- **`Num` is the only thing that shows a number.** Kinds: `price`, `price-change`, `money`,
+  `signed-money`, `percent`, `qty`. `available={false}` renders "—" (use it for every `has_*` /
+  `mark_available` gate). Signed kinds always show ▲/▼/• plus +/−, and a screen-reader word.
+- **Capability-gated controls stay focusable.** `Button capability={{enabled,reason}}` uses
+  `aria-disabled` (not `disabled`) so keyboard users can reach the reason tooltip. The
+  Market order-type radio is natively disabled with the reason printed beneath it.
+- **Exit is outlined red; Sell is filled red.** Both are red, but Exit must not read as a
+  second Sell. The Session bar's Exit always goes through `ConfirmDialog`.
+- **`ConfirmDialog`** uses the native `<dialog>` (focus trap, Esc). Its auto margins are
+  `!important` because an ancestor `space-y-*` rule otherwise overrides them and the dialog
+  sticks to the top. Focus starts on Cancel.
+- **`OrderTicket`** defaults to Limit, emits an `OrderDraft` (maps onto `PlaceOrderRequest`
+  minus `account_id`) and never claims success: feedback `accepted` says "accepted is not
+  filled". Validation (lot size, tick grid, no silent rounding) is pure and unit-tested in
+  `lib/orderTicket.ts`. Est. cost = qty x limit price in raw units. An estimate above buying
+  power warns but does not block; the exchange is the authority.
+- **Component tests:** the vitest env is `node` (no DOM), so only pure logic is unit-tested;
+  components are verified in the browser via `/kit`. Add jsdom + Testing Library if/when needed.
+
 ## Still-open product decisions (don't block; flag if you hit them)
 
 - `exchange_id` handshake: leaning **account-only** (UI sends `account_id`; backend binds).
