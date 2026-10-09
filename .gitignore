@@ -1,0 +1,25 @@
+# Dependencies / build output
+node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/node_modules/.tmp/
+coverage/
+
+# Go build artifacts
+/mock/bin/
+*.exe
+*.test
+*.out
+
+# Local env (commit .env.example instead)
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# NOTE: contract/generated/ is COMMITTED on purpose — never ignore it.

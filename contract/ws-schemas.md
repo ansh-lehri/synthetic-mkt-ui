@@ -2,7 +2,7 @@
 
 > The live counterpart to `GET /v1/candles`. OpenAPI can't describe WS frames, so this
 > file is the source of truth for the socket. The mock and the frontend both implement
-> exactly these shapes. Companion TS types live in `contract/generated/ws.ts` (hand-authored
+> exactly these shapes. Companion TS types live in `contract/generated/ts/ws.ts` (hand-authored
 > from this file, committed).
 
 ## Endpoint & transport

@@ -2,7 +2,7 @@
 
 **Purpose:** the living map of every UI function, the data/API behind it, whether a contract exists, and the order to build in. Update as contracts land.
 
-**Last updated:** 2026-10-09
+**Last updated:** 2026-10-09 (Phase 0 scaffold landed — see §8)
 
 ---
 
@@ -183,6 +183,25 @@ Build the mock to these signatures exactly → swapping to the real backend is a
 - Auth / account-creation contract.
 - Refill mechanic contract.
 - Phase 7 (backend): lights up market orders (#17) + position marks (#21) at once — no UI rework, just flip the capability flag.
+
+---
+
+## 8. Build status (Phase 0 scaffold)
+
+**Contract shape change (no wire change):** inline request/response bodies were hoisted into
+named schemas in `contract/openapi.yaml` so the Go mock and TS client share one type each:
+`MarketsResponse`, `InstrumentsResponse`, `PositionsResponse`, `OrdersResponse`,
+`JoinLiveRequest`, `StartPracticeRequest`, `ExitSessionRequest`, `ExitSessionResponse`,
+`PracticeCondition`. Regenerate with `make generate`.
+
+| Piece | Status |
+|---|---|
+| Codegen (`make generate` → Go + TS; WS types hand-authored in `generated/{go,ts}`) | ✅ done, no-diff verified |
+| Mock skeleton — all 19 REST routes + `/ws` `connected` frame, correct status codes + both error envelopes | ✅ placeholder data only |
+| Mock realism (stateful orders/balances, candles, WS subscribe/ack/snapshot/candle) | ⬜ later phases |
+| Tick formatter (`frontend/src/lib/ticks.ts`) + tests | ✅ |
+| Tokens wired to Tailwind + Night/Lab toggle | ✅ |
+| Row 4 (market dropdown) smoke — `GET /v1/markets` rendered from the mock | ✅ smoke only, not the real TopBar |
 
 ---
 
