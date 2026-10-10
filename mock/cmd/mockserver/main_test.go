@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -486,5 +488,172 @@ func TestWS(t *testing.T) {
 	}
 	if err := conn.ReadJSON(&snap); err != nil || snap.Instrument != "BETA" {
 		t.Fatalf("BETA seed: %v %+v", err, snap)
+	}
+}
+
+// ---------------------------------------------------------------- history consistency
+
+// walkTrades follows next_before until null, returning every trade in order.
+func walkTrades(t *testing.T, e *env, limit int) (all []api.Trade, pages int) {
+	t.Helper()
+	path := "/v1/account/trades?account_id=h1&limit=" + strconv.Itoa(limit)
+	for {
+		var p api.TradesPage
+		decode(t, e.want("GET", path, "", 200), &p)
+		pages++
+		all = append(all, p.Trades...)
+		if p.NextBefore == nil {
+			return all, pages
+		}
+		if len(p.Trades) != limit {
+			t.Fatalf("a page with a next_before must be full: got %d of %d", len(p.Trades), limit)
+		}
+		path = "/v1/account/trades?account_id=h1&limit=" + strconv.Itoa(limit) + "&before=" + url.QueryEscape(p.NextBefore.Format(time.RFC3339))
+		if pages > 100 {
+			t.Fatal("cursor never ended")
+		}
+	}
+}
+
+func TestTradesPagingWalksToNull(t *testing.T) {
+	e := newEnv(t)
+	all, pages := walkTrades(t, e, 10)
+	if len(all) != 27 || pages != 3 {
+		t.Fatalf("want 27 trades over 3 pages, got %d over %d", len(all), pages)
+	}
+	seen := map[string]bool{}
+	for i, tr := range all {
+		if seen[tr.TradeId] {
+			t.Fatalf("duplicate trade %s across pages", tr.TradeId)
+		}
+		seen[tr.TradeId] = true
+		if i > 0 && !tr.ExitAt.Before(all[i-1].ExitAt) {
+			t.Fatalf("not strictly newest-first at %d", i)
+		}
+		if !tr.EntryAt.Before(tr.ExitAt) {
+			t.Fatalf("entry must precede exit: %+v", tr)
+		}
+		if tr.NetPnl != tr.GrossPnl-tr.TotalCosts {
+			t.Fatalf("net != gross - costs: %+v", tr)
+		}
+	}
+	// one page when the limit covers everything: next_before is null straight away
+	if one, pages := walkTrades(t, e, 50); len(one) != 27 || pages != 1 {
+		t.Fatalf("limit 50: %d trades / %d pages", len(one), pages)
+	}
+}
+
+func TestCostsAgreeWithTrades(t *testing.T) {
+	e := newEnv(t)
+	trades, _ := walkTrades(t, e, 10)
+
+	// walk /costs the same way: same trades, same order
+	var costs []api.CostsTrade
+	path := "/v1/account/costs?account_id=h1&country=IN&limit=10"
+	for {
+		var p api.CostsPage
+		decode(t, e.want("GET", path, "", 200), &p)
+		costs = append(costs, p.Trades...)
+		if p.NextBefore == nil {
+			break
+		}
+		path = "/v1/account/costs?account_id=h1&country=IN&limit=10&before=" + url.QueryEscape(p.NextBefore.Format(time.RFC3339))
+	}
+	if len(costs) != len(trades) {
+		t.Fatalf("costs has %d trades, trades has %d", len(costs), len(trades))
+	}
+	byName := map[string]int64{}
+	var grand int64
+	sawEmpty := false
+	for i, c := range costs {
+		if c.TradeId != trades[i].TradeId || c.Total != trades[i].TotalCosts {
+			t.Fatalf("costs[%d] %+v disagrees with trade %+v", i, c, trades[i])
+		}
+		var sum int64
+		for _, l := range c.Lines {
+			if l.Amount == 0 {
+				t.Fatalf("zero line must be omitted: %+v", c)
+			}
+			sum += l.Amount
+			byName[l.Name] += l.Amount
+		}
+		if sum != c.Total {
+			t.Fatalf("lines sum %d != total %d for %s", sum, c.Total, c.TradeId)
+		}
+		if c.Lines == nil {
+			t.Fatal("lines must be [] not null")
+		}
+		if len(c.Lines) == 0 {
+			sawEmpty = true
+		}
+		grand += c.Total
+	}
+	if !sawEmpty {
+		t.Fatal("expected a trade with no cost lines (exercises the empty-lines case)")
+	}
+
+	var sum api.CostsSummary
+	decode(t, e.want("GET", "/v1/account/costs/summary?account_id=h1&country=IN", "", 200), &sum)
+	if sum.TradeCount != len(trades) || sum.Total != grand {
+		t.Fatalf("summary %+v vs trades=%d total=%d", sum, len(trades), grand)
+	}
+	for _, l := range sum.Lines {
+		if byName[l.Name] != l.Amount {
+			t.Fatalf("summary line %s = %d, per-trade sum = %d", l.Name, l.Amount, byName[l.Name])
+		}
+	}
+	if len(sum.Lines) != len(byName) {
+		t.Fatalf("summary has %d lines, per-trade has %d names", len(sum.Lines), len(byName))
+	}
+}
+
+func TestPnlAgreesWithTrades(t *testing.T) {
+	e := newEnv(t)
+	trades, _ := walkTrades(t, e, 50)
+	var pnl api.PnlSummary
+	decode(t, e.want("GET", "/v1/account/pnl?account_id=h1", "", 200), &pnl)
+
+	var gross, costs, net int64
+	wins, losses, breakeven := 0, 0, 0
+	for _, tr := range trades {
+		gross += tr.GrossPnl
+		costs += tr.TotalCosts
+		net += tr.NetPnl
+		switch {
+		case tr.NetPnl > 0:
+			wins++
+		case tr.NetPnl < 0:
+			losses++
+		default:
+			breakeven++
+		}
+	}
+	if pnl.TradeCount != len(trades) || pnl.GrossPnl != gross || pnl.TotalCosts != costs || pnl.NetPnl != net {
+		t.Fatalf("pnl %+v disagrees with trades (n=%d gross=%d costs=%d net=%d)", pnl, len(trades), gross, costs, net)
+	}
+	if pnl.WinCount != wins || pnl.LossCount != losses {
+		t.Fatalf("win/loss %d/%d, want %d/%d", pnl.WinCount, pnl.LossCount, wins, losses)
+	}
+	if breakeven == 0 || pnl.WinCount+pnl.LossCount != pnl.TradeCount-breakeven {
+		t.Fatalf("breakeven (%d) must count in neither win nor loss: %+v", breakeven, pnl)
+	}
+	if wins == 0 || losses == 0 {
+		t.Fatalf("history should contain both wins and losses, got %d/%d", wins, losses)
+	}
+}
+
+func TestObservationRecentTradesAreTheNewest20(t *testing.T) {
+	e := newEnv(t)
+	e.join("h2")
+	var obs api.Observation
+	decode(t, e.want("GET", "/v1/account/observation?account_id=h2", "", 200), &obs)
+	trades, _ := walkTrades(t, e, 50)
+	if len(obs.RecentTrades) != 20 {
+		t.Fatalf("recent_trades: %d, want 20", len(obs.RecentTrades))
+	}
+	for i, tr := range obs.RecentTrades {
+		if tr.TradeId != trades[i].TradeId {
+			t.Fatalf("recent_trades[%d] = %s, want %s", i, tr.TradeId, trades[i].TradeId)
+		}
 	}
 }

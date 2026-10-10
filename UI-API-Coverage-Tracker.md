@@ -201,6 +201,7 @@ named schemas in `contract/openapi.yaml` so the Go mock and TS client share one 
 | Mock realism (stateful orders/balances/fills, moving prices, WS candle pushes + live snapshots, session clock/phases) | ⬜ later phases |
 | Tick formatter (`frontend/src/lib/ticks.ts`) + tests | ✅ |
 | Tokens wired to Tailwind + Night/Lab toggle | ✅ |
+| Record screen (`/record`): trades (paged, `next_before` walk), P&L summary, IN cost/tax breakdown, US 501 | ✅ Phase 2 — against mock history |
 | Row 4 (market dropdown) smoke — `GET /v1/markets` rendered from the mock | ✅ smoke only, not the real TopBar |
 
 ---
