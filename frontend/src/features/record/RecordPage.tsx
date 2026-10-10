@@ -54,7 +54,10 @@ export default function RecordPage() {
         onMarketChange={setMarketCode}
         marketsLoading={markets.isPending}
         accountLabel={accountId}
-        accountItems={[{ label: 'Record', onSelect: () => {} }]}
+        accountItems={[
+          { label: 'Terminal', onSelect: () => window.location.assign('/terminal') },
+          { label: 'Record', onSelect: () => {} },
+        ]}
       />
       <main className="mx-auto flex max-w-[1240px] flex-col gap-5 px-4 pb-16 pt-6 sm:px-6">
         <div className="flex flex-col gap-1.5">

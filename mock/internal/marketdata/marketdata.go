@@ -1,10 +1,9 @@
 // Package marketdata serves the market-data axis: candle history over HTTP
 // (GET /v1/candles) and the live WebSocket (/ws).
 //
-// Skeleton behaviour: candles are a deterministic series on the tick grid (not a market
-// model); /ws answers subscribe/unsubscribe with per-sub acks and seeds a STATIC snapshot
-// for accepted snapshot subs. No candle pushes and no moving prices yet (Model A realism
-// is a later phase — see contract/ws-schemas.md "Mock obligations").
+// Both are driven by internal/market, so they always agree: history is the finalized bars of
+// the same price process the socket ticks. The socket follows Model A: a `candle` frame is
+// pushed only when a bucket CLOSES; between closes the price moves via `snapshot.last_price`.
 package marketdata
 
 import (
@@ -12,11 +11,13 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	api "github.com/ansh-2505-lehri/synthetic-mkt-ui/contract/generated/go"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/httpx"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/market"
 	"github.com/gorilla/websocket"
 )
 
@@ -28,22 +29,19 @@ const (
 	maxCandleLimit     = 500
 )
 
-var timeframes = map[string]time.Duration{
-	"1m":  time.Minute,
-	"5m":  5 * time.Minute,
-	"30m": 30 * time.Minute,
-	"60m": 60 * time.Minute,
-}
+type handler struct{ clock *market.Clock }
 
 // Register mounts the market-data routes on mux.
-func Register(mux *http.ServeMux) {
-	mux.HandleFunc("/v1/candles", httpx.Method(http.MethodGet, handleCandles))
-	mux.HandleFunc("/ws", handleWS)
+func Register(mux *http.ServeMux, clock *market.Clock) {
+	h := &handler{clock: clock}
+	mux.HandleFunc("/v1/candles", httpx.Method(http.MethodGet, h.candles))
+	mux.HandleFunc("/ws", h.ws)
 }
 
-// handleCandles is a durable read: 200 (incl. empty candles[]) / 400 / 503, never 404/409/504.
-func handleCandles(w http.ResponseWriter, r *http.Request) {
-	market, ok := httpx.RequireQuery(w, r, "market")
+// candles is a durable read: 200 (incl. empty candles[]) / 400 / 503, never 404/409/504.
+// Only FINALIZED bars are returned (a bar exists once its bucket has closed).
+func (h *handler) candles(w http.ResponseWriter, r *http.Request) {
+	mkt, ok := httpx.RequireQuery(w, r, "market")
 	if !ok {
 		return
 	}
@@ -63,14 +61,14 @@ func handleCandles(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	step, known := timeframes[tf]
+	step, known := market.Timeframes[tf]
 	if !known {
 		httpx.WriteError(w, http.StatusBadRequest, "timeframe must be one of 1m, 5m, 30m, 60m")
 		return
 	}
-	tz := catalog.Timezone(market)
+	tz := catalog.Timezone(mkt)
 	if tz == "" {
-		httpx.WriteError(w, http.StatusBadRequest, "unknown market: "+market)
+		httpx.WriteError(w, http.StatusBadRequest, "unknown market: "+mkt)
 		return
 	}
 	inst, found := catalog.Lookup(symbol)
@@ -78,8 +76,8 @@ func handleCandles(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "unknown instrument: "+symbol)
 		return
 	}
-	// from/to are naive-local wall-clock values; they are parsed in UTC purely as numbers
-	// (no zone arithmetic) and no offset is ever emitted.
+	// from/to are naive-local wall-clock values; they are parsed as plain numbers (no zone
+	// arithmetic) and no offset is ever emitted.
 	start, err := time.Parse(catalog.NaiveLayout, from)
 	if err != nil {
 		httpx.WriteError(w, http.StatusBadRequest, "from must be naive-local ISO-8601, e.g. 2026-10-09T09:15:00")
@@ -100,7 +98,7 @@ func handleCandles(w http.ResponseWriter, r *http.Request) {
 	}
 	limit = min(limit, maxCandleLimit) // oversized -> clamp
 
-	// Bars are addressable by index from `from`, so the cursor is just the next index.
+	// Buckets are enumerable in order, so the cursor is just the next index.
 	first := 0
 	if c := r.URL.Query().Get("cursor"); c != "" {
 		n, err := strconv.Atoi(c)
@@ -110,23 +108,20 @@ func handleCandles(w http.ResponseWriter, r *http.Request) {
 		}
 		first = n
 	}
-	total := 0
-	if end.After(start) {
-		total = int((end.Sub(start) + step - 1) / step) // bars covering [from, to)
-	}
+	buckets := market.BucketsInRange(step, start, end, h.clock.Read().Local)
 
 	candles := make([]api.Bar, 0, limit)
-	for i := first; i < total && len(candles) < limit; i++ {
-		candles = append(candles, bar(inst, i, start.Add(time.Duration(i)*step), step))
+	for i := first; i < len(buckets) && len(candles) < limit; i++ {
+		candles = append(candles, market.BarFor(inst, buckets[i]))
 	}
 	var next *string
-	if first+len(candles) < total {
+	if first+len(candles) < len(buckets) {
 		c := strconv.Itoa(first + len(candles))
 		next = &c
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, api.CandleResponse{
-		Market:     market,
+		Market:     mkt,
 		Instrument: symbol,
 		Timeframe:  api.CandleResponseTimeframe(tf),
 		Timezone:   tz,
@@ -137,52 +132,57 @@ func handleCandles(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// bar builds the i-th placeholder bar: a deterministic walk on the instrument's tick grid.
-// Not a market model.
-func bar(inst catalog.Instrument, i int, t time.Time, step time.Duration) api.Bar {
-	tick := inst.TickSize
-	walk := func(n int) int64 { return inst.RefPrice + int64((n*7)%9-4)*tick }
-	open, closePx := walk(i), walk(i+1)
-	return api.Bar{
-		Start:  t.Format(catalog.NaiveLayout),
-		End:    t.Add(step).Format(catalog.NaiveLayout),
-		Open:   open,
-		High:   max(open, closePx) + tick,
-		Low:    min(open, closePx) - tick,
-		Close:  closePx,
-		Volume: int64(1000 + (i%10)*100),
-	}
-}
-
 // ---------------------------------------------------------------- /ws
 
 // upgrader accepts any origin: the mock is CORS-open for local development.
 var upgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 
-func handleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+type candleKey struct{ symbol, tf string }
+
+// conn is one client socket and its subscriptions. A single mutex serializes writes because
+// the reader goroutine (acks, seeds) and the ticker goroutine (pushes) both write.
+type conn struct {
+	ws    *websocket.Conn
+	clock *market.Clock
+
+	wmu sync.Mutex // serializes writes
+
+	mu      sync.Mutex              // guards the subscription state below
+	snaps   map[string][]byte       // symbol -> last snapshot bytes sent (de-dupes unchanged pushes)
+	candles map[candleKey]time.Time // -> end of the last bucket pushed (naive-local)
+}
+
+func (c *conn) write(v any) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	return c.ws.WriteJSON(v)
+}
+
+func (h *handler) ws(w http.ResponseWriter, r *http.Request) {
+	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return // Upgrade has already written the HTTP error.
 	}
-	defer conn.Close()
+	defer ws.Close()
 
-	if err := conn.WriteJSON(api.WsConnected{
-		Type:     api.WsTypeConnected,
-		Market:   wsMarket,
-		Timezone: catalog.Timezone(wsMarket),
-	}); err != nil {
+	c := &conn{ws: ws, clock: h.clock, snaps: map[string][]byte{}, candles: map[candleKey]time.Time{}}
+	if err := c.write(api.WsConnected{Type: api.WsTypeConnected, Market: wsMarket, Timezone: catalog.Timezone(wsMarket)}); err != nil {
 		log.Printf("ws: write connected: %v", err)
 		return
 	}
 
-	// One goroutine reads and replies, so writes never interleave. Unparseable frames and
-	// unknown message types are ignored: the contract defines no error frame.
+	done := make(chan struct{})
+	defer close(done)
+	go c.tickLoop(done)
+
+	// The reader handles subscribe/unsubscribe. Unparseable frames and unknown message types
+	// are ignored: the contract defines no error frame.
 	for {
-		var env api.WsEnvelope
-		_, raw, err := conn.ReadMessage()
+		_, raw, err := ws.ReadMessage()
 		if err != nil {
 			return
 		}
+		var env api.WsEnvelope
 		if err := json.Unmarshal(raw, &env); err != nil {
 			log.Printf("ws: ignoring non-JSON frame: %v", err)
 			continue
@@ -194,19 +194,22 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				log.Printf("ws: ignoring malformed %s frame: %v", env.Type, err)
 				continue
 			}
-			if !handleSubs(conn, env.Type == api.WsTypeSubscribe, msg.Subs) {
+			if !c.handleSubs(env.Type == api.WsTypeSubscribe, msg.Subs) {
 				return
 			}
 		}
 	}
 }
 
-// handleSubs replies with one ack carrying a result per sub. For each ACCEPTED snapshot
-// subscribe it then pushes the seed snapshot (a candle sub is bare: history is over HTTP).
+// handleSubs replies with one ack carrying a result per sub, then pushes the seed snapshot
+// for each ACCEPTED snapshot subscribe (a candle sub is bare: history is over HTTP).
 // Returns false when a write fails and the connection should close.
-func handleSubs(conn *websocket.Conn, subscribe bool, subs []api.WsSub) bool {
+func (c *conn) handleSubs(subscribe bool, subs []api.WsSub) bool {
+	r := c.clock.Read()
 	results := make([]api.WsAckResult, 0, len(subs))
 	var seeds []api.WsSnapshot
+
+	c.mu.Lock()
 	for _, s := range subs {
 		res := api.WsAckResult{Stream: s.Stream, Instrument: s.Instrument, Timeframe: s.Timeframe, Status: api.WsAckOK}
 		inst, known := catalog.Lookup(s.Instrument)
@@ -216,50 +219,89 @@ func handleSubs(conn *websocket.Conn, subscribe bool, subs []api.WsSub) bool {
 		case !known:
 			res.Status, res.Error = api.WsAckError, api.WsErrUnknownInstrument
 		case s.Stream == api.WsStreamCandle:
-			if _, ok := timeframes[s.Timeframe]; !ok {
+			if _, ok := market.Timeframes[s.Timeframe]; !ok {
 				res.Status, res.Error = api.WsAckError, api.WsErrBadTimeframe
 			}
 		}
-		if res.Status == api.WsAckOK && subscribe && s.Stream == api.WsStreamSnapshot {
-			seeds = append(seeds, snapshot(inst))
+		if res.Status == api.WsAckOK {
+			key := candleKey{s.Instrument, s.Timeframe}
+			switch {
+			case subscribe && s.Stream == api.WsStreamSnapshot:
+				snap := market.Snapshot(inst, r)
+				raw, _ := json.Marshal(snap)
+				c.snaps[s.Instrument] = raw
+				seeds = append(seeds, snap)
+			case subscribe && s.Stream == api.WsStreamCandle:
+				if _, already := c.candles[key]; !already {
+					c.candles[key] = r.Local // only buckets that close AFTER now are pushed
+				}
+			case !subscribe && s.Stream == api.WsStreamSnapshot:
+				delete(c.snaps, s.Instrument)
+			case !subscribe && s.Stream == api.WsStreamCandle:
+				delete(c.candles, key)
+			}
 		}
 		results = append(results, res)
 	}
-	if err := conn.WriteJSON(api.WsAck{Type: api.WsTypeAck, Results: results}); err != nil {
+	c.mu.Unlock()
+
+	if err := c.write(api.WsAck{Type: api.WsTypeAck, Results: results}); err != nil {
 		return false
 	}
 	for _, snap := range seeds {
-		if err := conn.WriteJSON(snap); err != nil {
+		if err := c.write(snap); err != nil {
 			return false
 		}
 	}
 	return true
 }
 
-// snapshot is the static seed picture: open phase, a last price on the tick grid, a
-// one-tick spread and 5 levels per side, best-first. Every optional numeric has its has_*
-// flag set; 0 would still be a valid price.
-func snapshot(inst catalog.Instrument) api.WsSnapshot {
-	tick := inst.TickSize
-	bid, ask := inst.RefPrice-tick, inst.RefPrice+tick
-	var bids, asks []api.WsDepthLevel
-	for i := int64(0); i < 5; i++ {
-		bids = append(bids, api.WsDepthLevel{Price: bid - i*tick, Qty: 300 - i*40})
-		asks = append(asks, api.WsDepthLevel{Price: ask + i*tick, Qty: 150 + i*60})
+// tickLoop pushes, once per price step: a fresh snapshot for each snapshot subscription
+// (only if it changed) and a `candle` frame for every bucket that has just closed.
+func (c *conn) tickLoop(done <-chan struct{}) {
+	t := time.NewTicker(c.clock.StepInterval())
+	defer t.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-t.C:
+			if !c.pushDue() {
+				return
+			}
+		}
 	}
-	return api.WsSnapshot{
-		Type:       api.WsTypeSnapshot,
-		Instrument: inst.Symbol,
-		Data: api.WsSnapshotData{
-			Phase:     "open",
-			LastPrice: inst.RefPrice,
-			HasLast:   true,
-			ChangePct: 1.37,
-			Quote: api.WsQuote{
-				BestBid: bid, BidQty: bids[0].Qty, HasBid: true,
-				BestAsk: ask, AskQty: asks[0].Qty, HasAsk: true,
-			},
-			Depth: api.WsDepth{Bids: bids, Asks: asks},
-		},
+}
+
+func (c *conn) pushDue() bool {
+	r := c.clock.Read()
+
+	c.mu.Lock()
+	var out []any
+	for sym, prev := range c.snaps {
+		inst, _ := catalog.Lookup(sym)
+		snap := market.Snapshot(inst, r)
+		raw, _ := json.Marshal(snap)
+		if string(raw) != string(prev) { // "whole picture re-emitted on any change"
+			c.snaps[sym] = raw
+			out = append(out, snap)
+		}
 	}
+	for key, after := range c.candles {
+		inst, _ := catalog.Lookup(key.symbol)
+		step := market.Timeframes[key.tf]
+		for _, b := range market.ClosedSince(step, after, r.Local) {
+			out = append(out, api.WsCandle{Type: api.WsTypeCandle, Instrument: key.symbol, Timeframe: key.tf, Bar: market.BarFor(inst, b)})
+			after = b.End
+		}
+		c.candles[key] = after
+	}
+	c.mu.Unlock()
+
+	for _, m := range out {
+		if err := c.write(m); err != nil {
+			return false
+		}
+	}
+	return true
 }

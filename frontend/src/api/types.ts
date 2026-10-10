@@ -19,3 +19,8 @@ export type CostsPage = Schemas['CostsPage']
 export type CostsSummary = Schemas['CostsSummary']
 /** `country` query param on /costs*: case-sensitive, IN is implemented, US is a 501. */
 export type Country = 'IN' | 'US'
+
+// ---- market-data axis
+export type Bar = Schemas['Bar']
+export type CandleResponse = Schemas['CandleResponse']
+export type SessionPhase = Schemas['LiveSessionInfo']['phase']

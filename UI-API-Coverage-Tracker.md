@@ -36,7 +36,7 @@ Three axes total:
 | 9 | Home | Transfer money (bank ↔ trading) | `POST /account/transfer` | Broker | ✅ |
 | 10 | Practice setup | Condition + length → start | `POST /session/practice/start` | Session/ref §4 | 🟢 prov |
 | 11 | Terminal | Instrument list / watchlist | `GET /v1/instruments` | Session/ref §4 | 🟢 prov |
-| 12 | Terminal | Price chart (timeframes) | `GET /candles` + WS `candle` | Market-data | ✅ |
+| 12 | Terminal | Price chart (timeframes) | `GET /candles` + WS `candle` | Market-data — data path final; chart UI/toolbar is a placeholder, redesign planned (KLineCharts stays) | ✅ |
 | 13 | Terminal | Order book / depth | WS `snapshot` (depth) | Market-data | ✅ |
 | 14 | Terminal | Live price / tape | WS `snapshot` (last_price, change_pct) | Market-data | ✅ |
 | 15 | Terminal | Tick/price formatting | `GET /v1/instruments` (tick_size, decimals) | Session/ref §4 | 🟢 prov |
@@ -198,9 +198,11 @@ named schemas in `contract/openapi.yaml` so the Go mock and TS client share one 
 |---|---|
 | Codegen (`make generate` → Go + TS; WS types hand-authored in `generated/{go,ts}`) | ✅ done, no-diff verified |
 | Mock skeleton — all 19 REST routes + `/ws` (connected, subscribe/unsubscribe acks, seed snapshot), session gate + "no session" 409s, both error envelopes, contract-checked tests | ✅ Phase 1b (placeholder data, no realism) |
-| Mock realism (stateful orders/balances/fills, moving prices, WS candle pushes + live snapshots, session clock/phases) | ⬜ later phases |
+| Mock market realism: session clock + phases, moving book, Model-A candles, live snapshots, history/WS consistency | ✅ Phase 3a |
+| Mock realism: stateful orders/balances/fills | ⬜ 3b |
 | Tick formatter (`frontend/src/lib/ticks.ts`) + tests | ✅ |
 | Tokens wired to Tailwind + Night/Lab toggle | ✅ |
+| Terminal market-data half (`/terminal`): WS client -> Zustand, KLineCharts history + live (Model A), instrument list, depth, reconnect rehydrate | ✅ Phase 3a (rows 11-13) |
 | Record screen (`/record`): trades (paged, `next_before` walk), P&L summary, IN cost/tax breakdown, US 501 | ✅ Phase 2 — against mock history |
 | Row 4 (market dropdown) smoke — `GET /v1/markets` rendered from the mock | ✅ smoke only, not the real TopBar |
 

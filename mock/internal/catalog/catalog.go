@@ -96,11 +96,3 @@ func (m Market) Location() *time.Location {
 	}
 	return loc
 }
-
-// Today returns today's session open/close as naive-local ISO strings.
-func (m Market) Today() (opens, closes string) {
-	now := time.Now().In(m.Location())
-	o := time.Date(now.Year(), now.Month(), now.Day(), m.OpenH, m.OpenM, 0, 0, m.Location())
-	c := time.Date(now.Year(), now.Month(), now.Day(), m.CloseH, m.CloseM, 0, 0, m.Location())
-	return o.Format(NaiveLayout), c.Format(NaiveLayout)
-}

@@ -13,14 +13,18 @@ import (
 	api "github.com/ansh-2505-lehri/synthetic-mkt-ui/contract/generated/go"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/httpx"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/market"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/store"
 )
 
-type handler struct{ sessions *store.Sessions }
+type handler struct {
+	sessions *store.Sessions
+	clock    *market.Clock // the session clock: drives every live phase and the day's window
+}
 
 // Register mounts the session/reference routes on mux.
-func Register(mux *http.ServeMux, sessions *store.Sessions) {
-	h := &handler{sessions: sessions}
+func Register(mux *http.ServeMux, sessions *store.Sessions, clock *market.Clock) {
+	h := &handler{sessions: sessions, clock: clock}
 	mux.HandleFunc("/v1/markets", httpx.Method(http.MethodGet, h.markets))
 	mux.HandleFunc("/v1/instruments", httpx.Method(http.MethodGet, h.instruments))
 	mux.HandleFunc("/v1/session", httpx.Method(http.MethodGet, h.state))
@@ -30,15 +34,16 @@ func Register(mux *http.ServeMux, sessions *store.Sessions) {
 }
 
 func (h *handler) markets(w http.ResponseWriter, _ *http.Request) {
+	r := h.clock.Read()
+	opens, closes := market.Open(r.Day).Format(catalog.NaiveLayout), market.Close(r.Day).Format(catalog.NaiveLayout)
 	out := api.MarketsResponse{Markets: make([]api.Market, 0, len(catalog.Markets()))}
 	for _, m := range catalog.Markets() {
-		opens, closes := m.Today()
 		out.Markets = append(out.Markets, api.Market{
 			Code:     m.Code,
 			Name:     m.Name,
 			Timezone: m.Timezone,
 			LiveSession: api.LiveSessionInfo{
-				Phase:    api.LiveSessionInfoPhaseOpen,
+				Phase:    api.LiveSessionInfoPhase(r.Phase), // follows the session clock
 				OpensAt:  opens,
 				ClosesAt: closes,
 			},
@@ -72,9 +77,22 @@ func (h *handler) state(w http.ResponseWriter, r *http.Request) {
 	}
 	var active *api.ActiveSession
 	if s, in := h.sessions.Get(acct); in {
+		s = h.withLivePhase(s)
 		active = &s
 	}
 	httpx.WriteJSON(w, http.StatusOK, api.SessionState{Active: active})
+}
+
+// withLivePhase gives a live session the market's CURRENT phase (practice has its own clock
+// and stays open). The stored session only records that the account is in one.
+func (h *handler) withLivePhase(s api.ActiveSession) api.ActiveSession {
+	if s.Type == api.Live {
+		r := h.clock.Read()
+		closes := market.Close(r.Day).Format(catalog.NaiveLayout)
+		s.Phase = api.ActiveSessionPhase(r.Phase)
+		s.ClosesAt = &closes
+	}
+	return s
 }
 
 func (h *handler) joinLive(w http.ResponseWriter, r *http.Request) {
@@ -91,13 +109,7 @@ func (h *handler) joinLive(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "unknown market: "+req.Market)
 		return
 	}
-	_, closes := m.Today()
-	sess := api.ActiveSession{
-		Type:     api.Live,
-		Market:   m.Code,
-		Phase:    api.ActiveSessionPhaseOpen,
-		ClosesAt: &closes,
-	}
+	sess := h.withLivePhase(api.ActiveSession{Type: api.Live, Market: m.Code})
 	if !h.sessions.StartIfFree(req.AccountId, sess) {
 		httpx.WriteReason(w, http.StatusConflict, "already_in_session")
 		return

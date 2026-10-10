@@ -237,7 +237,7 @@ into the generated structs with unknown fields rejected, so the mock can't drift
 - **`/v1/candles`:** deterministic series on the tick grid (not a market model), real cursor
   paging (`limit` default 100, clamped to 500; `next_cursor` null on the last page), 400 for
   bad market/instrument/timeframe/time/cursor, `[]` when from == to.
-- **`/ws`:** sends `connected`; `subscribe`/`unsubscribe` get one `ack` with a result per sub
+- **`/ws`** (acks as below; STATIC seeds and no pushes were Phase 1b — now superseded by "Phase 3a decisions"): sends `connected`; `subscribe`/`unsubscribe` get one `ack` with a result per sub
   (`unknown instrument`, `bad timeframe`, `bad stream`); each accepted *snapshot* subscribe is
   followed by a STATIC seed snapshot (open phase, one-tick spread, 5 levels per side). No
   candle pushes and no moving price yet (Model A realism comes later). Junk or unknown frames
@@ -283,6 +283,75 @@ P&L summary, tax/cost breakdown. Code in `frontend/src/features/record/`; reads 
   an auto-square-off fee trade and one true breakeven (net 0, no cost lines). Mock tests assert
   pages, per-trade costs, the cost summary and the P&L summary all agree. Still no simulation.
 - Added `SegmentedToggle` (the board's `.seg` pill switch) to the kit.
+
+## Phase 3a decisions (Terminal, market-data half)
+
+`/terminal` (lazy-loaded in `src/Routes.tsx`): instrument list with live last/change, inline
+depth, and a KLineCharts price chart. Code in `frontend/src/features/terminal/`; socket in
+`lib/ws.ts`, state in `lib/marketStore.ts` (Zustand). Not here yet: order ticket, positions/
+orders/trades/P&L tabs (3b) and the session bar's states (3c).
+
+- **Transport.** One ref-counted WebSocket (`MarketSocket`): subscriptions are batched after the
+  `connected` frame, shared between components, and the socket closes ~1s after the last
+  release (so React remounts don't churn it). It reconnects with backoff (0.5s -> 5s).
+  **Reconnect = rehydrate**: every `connected` frame re-subscribes everything wanted and bumps
+  `epoch`; the chart's history query key includes `epoch`, so a reconnect re-fetches
+  `/v1/candles` (the server does no WS backfill). Frames are parsed defensively; stale sockets
+  are ignored.
+- **Model A in the chart.** History = `GET /v1/candles` (finalized bars only), paged by
+  `next_cursor`. A `candle` frame replaces the tip with the real bar (`mergeFinal`: newer
+  appends, same bucket replaces, older is ignored). Between closes the rightmost bar's tip is
+  built from `snapshot.last_price` (`advanceLive`): its bucket starts at the last finalized
+  bar's `end` (or today's open from `/v1/markets` when nothing has closed), opens at the
+  previous close, and tracks high/low/close. Today's open is refreshed whenever the phase changes.
+- **Timestamps on the chart.** The chart needs a number, so a naive-local timestamp becomes a
+  wall-clock *ordinal* (`lib/naive.ts`: fields read as if UTC) and the chart is set to
+  timezone `UTC`, which prints the original wall-clock. It is never compared to the real clock.
+- **Prices in the chart stay raw int64** (precision 0). Every price label — axis, crosshair,
+  last-price mark — goes through the tick formatter via the library's `thousandsSeparator`
+  hook; the library's own OHLC tooltip is off (the board has its own legend line). Colours are
+  read from the design tokens at runtime (`chartTheme.ts`) and re-read when the theme flips.
+- **Timeframes are the contract's** `1m/5m/30m/60m` (the board's 15m/1h/1D don't exist in the
+  contract). History lookback: 1m 1 session, 5m 3, 30m 10, 60m 20.
+- **Drawing tools** (cursor, trend line, horizontal line, rectangle, undo/redo, clear) use the
+  library's overlays (rectangle is a registered custom overlay). Drawings are dropped when the
+  instrument or timeframe changes, as on the board.
+- **Market tab columns.** Board columns High/Low/Volume/Held are not in the contract (snapshot
+  carries last, change_pct, quote, depth) so they are omitted; Held returns with positions in 3b.
+  `change_pct` is shown as a percent only (no absolute change).
+- **has_* gating everywhere.** Last/change need `has_last`; the depth panel needs `has_bid` /
+  `has_ask`; spread needs both. With no book (pre-open, closed) it says so and shows "—".
+- **Mock market (`mock/internal/market`).** A pure function of (instrument, simulated time), so
+  REST history, bars pushed over `/ws` and snapshots can never disagree (tested: a pushed bar
+  equals the same bar from `/v1/candles`).
+  - *Session clock:* one market day (09:00 preopen, 09:15 open, 15:15 closing, 15:30 closed)
+    plays in 6.5 real minutes (`MOCK_SPEED`, default 60 simulated seconds per real second),
+    holds `closed` for `MOCK_CLOSED_HOLD` (default 30s), then the next day starts. A restart
+    resets the clock. `/v1/markets` and live sessions report the clock's phase and day.
+  - *Prices:* a trend + swing + jitter on the tick grid, stepped every 30 simulated seconds
+    (0.5 real seconds at default speed = the snapshot cadence).
+  - *Book:* 10 levels a side, contiguous ticks, quantities (multiples of the lot) re-rolled
+    every step so the ladder moves; spread 1-2 ticks. No bid/ask/depth in preopen or closed
+    (`has_*` false) but a last price (previous close / final price).
+  - *Candles:* buckets align to the open; the last of a day is truncated at the close (60m:
+    ... 14:15-15:15, 15:15-15:30). History returns only bars whose bucket has closed. Over `/ws` a
+    `candle` frame is pushed exactly when a bucket closes; snapshots are pushed each step when
+    they changed.
+- **Full-width Terminal (deliberate deviation from the board).** The board caps every page at
+  `max-width:1240px`; the Terminal does not: shell, tabs and content span the viewport with
+  16/24/32px gutters (`px-4 sm:px-6 lg:px-8`). At `lg`+ the chart sits beside a live order-book
+  column (21rem, 24rem at `2xl`; the 3b order ticket joins that column) and grows with the
+  viewport height; below `lg` the book stacks under the chart. Record still uses the board's
+  1240px cap.
+- **Chart UI is a PLACEHOLDER.** The chart header, left drawing-tools toolbar and layout in
+  `ChartTab.tsx` / `PriceChart.tsx` are ported from the board only so the data path works. The
+  owner has a different chart design in mind and it **will change quite a lot**. KLineCharts stays
+  the library. Don't polish or extend the current chart UI (tools, header controls, layout);
+  the data layer underneath (WS/history/Model A merge, tick-formatter hooks, token theming) is the
+  part to keep.
+- **Gotchas found:** `pkill -f` patterns match the shell that contains them (use a separate
+  call); a KLineCharts overlay needs a hover before the click (programmatic clicks without a
+  prior mouse move do nothing); Vite's HMR socket also sends `{"type":"connected"}`.
 
 ## Still-open product decisions (don't block; flag if you hit them)
 
