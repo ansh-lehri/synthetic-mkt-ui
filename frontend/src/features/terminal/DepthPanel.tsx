@@ -13,7 +13,7 @@ function Bar({ pct, side }: { pct: number; side: 'bid' | 'ask' }) {
  * (price | qty), depth bars scaled to the largest level shown, totals underneath. Every
  * number is gated on its has_* flag: has_bid:false is NOT a bid of 0.
  */
-export function DepthPanel({ symbol, snap, fmt }: { symbol: string; snap: SnapshotData | undefined; fmt: PriceFormat | null }) {
+export function DepthPanel({ symbol, snap, fmt, embedded = false }: { symbol: string; snap: SnapshotData | undefined; fmt: PriceFormat | null; embedded?: boolean }) {
   const bids = snap && snap.quote.has_bid ? snap.depth.bids.slice(0, ROWS) : []
   const asks = snap && snap.quote.has_ask ? snap.depth.asks.slice(0, ROWS) : []
   const max = Math.max(1, ...bids.map((l) => l.qty), ...asks.map((l) => l.qty))
@@ -22,7 +22,7 @@ export function DepthPanel({ symbol, snap, fmt }: { symbol: string; snap: Snapsh
   const f = fmt ?? { tick_size: 1, price_decimals: 0 }
 
   return (
-    <div className="flex flex-col gap-3 border-t border-line bg-raised px-4 pb-4 pt-3.5" role="group" aria-label={`Market depth, ${symbol}`}>
+    <div className={embedded ? 'flex flex-col gap-3 px-4 pb-4 pt-3.5' : 'flex flex-col gap-3 border-t border-line bg-raised px-4 pb-4 pt-3.5'} role="group" aria-label={`Market depth, ${symbol}`}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h3 className="text-[15px] font-semibold">Market depth, {symbol}</h3>
         <span className="text-sm text-muted">

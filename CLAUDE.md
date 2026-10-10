@@ -337,6 +337,12 @@ orders/trades/P&L tabs (3b) and the session bar's states (3c).
     ... 14:15-15:15, 15:15-15:30). History returns only bars whose bucket has closed. Over `/ws` a
     `candle` frame is pushed exactly when a bucket closes; snapshots are pushed each step when
     they changed.
+- **Full-width Terminal (deliberate deviation from the board).** The board caps every page at
+  `max-width:1240px`; the Terminal does not: shell, tabs and content span the viewport with
+  16/24/32px gutters (`px-4 sm:px-6 lg:px-8`). At `lg`+ the chart sits beside a live order-book
+  column (21rem, 24rem at `2xl`; the 3b order ticket joins that column) and grows with the
+  viewport height; below `lg` the book stacks under the chart. Record still uses the board's
+  1240px cap.
 - **Gotchas found:** `pkill -f` patterns match the shell that contains them (use a separate
   call); a KLineCharts overlay needs a hover before the click (programmatic clicks without a
   prior mouse move do nothing); Vite's HMR socket also sends `{"type":"connected"}`.

@@ -7,6 +7,7 @@ import { barKey, useMarketStore } from '../../lib/marketStore'
 import type { PriceFormat } from '../../lib/ticks'
 import { advanceLive, historyWindow, liveBucketStart, liveToKLine, mergeFinal, TIMEFRAMES, toKLine, type LiveBar } from './bars'
 import type { ChartType } from './chartTheme'
+import { DepthPanel } from './DepthPanel'
 import { PriceChart, type DrawTool, type PriceChartHandle } from './PriceChart'
 import { useSnapshot, useSubscriptions } from './hooks'
 
@@ -164,7 +165,8 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
   const empty = !!history.data && history.data.length === 0 && !snap?.has_last
 
   return (
-    <Card as="section" aria-label="Chart" flush className="overflow-hidden">
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+    <Card as="section" aria-label="Chart" flush className="min-w-0 overflow-hidden">
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-b border-line px-4 py-3">
         <label className="sr-only" htmlFor="ch-sym">Instrument</label>
         <select
@@ -222,7 +224,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
             type={type}
             ma={ma}
             onDrawingsChange={(u, r) => setUndo({ undo: u, redo: r })}
-            className="h-[420px] w-full"
+            className="h-[420px] w-full lg:h-[calc(100vh-20rem)] lg:min-h-[420px]"
           />
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-panel/60" role="status">
@@ -242,5 +244,13 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
         </span>
       </div>
     </Card>
+
+    {/* Right column: the live book beside the chart. The order ticket (next slice) joins it here. */}
+    <div className="flex min-w-0 flex-col gap-4">
+      <Card as="section" aria-label="Order book" flush className="overflow-hidden">
+        <DepthPanel symbol={symbol} snap={snap} fmt={fmt} embedded />
+      </Card>
+    </div>
+    </div>
   )
 }

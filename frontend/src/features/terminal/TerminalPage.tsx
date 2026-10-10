@@ -73,7 +73,7 @@ export default function TerminalPage() {
       />
 
       <div className="border-b border-line bg-bg">
-        <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-4 px-4 sm:px-6">
+        <div className="flex w-full flex-wrap items-center gap-x-4 px-4 sm:px-6 lg:px-8">
           <nav aria-label="Trading" className="flex min-w-0 gap-0.5 overflow-x-auto">
             {TABS.map((t) => (
               <button
@@ -102,7 +102,7 @@ export default function TerminalPage() {
         </div>
       </div>
 
-      <main className="mx-auto flex max-w-[1240px] flex-col gap-4 px-4 pb-16 pt-5 sm:px-6">
+      <main className="flex w-full flex-col gap-4 px-4 pb-10 pt-5 sm:px-6 lg:px-8">
         {(status === 'reconnecting' || (status === 'connecting' && Object.keys(snapshots).length > 0)) && (
           <Banner tone="warn" title="Reconnecting to live prices">
             Prices and the chart will refresh as soon as the connection is back.
