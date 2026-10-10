@@ -1224,6 +1224,8 @@ export interface components {
             phase: "preopen" | "open" | "closing" | "closed";
             /** @description naive-local ISO; practice may carry ends_at instead */
             closes_at?: string | null;
+            /** @description OPTIONAL. The market's current naive-local time when the response was produced. Lets the client show a clock and time-left without ever touching UTC. When absent the UI shows only the close time. (Added in Phase 3c; PROVISIONAL like the rest of the session surface.) */
+            now?: string;
             condition?: components["schemas"]["PracticeCondition"] | null;
         };
         SessionState: {

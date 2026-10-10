@@ -89,8 +89,15 @@ func (h *handler) withLivePhase(s api.ActiveSession) api.ActiveSession {
 	if s.Type == api.Live {
 		r := h.clock.Read()
 		closes := market.Close(r.Day).Format(catalog.NaiveLayout)
+		now := r.Local.Format(catalog.NaiveLayout)
 		s.Phase = api.ActiveSessionPhase(r.Phase)
 		s.ClosesAt = &closes
+		s.Now = &now
+		return s
+	}
+	if m, ok := catalog.FindMarket(s.Market); ok { // practice runs on real time in the market's zone
+		now := time.Now().In(m.Location()).Format(catalog.NaiveLayout)
+		s.Now = &now
 	}
 	return s
 }
@@ -156,7 +163,7 @@ func (h *handler) startPractice(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteReason(w, http.StatusConflict, "already_in_session")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, sess)
+	httpx.WriteJSON(w, http.StatusOK, h.withLivePhase(sess))
 }
 
 func (h *handler) exit(w http.ResponseWriter, r *http.Request) {

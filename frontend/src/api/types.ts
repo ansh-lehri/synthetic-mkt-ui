@@ -35,3 +35,10 @@ export type CancelOrderRequest = Schemas['CancelOrderRequest']
 export type ModifyOrderRequest = Schemas['ModifyOrderRequest']
 export type ModifyResponse = Schemas['ModifyResponse']
 export type OrderIdResponse = Schemas['OrderIdResponse']
+
+// ---- session/reference axis (provisional): which session the account is in
+export type ActiveSession = Schemas['ActiveSession']
+export type SessionState = Schemas['SessionState']
+export type PracticeCondition = Schemas['PracticeCondition']
+export type PracticeLength = Schemas['StartPracticeRequest']['length_minutes']
+export type ExitSessionResponse = Schemas['ExitSessionResponse']

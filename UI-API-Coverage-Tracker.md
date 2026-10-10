@@ -194,11 +194,14 @@ named schemas in `contract/openapi.yaml` so the Go mock and TS client share one 
 `JoinLiveRequest`, `StartPracticeRequest`, `ExitSessionRequest`, `ExitSessionResponse`,
 `PracticeCondition`. Regenerate with `make generate`.
 
+**Contract addition (Phase 3c):** optional `ActiveSession.now` (market-local naive time at response) so the session bar can show a clock / time left without UTC. Provisional with the rest of the session surface.
+
 | Piece | Status |
 |---|---|
 | Codegen (`make generate` → Go + TS; WS types hand-authored in `generated/{go,ts}`) | ✅ done, no-diff verified |
 | Mock skeleton — all 19 REST routes + `/ws` (connected, subscribe/unsubscribe acks, seed snapshot), session gate + "no session" 409s, both error envelopes, contract-checked tests | ✅ Phase 1b (placeholder data, no realism) |
 | Mock market realism: session clock + phases, moving book, Model-A candles, live snapshots, history/WS consistency | ✅ Phase 3a |
+| Session bar + join/live, start practice, exit (one-session confirm), phase from `snapshot.phase`, enter-session panel (row 25); adds optional `ActiveSession.now` to the contract | ✅ Phase 3c |
 | Mock realism: stateful orders/balances/fills (in-memory ledger: working → partial → filled, cancel in flight, modify, trades on close) | ✅ Phase 3b |
 | Tick formatter (`frontend/src/lib/ticks.ts`) + tests | ✅ |
 | Tokens wired to Tailwind + Night/Lab toggle | ✅ |
