@@ -1,83 +1,115 @@
 /* ============================================================================
    Design tokens — Synthetic Market Simulator
-   Night (dark) + Lab (light), from the Foundation boards (design canvas v2).
+   Transcribed EXACTLY from the real app board (project/App.dc.html,
+   artifact E5YS6D3J2urjrieYwiqCQS) — the blue, playable app, Night + Lab.
+
+   This replaces the earlier amber draft (which was mistakenly taken from the
+   Foundation exploration board, a superseded direction). The app is BLUE.
 
    RULES
    - Components reference var(--token), NEVER a raw hex value.
+   - Variable names match the app board's own names (--accent, --btnBg, --buy …)
+     so App.dc.html ports to React 1:1.
    - Night is default (dark). [data-theme="lab"] on <html> switches to light.
-   - Semantic roles (surface/ink/line/signal/buy/sell) are what components use;
-     the palette hexes below exist only to define those roles.
-
-   NOTE ON ORIGIN
-   - Values transcribed from the agreed Foundation boards. If a shade is ever
-     found to differ from the board, the board wins — correct it here in one place.
+   - Font: IBM Plex Sans ONLY, with tabular numerals (no Condensed, no Mono,
+     no dot-matrix — the app uses font-feature-settings:'tnum').
    ============================================================================ */
 
    :root,
    :root[data-theme="night"] {
-     /* ---- Night (dark) palette ---- */
-     --bg:            #14120F;  /* page background */
-     --surface:       #1D1A16;  /* cards, panels */
-     --surface-raised:#26221D;  /* inputs, raised chips */
-     --line:          #38332B;  /* borders, dividers */
-     --ink:           #F3EEE6;  /* primary text */
-     --muted:         #A59E92;  /* secondary text */
-     --signal:        #FFB224;  /* accent / primary action (amber) */
-     --signal-ink:    #14120F;  /* text on --signal */
-     --focus:         #F3EEE6;  /* focus ring */
+     color-scheme: dark;
    
-     /* ---- Semantic trade colours (shared across themes, tuned per theme) ---- */
-     --buy:           #3FB97A;  /* Buy / long / gain */
-     --buy-ink:       #06130C;  /* text on --buy */
-     --buy-soft:      #12382B;  /* buy depth bar / subtle fill */
-     --sell:          #E5484D;  /* Sell / short / loss / Exit */
-     --sell-ink:      #1A0708;  /* text on --sell */
-     --sell-soft:     #3D1F24;  /* sell depth bar / subtle fill */
-     --warn:          #FFB224;  /* halts, warnings (reuses signal) */
-     --neutral:       #A59E92;  /* flat / unchanged */
+     /* ---- Night (dark) — the real app palette ---- */
+     --bg:        #0D1117;   /* page ground */
+     --panel:     #151B23;   /* cards, boards */
+     --raised:    #1C232D;   /* inputs, raised chips */
+     --line:      #2B3440;   /* dividers, outlines */
+     --ink:       #E6EAF0;   /* primary text */
+     --muted:     #8D99A8;   /* secondary text */
+   
+     --accent:    #5AA2FF;   /* highlight / active / links / focus */
+     --onAccent:  #06121F;   /* text on --accent */
+     --soft:      rgba(90,162,255,0.14);  /* accent tint fill */
+     --btnBg:     #2F6FEB;   /* solid primary button */
+     --btnFg:     #FFFFFF;   /* text on primary button */
+   
+     --gain:      #3DBE8B;   /* up / positive number */
+     --loss:      #F0716F;   /* down / negative number */
+     --gainBg:    rgba(61,190,139,0.14);
+     --lossBg:    rgba(240,113,111,0.14);
+   
+     --buy:       #148050;   /* Buy action */
+     --onBuy:     #FFFFFF;
+     --sell:      #C93B46;   /* Sell / Exit action */
+     --onSell:    #FFFFFF;
+   
+     --warnBg:    rgba(224,168,46,0.14);  /* halt / warning fill */
+     --warnLine:  rgba(224,168,46,0.5);   /* halt / warning border */
+     --ma:        #B79CFF;   /* moving-average / secondary chart line */
+   
+     --scrim:     rgba(3,6,10,0.62);      /* modal backdrop */
+     --shadow:    0 18px 48px rgba(0,0,0,0.5);
+     --focus:     #5AA2FF;   /* = accent */
    
      /* ---- Radii / spacing / type (shared) ---- */
-     --r-sm: 8px;  --r-md: 12px;  --r-lg: 16px;  --r-pill: 999px;
+     --r-sm: 8px;  --r-md: 12px;  --r-lg: 14px;  --r-xl: 18px;  --r-pill: 999px;
      --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
    
      --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-     --font-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
-     --font-mono: "IBM Plex Mono", ui-monospace, monospace; /* tabular numerals */
    
-     --fs-xs: 11px; --fs-sm: 13px; --fs-md: 15px; --fs-lg: 18px;
-     --fs-xl: 24px; --fs-2xl: 32px; --fs-3xl: 48px;
-     --fw-reg: 400; --fw-med: 500; --fw-semi: 600; --fw-bold: 700;
+     --fs-xs: 12px; --fs-sm: 13px; --fs-md: 15px; --fs-lg: 20px;
+     --fs-xl: 24px; --fs-2xl: 28px; --fs-3xl: 44px;
+     --fw-reg: 400; --fw-med: 500; --fw-semi: 600;
    }
    
    :root[data-theme="lab"] {
-     /* ---- Lab (light) palette ---- */
-     --bg:            #E7EAEE;
-     --surface:       #F6F7F9;
-     --surface-raised:#FFFFFF;
-     --line:          #C9CFD8;
-     --ink:           #12161C;
-     --muted:         #566170;
-     --signal:        #FFB224;
-     --signal-ink:    #12161C;
-     --focus:         #12161C;
+     color-scheme: light;
    
-     --buy:           #1F9D57;
-     --buy-ink:       #FFFFFF;
-     --buy-soft:      #D6F0E2;
-     --sell:          #D13438;
-     --sell-ink:      #FFFFFF;
-     --sell-soft:     #F7D9DA;
-     --warn:          #B8780E;
-     --neutral:       #566170;
+     /* ---- Lab (light) — the real app palette ---- */
+     --bg:        #F3F5F8;
+     --panel:     #FFFFFF;
+     --raised:    #EEF1F5;
+     --line:      #DDE2E9;
+     --ink:       #121821;
+     --muted:     #5A6676;
+   
+     --accent:    #1D5FD1;
+     --onAccent:  #FFFFFF;
+     --soft:      rgba(29,95,209,0.10);
+     --btnBg:     #1D5FD1;
+     --btnFg:     #FFFFFF;
+   
+     --gain:      #0C7A4F;
+     --loss:      #C0322C;
+     --gainBg:    rgba(12,122,79,0.10);
+     --lossBg:    rgba(192,50,44,0.09);
+   
+     --buy:       #0B8457;
+     --onBuy:     #FFFFFF;
+     --sell:      #D13438;
+     --onSell:    #FFFFFF;
+   
+     --warnBg:    #FFF4D6;
+     --warnLine:  #E3B341;
+     --ma:        #6A3FD0;
+   
+     --scrim:     rgba(15,20,28,0.40);
+     --shadow:    0 18px 48px rgba(15,20,28,0.16);
+     --focus:     #1D5FD1;
    }
    
-   /* Respect OS preference on first paint when no explicit data-theme is set.
-      An explicit [data-theme] (user toggle) always wins over this. */
+   /* OS preference on first paint when no explicit data-theme; a user toggle
+      (explicit [data-theme]) always wins. */
    @media (prefers-color-scheme: light) {
      :root:not([data-theme]) {
-       --bg:#E7EAEE; --surface:#F6F7F9; --surface-raised:#FFFFFF; --line:#C9CFD8;
-       --ink:#12161C; --muted:#566170; --signal:#FFB224; --signal-ink:#12161C; --focus:#12161C;
-       --buy:#1F9D57; --buy-ink:#FFFFFF; --buy-soft:#D6F0E2;
-       --sell:#D13438; --sell-ink:#FFFFFF; --sell-soft:#F7D9DA; --warn:#B8780E; --neutral:#566170;
+       color-scheme: light;
+       --bg:#F3F5F8; --panel:#FFFFFF; --raised:#EEF1F5; --line:#DDE2E9;
+       --ink:#121821; --muted:#5A6676;
+       --accent:#1D5FD1; --onAccent:#FFFFFF; --soft:rgba(29,95,209,0.10);
+       --btnBg:#1D5FD1; --btnFg:#FFFFFF;
+       --gain:#0C7A4F; --loss:#C0322C; --gainBg:rgba(12,122,79,0.10); --lossBg:rgba(192,50,44,0.09);
+       --buy:#0B8457; --onBuy:#FFFFFF; --sell:#D13438; --onSell:#FFFFFF;
+       --warnBg:#FFF4D6; --warnLine:#E3B341; --ma:#6A3FD0;
+       --scrim:rgba(15,20,28,0.40); --shadow:0 18px 48px rgba(15,20,28,0.16); --focus:#1D5FD1;
      }
    }
