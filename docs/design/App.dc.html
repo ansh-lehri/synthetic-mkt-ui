@@ -1,0 +1,1840 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>App prototype</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app,.app *{box-sizing:border-box}
+.app{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;font-feature-settings:'tnum';font-size:15px;line-height:1.45}
+:where(.app) :where(button,input,select){font:inherit;color:inherit;margin:0}
+:where(.app) :where(button){cursor:pointer;-webkit-tap-highlight-color:transparent}
+.app button:disabled,.app input:disabled,.app select:disabled{cursor:not-allowed}
+.app :focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.app h1,.app h2,.app h3,.app p{margin:0}
+.app input::placeholder{color:var(--muted);opacity:1}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.cond{font-family:'IBM Plex Sans',sans-serif}
+.big{font-weight:600;line-height:1;letter-spacing:-.02em}
+.mut{color:var(--muted)}
+.sm{font-size:13px}
+.xs{font-size:12px}
+.b6{font-weight:600}
+.gain{color:var(--gain)}
+.loss{color:var(--loss)}
+.hsp{flex:1 1 0;min-width:0}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+
+/* header */
+.hdr{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line)}
+.hdr-in{max-width:1240px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;min-height:68px}
+.brand{display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;min-height:44px}
+.mark{width:18px;height:18px;border-radius:5px;background:var(--accent)}
+.brand-t{font-weight:600;font-size:20px;letter-spacing:-.01em}
+.tag-sim{padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--raised);color:var(--muted);font-size:12px;font-weight:500}
+.hnav{display:flex;gap:2px;margin-left:10px}
+.nl{position:relative;min-height:44px;padding:0 14px;border:0;background:transparent;border-radius:999px;font-weight:500;color:var(--muted)}
+.nl:hover{color:var(--ink)}
+.nl[aria-current=page]{color:var(--ink);font-weight:600}
+.nl[aria-current=page]::after{content:"";position:absolute;left:14px;right:14px;bottom:3px;height:3px;border-radius:2px;background:var(--accent)}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--ink)}
+.ib:hover:not(:disabled){background:var(--raised)}
+.ib.bare{border-color:transparent}
+.pop-wrap{position:relative}
+.scrim-t{position:fixed;inset:0;background:transparent;border:0;padding:0;z-index:40;cursor:default}
+.pop{position:absolute;right:0;top:calc(100% + 8px);z-index:41;min-width:260px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px}
+.pi{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 12px;border:0;background:transparent;border-radius:10px;text-align:left;font-weight:500}
+.pi:hover{background:var(--raised)}
+.pi[aria-pressed=true]{font-weight:600}
+.pi[aria-pressed=true]::after{content:"\2713"}
+.pop-h{display:flex;flex-direction:column;padding:8px 12px}
+.pop-sep{height:1px;background:var(--line);margin:4px 0}
+.pop-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 12px}
+
+/* controls */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 20px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:600;font-size:14px;white-space:nowrap}
+.btn:hover:not(:disabled){background:var(--raised)}
+.btn:disabled{opacity:.42}
+.btn-p{background:var(--btnBg);color:var(--btnFg);border-color:transparent}
+.btn-p:hover:not(:disabled){background:var(--btnBg);filter:brightness(1.12)}
+.btn-buy{background:var(--buy);color:var(--onBuy);border-color:transparent}
+.btn-sell{background:var(--sell);color:var(--onSell);border-color:transparent}
+.btn-buy:hover:not(:disabled){background:var(--buy);filter:brightness(1.12)}
+.btn-sell:hover:not(:disabled){background:var(--sell);filter:brightness(1.12)}
+.btn-danger{background:var(--sell);color:var(--onSell);border-color:transparent}
+.btn-danger:hover:not(:disabled){background:var(--sell);filter:brightness(1.12)}
+.btn-dout{border-color:var(--loss);color:var(--loss)}
+.btn-dout:hover:not(:disabled){background:var(--lossBg)}
+.btn-o{border-color:var(--accent);color:var(--accent)}
+.btn-o:hover:not(:disabled){background:var(--soft)}
+.btn-qb{border-color:var(--buy);background:var(--gainBg);color:var(--gain)}
+.btn-qb:hover:not(:disabled){background:var(--buy);color:var(--onBuy)}
+.btn-qs{border-color:var(--sell);background:var(--lossBg);color:var(--loss)}
+.btn-qs:hover:not(:disabled){background:var(--sell);color:var(--onSell)}
+.btn-s{min-height:36px;padding:0 14px;font-size:13px}
+.btn-l{min-height:52px;padding:0 28px;font-size:16px}
+.btn-w{width:100%}
+.chip{min-height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:transparent;font-weight:500;font-size:14px;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.chip:hover:not(:disabled){background:var(--raised)}
+.chip[aria-pressed=true],.chip[aria-checked=true]{background:var(--soft);border-color:var(--accent);font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:8px;min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line);font-size:13px;font-weight:500}
+.chip:disabled{opacity:.5}
+.hdd{min-height:44px;padding:0 14px 0 16px}
+.seg{display:inline-flex;padding:3px;gap:2px;border:1px solid var(--line);border-radius:999px;background:var(--bg)}
+.seg button{min-height:38px;padding:0 16px;border:0;border-radius:999px;background:transparent;font-weight:500;font-size:14px;color:var(--muted);white-space:nowrap}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed=true]{background:var(--soft);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px var(--accent)}
+.seg button.sgb[aria-pressed=true]{background:var(--buy);color:var(--onBuy);box-shadow:none}
+.seg button.sgs[aria-pressed=true]{background:var(--sell);color:var(--onSell);box-shadow:none}
+.seg.w{display:flex}
+.seg.w button{flex:1 1 0}
+.inp{width:100%;min-height:48px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-variant-numeric:tabular-nums}
+.inp:disabled{opacity:.55;background:var(--raised)}
+.sel{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);font-weight:600}
+.field{display:flex;flex-direction:column;gap:8px}
+.lab{font-size:13px;font-weight:600;color:var(--muted)}
+.link{background:none;border:0;padding:0;min-height:44px;color:var(--ink);font-weight:600;text-decoration:underline;text-underline-offset:4px;display:inline-flex;align-items:center;gap:6px}
+
+/* surfaces */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.card-d{border:1.5px dashed var(--muted)}
+.page{max-width:1240px;margin:0 auto;padding:24px 24px 72px;display:flex;flex-direction:column;gap:20px}
+.pg-h{display:flex;flex-direction:column;gap:6px}
+.pg-h h1{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:28px;line-height:1.15;letter-spacing:-.015em}
+.strip{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:12px 16px 12px 18px;border-radius:14px;border:1px solid var(--line);background:var(--panel)}
+.strip-t{flex:1 1 260px;min-width:0}
+.strip-warn{background:var(--warnBg);border-color:var(--warnLine)}
+.strip-bad{background:var(--lossBg);border-color:var(--loss)}
+.strip-ok{background:var(--gainBg);border-color:var(--gain)}
+.spin{width:20px;height:20px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--ink);animation:spin .9s linear infinite;flex:0 0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sk{background:linear-gradient(90deg,var(--raised),var(--line),var(--raised));background-size:200% 100%;animation:sh 1.4s linear infinite;border-radius:8px}
+@keyframes sh{to{background-position:-200% 0}}
+.mkr{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.dot-s{width:10px;height:10px;border-radius:50%;background:var(--accent);flex:0 0 auto}
+.dot-h{width:10px;height:10px;border-radius:50%;border:2px solid var(--ink);flex:0 0 auto}
+
+/* home */
+.home-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+.lc{padding:24px;display:flex;flex-direction:column;gap:22px}
+.lc-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px}
+.lc-title{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:22px;line-height:1.15;letter-spacing:-.01em}
+.lc-mid{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 40px}
+.lc-read{display:flex;flex-direction:column;gap:8px}
+.lc-big{font-size:40px}
+.lc-act{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.pc{padding:22px 24px;display:flex;flex-direction:column;gap:16px}
+.bc{padding:22px 24px;display:flex;flex-direction:column;gap:18px}
+.bal{display:flex;flex-direction:column;gap:4px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.bal:last-of-type{border-bottom:0;padding-bottom:0}
+.bal-n{font-size:28px}
+
+/* practice setup */
+.ps-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:24px;align-items:start}
+.fs{border:0;padding:0;margin:0;min-width:0;display:flex;flex-direction:column;gap:12px}
+.fs legend{padding:0;font-weight:600;font-size:16px;margin-bottom:12px}
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;min-height:88px;padding:14px 16px;border-radius:14px;border:1.5px dashed var(--line);background:transparent}
+.opt:hover:not(:disabled){background:var(--raised)}
+.opt[aria-checked=true]{background:var(--soft);border:1.5px solid var(--accent)}
+.opt:disabled{opacity:.45}
+.opt .o-t{font-weight:600;font-size:15px}
+.opt .o-d{font-size:13px;line-height:1.35;color:var(--muted)}
+.sum{padding:22px;display:flex;flex-direction:column;gap:16px;position:sticky;top:92px}
+.srow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.srow:last-of-type{border-bottom:0}
+.center{min-height:calc(100vh - 200px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center}
+.orbit{width:56px;height:56px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);animation:spin .9s linear infinite}
+
+/* session */
+.sbar{border-bottom:1px solid var(--line);background:var(--panel)}
+.sbar.pr{border-bottom:1.5px dashed var(--muted)}
+.sbar-in{max-width:1240px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;flex-wrap:wrap;gap:8px 30px;min-height:68px}
+.sb-item{display:flex;flex-direction:column}
+.sb-clock{font-size:24px}
+.sb-pnl{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.sb-mk{font-size:20px;font-weight:600}
+.tnav{background:var(--bg);border-bottom:1px solid var(--line)}
+.tnav-in{max-width:1240px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:16px;min-height:60px}
+.tabs{display:flex;gap:2px;min-width:0}
+.tab{position:relative;min-height:56px;padding:0 16px;border:0;background:transparent;color:var(--muted);font-weight:500;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.tab:hover{color:var(--ink)}
+.tab[aria-current=page]{color:var(--ink);font-weight:600}
+.tab[aria-current=page]::after{content:"";position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:2px 2px 0 0;background:var(--accent)}
+.badge{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--raised);border:1px solid var(--line);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;color:var(--ink)}
+.bs{display:flex;gap:8px}
+.bs .btn{min-width:76px;padding:0 18px}
+.ss{max-width:1240px;margin:16px auto 0;width:calc(100% - 48px)}
+
+/* tables */
+.tbl-card{overflow:hidden}
+.scroll{overflow-x:auto}
+.row{display:grid;grid-template-columns:var(--cols);align-items:center;gap:12px;padding:0 16px;min-height:52px;border-top:1px solid var(--line)}
+.row.head{min-height:40px;border-top:0;font-size:12px;font-weight:600;color:var(--muted);background:var(--panel)}
+.row.foot{background:var(--raised)}
+.empty{padding:28px 16px;color:var(--muted);text-align:center;border-top:1px solid var(--line)}
+.blk{display:flex;flex-direction:column;gap:12px}
+.blk-h{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.blk-h h2{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:20px;letter-spacing:-.01em}
+.mk{--cols:minmax(160px,1.5fr) repeat(6,minmax(72px,1fr))}
+.mrow{border-top:1px solid var(--line)}
+.mrow:first-of-type{border-top:0}
+.mbtn{display:grid;grid-template-columns:var(--cols);align-items:center;gap:12px;width:100%;min-height:60px;padding:6px 16px;border:0;background:transparent;text-align:left}
+.mbtn:hover{background:var(--raised)}
+.mbtn[aria-pressed=true]{background:var(--raised)}
+.mbtn:focus-visible{outline-offset:-3px}
+.ins{display:flex;flex-direction:column;min-width:0}
+.sym{font-weight:600;font-size:15px}
+.acts{display:flex;flex-wrap:wrap;gap:8px;padding:4px 16px 14px;background:var(--raised)}
+.depth{padding:14px 16px 18px;background:var(--raised);border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+.depth-h{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px}
+.dcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.dh,.dr{display:flex;justify-content:space-between;gap:12px;padding:6px 10px;font-variant-numeric:tabular-nums}
+.dh{font-size:12px;font-weight:600;color:var(--muted)}
+.dr{position:relative;border-radius:6px;overflow:hidden}
+.dr>span{position:relative}
+.dr .bar{position:absolute;top:0;bottom:0;left:0;z-index:0}
+.bar-g{background:var(--gainBg)}
+.bar-l{background:var(--lossBg)}
+.dtot{display:flex;justify-content:space-between;gap:12px;padding:8px 10px 0;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.sd{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600}
+.sd-b{background:var(--gainBg);color:var(--gain)}
+.sd-s{background:var(--lossBg);color:var(--loss)}
+.auto{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);font-size:11px;font-weight:600;color:var(--muted)}
+.st-x{color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.stat{padding:18px 20px;display:flex;flex-direction:column;gap:8px}
+.stat-n{font-size:28px}
+
+/* chart */
+.ch-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.ch-px{font-size:24px}
+.ch-body{display:flex;min-height:440px}
+.tools{width:56px;flex:0 0 56px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;border-right:1px solid var(--line)}
+.tool{width:44px;height:44px;border-radius:12px;border:0;background:transparent;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.tool:hover:not(:disabled){background:var(--raised);color:var(--ink)}
+.tool[aria-pressed=true]{background:var(--soft);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.tool-sep{width:28px;height:1px;background:var(--line);margin:4px 0}
+.plotw{position:relative;flex:1 1 auto;min-width:0;height:420px;margin:12px 0}
+.gl{position:absolute;left:0;right:0;height:1px;background:var(--line)}
+.cd{position:absolute;top:0;bottom:0;z-index:1}
+.wick{position:absolute;left:50%;width:1.5px;margin-left:-.75px}
+.cbody{position:absolute;left:14%;width:72%;min-height:1.5px;border-radius:1px}
+.up{background:var(--gain)}
+.dn{background:var(--loss)}
+.axis{position:relative;width:70px;flex:0 0 70px;height:420px;margin:12px 0}
+.axl{position:absolute;right:10px;font-size:12px;color:var(--muted);transform:translateY(-50%);font-variant-numeric:tabular-nums}
+.axl.last{background:var(--ink);color:var(--bg);padding:1px 6px;border-radius:4px;font-weight:600}
+.lastln{position:absolute;left:0;right:0;border-top:1px dashed var(--ink);opacity:.55;z-index:3;pointer-events:none}
+.hit{position:absolute;inset:0;border:0;background:transparent;padding:0;z-index:6}
+.hit.draw{cursor:crosshair}
+.lsvg,.dsvg{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
+.lpoly{fill:none;stroke:var(--ink);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.larea{fill:var(--gainBg);stroke:none}
+.mapoly{fill:none;stroke:var(--ma);stroke-width:2;vector-effect:non-scaling-stroke}
+.dline{stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke;fill:none}
+.drect{position:absolute;z-index:2;pointer-events:none;border:2px solid var(--accent);background:var(--soft)}
+.pend{position:absolute;z-index:4;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--accent);pointer-events:none}
+.ch-foot{display:flex;justify-content:space-between;padding:0 78px 14px 68px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ch-legend{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+
+/* overlays */
+.scrim{position:fixed;inset:0;border:0;padding:0;background:var(--scrim);z-index:50;cursor:default}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:410px;max-width:100%;z-index:51;background:var(--panel);border-left:1px solid var(--line);padding:20px 24px 28px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;box-shadow:var(--shadow)}
+.drawer.pr{border-left:1.5px dashed var(--muted)}
+.dr-h{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.dr-h h2{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:24px;letter-spacing:-.01em}
+.est{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.res{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.res button{min-height:48px;padding:0 14px;border:0;border-top:1px solid var(--line);background:transparent;text-align:left;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.res button:first-child{border-top:0}
+.res button:hover{background:var(--raised)}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:460px;max-width:calc(100% - 32px);max-height:calc(100% - 32px);overflow-y:auto;z-index:51;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;display:flex;flex-direction:column;gap:18px;box-shadow:var(--shadow)}
+.modal h2{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:24px;line-height:1.15;letter-spacing:-.01em}
+.mact{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+.radios{display:flex;flex-direction:column;gap:8px}
+.radio{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:transparent;text-align:left;font-weight:500}
+.radio:hover{background:var(--raised)}
+.radio[aria-checked=true]{background:var(--soft);border-color:var(--accent);font-weight:600}
+.rdot{width:18px;height:18px;border-radius:50%;border:2px solid var(--muted);flex:0 0 auto}
+.radio[aria-checked=true] .rdot{border-color:var(--accent);background:radial-gradient(circle,var(--accent) 0 4px,transparent 5px)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;max-width:calc(100% - 32px);padding:12px 20px;border-radius:999px;background:var(--ink);color:var(--bg);font-weight:600;font-size:14px;box-shadow:var(--shadow)}
+
+/* record, funds */
+.filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 16px;padding:16px 20px}
+.filters .field{min-width:160px}
+.sumline{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;padding:16px 20px}
+.fund-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.fund{padding:24px;display:flex;flex-direction:column;gap:8px}
+.fund-n{font-size:34px}
+
+/* prototype dock */
+.dock{position:fixed;left:16px;bottom:16px;z-index:70;display:flex;flex-direction:column;align-items:flex-start;gap:8px;max-width:calc(100% - 32px)}
+.dock-p{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow);max-height:72vh;overflow-y:auto;width:380px;max-width:100%}
+.dock-g{display:flex;flex-direction:column;gap:6px}
+.dock-r{display:flex;flex-wrap:wrap;gap:6px}
+.dock .chip{min-height:34px;padding:0 12px;font-size:13px}
+.dock-t{box-shadow:var(--shadow);background:var(--panel)}
+
+@media (max-width:980px){
+  .home-grid,.ps-grid{grid-template-columns:minmax(0,1fr)}
+  .sum{position:static}
+  .opts{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  .hdr-in{padding:8px 16px;gap:4px 10px;min-height:0}
+  .hnav{order:5;width:100%;margin:0;justify-content:space-between}
+  .nl{flex:1 1 0}
+  .nl[aria-current=page]::after{left:20%;right:20%}
+  .brand-t{font-size:20px}
+  .page{padding:16px 16px 48px;gap:16px}
+  .pg-h h1{font-size:24px}
+  .lc,.pc,.bc{padding:18px}
+  .lc-big{font-size:34px}
+  .opts{grid-template-columns:minmax(0,1fr)}
+  .opt{min-height:0}
+  .sbar-in{padding:8px 16px;gap:6px 20px;min-height:0}
+  .sb-clock{font-size:22px}
+  .sb-mk{font-size:18px}
+  .tnav{border-bottom:0}
+  .tnav-in{padding:0;min-height:0}
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:35;background:var(--panel);border-top:1px solid var(--line);padding:0 4px;gap:0}
+  .tab{flex:1 1 0;flex-direction:column;justify-content:center;gap:2px;min-height:60px;padding:0 2px;font-size:12px}
+  .tab[aria-current=page]::after{top:0;bottom:auto;left:10px;right:10px;border-radius:0 0 2px 2px}
+  .bs{position:fixed;left:0;right:0;bottom:60px;z-index:35;padding:10px 16px;background:var(--bg);border-top:1px solid var(--line)}
+  .bs .btn{flex:1 1 0}
+  .ss{width:calc(100% - 32px);margin-top:12px}
+  .page.s{padding-bottom:170px}
+  .mk{--cols:minmax(0,1fr) 84px 96px}
+  .hide-sm{display:none !important}
+  .mbtn{padding:6px 12px}
+  .acts,.depth{padding-left:12px;padding-right:12px}
+  .dcols{grid-template-columns:minmax(0,1fr)}
+  .stats{grid-template-columns:minmax(0,1fr)}
+  .fund-grid{grid-template-columns:minmax(0,1fr)}
+  .tools{width:48px;flex-basis:48px}
+  .tool{width:40px;height:40px}
+  .plotw,.axis{height:320px}
+  .ch-body{min-height:344px}
+  .axis{width:56px;flex-basis:56px}
+  .ch-foot{padding:0 62px 12px 52px}
+  .drawer{top:auto;left:0;width:auto;max-height:92%;border-left:0;border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding:18px 18px 24px}
+  .drawer.pr{border-left:0;border-top:1.5px dashed var(--muted)}
+  .modal{top:auto;bottom:0;left:0;transform:none;width:auto;max-width:none;border-radius:20px 20px 0 0;padding:20px 18px 24px}
+  .bs .btn,.sbar .btn,.acts .btn{min-height:44px}
+  .toast{bottom:150px}
+  .dock{left:auto;right:12px;bottom:140px;align-items:flex-end}
+  .filters{padding:16px}
+  .filters .field{flex:1 1 140px}
+}
+@media (prefers-reduced-motion:reduce){
+  .spin,.orbit,.sk{animation:none}
+}
+</style>
+</helmet>
+<div class="app" style="min-height: 100vh; {{vars}}">
+
+<header class="hdr">
+  <div class="hdr-in">
+    <button type="button" class="brand" onClick="{{goHome}}" aria-label="[App name], go to Home">
+      <span class="mark"></span><span class="cond brand-t">[App name]</span>
+    </button>
+    <span class="tag-sim">Simulation</span>
+    <nav class="hnav" aria-label="Main">
+      <sc-for list="{{navItems}}" as="n" hint-placeholder-count="3">
+        <button type="button" class="nl" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.label}}</button>
+      </sc-for>
+    </nav>
+    <div class="hsp"></div>
+    <div class="pop-wrap">
+      <button type="button" class="chip hdd" aria-haspopup="true" aria-expanded="{{marketOpen}}" aria-label="Market: {{marketLabel}}" title="{{marketTitle}}" disabled="{{marketLocked}}" onClick="{{toggleMarket}}">
+        <span>{{marketLabel}}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+      </button>
+      <sc-if value="{{marketOpen}}" hint-placeholder-val="{{ false }}">
+        <button type="button" class="scrim-t" aria-label="Close menu" onClick="{{closeMenu}}"></button>
+        <div class="pop" role="group" aria-label="Choose market">
+          <sc-for list="{{markets}}" as="mk" hint-placeholder-count="3">
+            <button type="button" class="pi" aria-pressed="{{mk.on}}" onClick="{{mk.pick}}"><span>{{mk.label}}</span><span class="mut sm" style="margin-left:auto">{{mk.win}}</span></button>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+    <div class="pop-wrap">
+      <button type="button" class="ib" aria-haspopup="true" aria-expanded="{{acctOpen}}" aria-label="Account menu" onClick="{{toggleAcct}}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4.2 3.6-7 8-7s8 2.8 8 7"></path></svg>
+      </button>
+      <sc-if value="{{acctOpen}}" hint-placeholder-val="{{ false }}">
+        <button type="button" class="scrim-t" aria-label="Close menu" onClick="{{closeMenu}}"></button>
+        <div class="pop" role="group" aria-label="Account">
+          <div class="pop-h"><span class="mut xs">Signed in as</span><span class="b6">you@example.com</span></div>
+          <div class="pop-sep"></div>
+          <div class="pop-row">
+            <span id="theme-l" class="sm b6">Theme</span>
+            <div class="seg" role="group" aria-labelledby="theme-l">
+              <sc-for list="{{themeOpts}}" as="t" hint-placeholder-count="2">
+                <button type="button" aria-pressed="{{t.on}}" onClick="{{t.pick}}">{{t.label}}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div class="pop-sep"></div>
+          <button type="button" class="pi" onClick="{{signOut}}"><span>Sign out</span></button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</header>
+
+<!-- HOME -->
+<sc-if value="{{isHome}}" hint-placeholder-val="{{ true }}">
+<main class="page">
+  <sc-if value="{{strip.show}}" hint-placeholder-val="{{ false }}">
+    <div class="strip {{strip.cls}}" role="status">
+      <sc-if value="{{strip.spin}}" hint-placeholder-val="{{ false }}"><span class="spin" aria-hidden="true"></span></sc-if>
+      <div class="strip-t"><span class="b6">{{strip.title}}</span> <span>{{strip.body}}</span> <sc-if value="{{strip.hasAmt}}" hint-placeholder-val="{{ false }}"><span class="b6 {{strip.amtCls}}">{{strip.amt}}</span></sc-if></div>
+      <sc-if value="{{strip.hasAct}}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-s btn-p" onClick="{{strip.act}}">{{strip.actLabel}}</button></sc-if>
+      <sc-if value="{{strip.hasX}}" hint-placeholder-val="{{ false }}"><button type="button" class="ib bare" style="width:36px;height:36px" aria-label="Dismiss" onClick="{{strip.x}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{homeLoading}}" hint-placeholder-val="{{ false }}">
+    <div class="home-grid" aria-hidden="true">
+      <div class="col">
+        <div class="card sk" style="height: 250px"></div>
+        <div class="card sk" style="height: 160px"></div>
+      </div>
+      <div class="card sk" style="height: 280px"></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{homeReady}}" hint-placeholder-val="{{ true }}">
+    <div class="home-grid">
+      <div class="col">
+        <section class="card lc" aria-labelledby="live-h">
+          <div class="lc-top">
+            <span class="mkr"><span class="dot-s"></span>Live</span>
+            <h2 id="live-h" class="lc-title">{{live.market}} session</h2>
+            <span class="mut sm">{{live.window}}</span>
+            <div class="hsp"></div>
+            <span class="pill"><span class="{{live.dotCls}}"></span>{{live.status}}</span>
+          </div>
+          <div class="lc-mid">
+            <div class="lc-read">
+              <span class="mut sm">{{live.label}}</span>
+              <span class="big lc-big">{{live.big}}</span>
+            </div>
+            <p class="mut" style="flex: 1 1 260px; max-width: 460px">{{live.info}}</p>
+          </div>
+          <div class="lc-act">
+            <button type="button" class="btn btn-p btn-l" disabled="{{live.btnOff}}" onClick="{{live.act}}">{{live.btn}}</button>
+            <span class="mut sm">{{live.note}}</span>
+          </div>
+        </section>
+
+        <section class="card card-d pc" aria-labelledby="pr-h">
+          <div class="lc-top">
+            <span class="mkr"><span class="dot-h"></span>Practice</span>
+            <h2 id="pr-h" class="lc-title">Practice session</h2>
+          </div>
+          <p class="mut" style="max-width: 560px">Trade against agents whenever you like, for 60 to 105 minutes. Nothing from practice is recorded.</p>
+          <div class="lc-act">
+            <button type="button" class="btn btn-l btn-o" disabled="{{prac.off}}" onClick="{{prac.act}}">{{prac.btn}}</button>
+            <span class="mut sm">{{prac.note}}</span>
+          </div>
+        </section>
+      </div>
+
+      <aside class="col">
+        <section class="card bc" aria-labelledby="bal-h">
+          <h2 id="bal-h" class="b6" style="font-size: 16px">Balances</h2>
+          <div class="bal"><span class="mut sm">Trading balance</span><span class="big bal-n">{{bal.trading}}</span></div>
+          <div class="bal"><span class="mut sm">Bank balance</span><span class="big bal-n">{{bal.bank}}</span></div>
+          <button type="button" class="btn btn-o" onClick="{{bal.transfer}}">Transfer</button>
+        </section>
+      </aside>
+    </div>
+  </sc-if>
+</main>
+</sc-if>
+
+<!-- PRACTICE SETUP -->
+<sc-if value="{{isPractice}}" hint-placeholder-val="{{ false }}">
+<main class="page">
+  <button type="button" class="link" style="align-self: flex-start" onClick="{{goHome}}">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Home
+  </button>
+  <div class="pg-h"><h1>Practice setup</h1><p class="mut">Trade against agents. Nothing from practice is recorded.</p></div>
+  <div class="ps-grid">
+    <div class="col" style="gap: 32px">
+      <fieldset class="fs">
+        <legend>Market conditions</legend>
+        <div class="opts" role="radiogroup" aria-label="Market conditions">
+          <sc-for list="{{conds}}" as="c" hint-placeholder-count="6">
+            <button type="button" class="opt" role="radio" aria-checked="{{c.on}}" disabled="{{c.off}}" onClick="{{c.pick}}"><span class="o-t">{{c.name}}</span><span class="o-d">{{c.desc}}</span></button>
+          </sc-for>
+        </div>
+      </fieldset>
+      <fieldset class="fs">
+        <legend>Length</legend>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px" role="radiogroup" aria-label="Length">
+          <sc-for list="{{lens}}" as="l" hint-placeholder-count="4">
+            <button type="button" class="chip" role="radio" aria-checked="{{l.on}}" disabled="{{l.off}}" onClick="{{l.pick}}">{{l.label}}</button>
+          </sc-for>
+        </div>
+      </fieldset>
+    </div>
+    <aside class="card card-d sum" aria-labelledby="sum-h">
+      <h2 id="sum-h" class="b6" style="font-size: 16px">Your practice</h2>
+      <div>
+        <div class="srow"><span class="mut">Market</span><span class="b6">{{ps.market}}</span></div>
+        <div class="srow"><span class="mut">Conditions</span><span class="b6">{{ps.cond}}</span></div>
+        <div class="srow"><span class="mut">Length</span><span class="b6">{{ps.len}}</span></div>
+        <div class="srow"><span class="mut">Trading balance</span><span class="b6">{{ps.bal}}</span></div>
+      </div>
+      <sc-if value="{{ps.hasWarn}}" hint-placeholder-val="{{ false }}">
+        <div class="strip {{ps.warnCls}}" role="status"><span class="strip-t">{{ps.warn}}</span></div>
+      </sc-if>
+      <button type="button" class="btn btn-p btn-l btn-w" disabled="{{ps.startOff}}" onClick="{{ps.start}}">{{ps.startLabel}}</button>
+      <p class="mut sm">You trade with a copy of your trading balance. Profit or loss here is not added to your balance. Not recorded.</p>
+    </aside>
+  </div>
+</main>
+</sc-if>
+
+<!-- PRACTICE STARTING -->
+<sc-if value="{{isStarting}}" hint-placeholder-val="{{ false }}">
+<main class="page">
+  <div class="center">
+    <span class="orbit" aria-hidden="true"></span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="cond" style="font-size: 24px; font-weight: 600; letter-spacing: -0.015em">Starting your practice session</h1>
+      <p class="mut" role="status">{{stg.line}}</p>
+    </div>
+    <button type="button" class="btn" onClick="{{stg.cancel}}">Cancel</button>
+  </div>
+</main>
+</sc-if>
+
+<!-- SESSION -->
+<sc-if value="{{isSession}}" hint-placeholder-val="{{ false }}">
+<div>
+  <div class="sbar {{sb.cls}}">
+    <div class="sbar-in">
+      <span class="mkr"><span class="{{sb.dot}}"></span>{{sb.kind}}</span>
+      <span class="cond sb-mk">{{sb.market}}</span>
+      <span class="sb-item"><span class="mut xs">{{sb.clockLabel}}</span><span class="big sb-clock">{{sb.clock}}</span></span>
+      <span class="sb-item"><span class="mut xs">P&amp;L</span><span class="sb-pnl {{sb.pnlCls}}">{{sb.pnl}}</span></span>
+      <span class="sb-item"><span class="mut xs">Open</span><span class="sb-pnl">{{sb.open}}</span></span>
+      <div class="hsp"></div>
+      <button type="button" class="btn {{sb.exitCls}}" onClick="{{sb.exit}}">{{sb.exitLabel}}</button>
+    </div>
+  </div>
+
+  <div class="tnav">
+    <div class="tnav-in">
+      <nav class="tabs" aria-label="Trading">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+          <button type="button" class="tab" aria-current="{{t.cur}}" onClick="{{t.go}}">{{t.label}}<sc-if value="{{t.hasBadge}}" hint-placeholder-val="{{ false }}"><span class="badge">{{t.badge}}</span></sc-if></button>
+        </sc-for>
+      </nav>
+      <div class="hsp"></div>
+      <div class="bs">
+        <button type="button" class="btn btn-s btn-qb" disabled="{{locked}}" onClick="{{buyTop}}">Buy</button>
+        <button type="button" class="btn btn-s btn-qs" disabled="{{locked}}" onClick="{{sellTop}}">Sell</button>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ss.show}}" hint-placeholder-val="{{ false }}">
+    <div class="ss">
+      <div class="strip {{ss.cls}}" role="status">
+        <div class="strip-t"><span class="b6">{{ss.title}}</span> <span>{{ss.body}}</span></div>
+        <sc-if value="{{ss.hasAct}}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-s btn-p" onClick="{{ss.act}}">{{ss.actLabel}}</button></sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <main class="page s">
+
+    <!-- Market -->
+    <sc-if value="{{tMarket}}" hint-placeholder-val="{{ true }}">
+      <div class="card tbl-card">
+        <div class="row head mk">
+          <span>Instrument</span><span class="num">Last</span><span class="num">Change</span><span class="num hide-sm">High</span><span class="num hide-sm">Low</span><span class="num hide-sm">Volume</span><span class="num hide-sm">Held</span>
+        </div>
+        <sc-for list="{{mrows}}" as="r" hint-placeholder-count="5">
+          <div class="mrow">
+            <button type="button" class="mbtn mk" aria-pressed="{{r.sel}}" onClick="{{r.pick}}">
+              <span class="ins"><span class="sym">{{r.sym}}</span><span class="mut sm">{{r.name}}</span></span>
+              <span class="num b6">{{r.last}}</span>
+              <span class="num {{r.chCls}}" style="display: flex; flex-direction: column; align-items: flex-end"><span class="b6">{{r.change}}</span><span class="sm">{{r.pct}}</span></span>
+              <span class="num hide-sm">{{r.hi}}</span>
+              <span class="num hide-sm">{{r.lo}}</span>
+              <span class="num hide-sm">{{r.vol}}</span>
+              <span class="num hide-sm">{{r.held}}</span>
+            </button>
+            <sc-if value="{{r.sel}}" hint-placeholder-val="{{ false }}">
+              <div class="acts">
+                <button type="button" class="btn btn-s btn-qb" disabled="{{locked}}" onClick="{{r.buy}}">Buy</button>
+                <button type="button" class="btn btn-s btn-qs" disabled="{{locked}}" onClick="{{r.sell}}">Sell</button>
+                <button type="button" class="btn btn-s" onClick="{{r.depth}}">{{r.depthLabel}}</button>
+                <button type="button" class="btn btn-s" onClick="{{r.chart}}">Chart</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{r.showDepth}}" hint-placeholder-val="{{ false }}">
+              <div class="depth">
+                <div class="depth-h">
+                  <h3 class="b6" style="font-size: 15px">Market depth, {{r.sym}}</h3>
+                  <span class="mut sm">Spread {{depth.spread}}</span>
+                  <div class="hsp"></div>
+                  <button type="button" class="btn btn-s btn-qb" disabled="{{locked}}" onClick="{{r.buy}}">Buy</button>
+                  <button type="button" class="btn btn-s btn-qs" disabled="{{locked}}" onClick="{{r.sell}}">Sell</button>
+                </div>
+                <div class="dcols">
+                  <div>
+                    <div class="dh"><span>Bid qty</span><span>Bid price</span></div>
+                    <sc-for list="{{depth.bids}}" as="b" hint-placeholder-count="5">
+                      <div class="dr"><span class="bar bar-g" style="width: {{b.w}}%"></span><span>{{b.q}}</span><span class="gain b6">{{b.p}}</span></div>
+                    </sc-for>
+                  </div>
+                  <div>
+                    <div class="dh"><span>Ask price</span><span>Ask qty</span></div>
+                    <sc-for list="{{depth.asks}}" as="a" hint-placeholder-count="5">
+                      <div class="dr"><span class="bar bar-l" style="width: {{a.w}}%"></span><span class="loss b6">{{a.p}}</span><span>{{a.q}}</span></div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div class="dtot"><span>Total bid {{depth.tb}}</span><span>Total ask {{depth.ta}}</span></div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <!-- Chart -->
+    <sc-if value="{{tChart}}" hint-placeholder-val="{{ false }}">
+      <div class="card tbl-card">
+        <div class="ch-head">
+          <label class="sr" for="ch-sym">Instrument</label>
+          <select id="ch-sym" class="sel" value="{{ch.sym}}" onChange="{{ch.onSym}}">
+            <sc-for list="{{ch.syms}}" as="o" hint-placeholder-count="5"><option value="{{o.sym}}">{{o.label}}</option></sc-for>
+          </select>
+          <span class="big ch-px">{{ch.last}}</span>
+          <span class="b6 {{ch.chCls}}">{{ch.change}}</span>
+          <div class="hsp"></div>
+          <div class="seg" role="group" aria-label="Timeframe">
+            <sc-for list="{{ch.tfs}}" as="f" hint-placeholder-count="5"><button type="button" aria-pressed="{{f.on}}" onClick="{{f.pick}}">{{f.label}}</button></sc-for>
+          </div>
+          <div class="seg" role="group" aria-label="Chart type">
+            <button type="button" aria-pressed="{{ch.candleOn}}" onClick="{{ch.setCandle}}">Candles</button>
+            <button type="button" aria-pressed="{{ch.lineOn}}" onClick="{{ch.setLine}}">Line</button>
+          </div>
+          <button type="button" class="chip" aria-pressed="{{ch.maOn}}" onClick="{{ch.toggleMa}}">MA 20</button>
+          <button type="button" class="ib" aria-label="Undo" disabled="{{ch.undoOff}}" onClick="{{ch.undo}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-3"></path></svg></button>
+          <button type="button" class="ib" aria-label="Redo" disabled="{{ch.redoOff}}" onClick="{{ch.redo}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"></path><path d="M20 9H10a6 6 0 0 0 0 12h3"></path></svg></button>
+        </div>
+        <div class="ch-body">
+          <div class="tools" role="toolbar" aria-label="Drawing tools">
+            <button type="button" class="tool" aria-pressed="{{ch.toolCur}}" aria-label="Cursor" title="Cursor" onClick="{{ch.setCur}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l14 7-6 2-2 7z"></path></svg></button>
+            <button type="button" class="tool" aria-pressed="{{ch.toolTrend}}" aria-label="Trend line" title="Trend line" onClick="{{ch.setTrend}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 18L19 6"></path><circle cx="5" cy="18" r="2"></circle><circle cx="19" cy="6" r="2"></circle></svg></button>
+            <button type="button" class="tool" aria-pressed="{{ch.toolH}}" aria-label="Horizontal line" title="Horizontal line" onClick="{{ch.setH}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18"></path><circle cx="12" cy="12" r="2"></circle></svg></button>
+            <button type="button" class="tool" aria-pressed="{{ch.toolRect}}" aria-label="Rectangle" title="Rectangle" onClick="{{ch.setRect}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1"></rect></svg></button>
+            <span class="tool-sep"></span>
+            <button type="button" class="tool" aria-label="Remove all drawings" title="Remove all drawings" disabled="{{ch.noDraw}}" onClick="{{ch.clear}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path></svg></button>
+          </div>
+          <div class="plotw">
+            <sc-for list="{{ch.grid}}" as="g" hint-placeholder-count="4"><div class="gl" style="top: {{g.top}}%"></div></sc-for>
+            <sc-for list="{{ch.candles}}" as="c" hint-placeholder-count="64">
+              <div class="cd" style="left: {{c.left}}%; width: {{c.w}}%"><span class="wick {{c.cls}}" style="top: {{c.wt}}%; height: {{c.wh}}%"></span><span class="cbody {{c.cls}}" style="top: {{c.bt}}%; height: {{c.bh}}%"></span></div>
+            </sc-for>
+            <sc-if value="{{ch.isLine}}" hint-placeholder-val="{{ false }}">
+              <svg class="lsvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon class="larea" points="{{ch.areaPts}}"></polygon><polyline class="lpoly" points="{{ch.linePts}}"></polyline></svg>
+            </sc-if>
+            <sc-if value="{{ch.showMa}}" hint-placeholder-val="{{ false }}">
+              <svg class="lsvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline class="mapoly" points="{{ch.maPts}}"></polyline></svg>
+            </sc-if>
+            <sc-for list="{{ch.lines}}" as="d" hint-placeholder-count="0">
+              <svg class="dsvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><line class="dline" x1="{{d.x1}}" y1="{{d.y1}}" x2="{{d.x2}}" y2="{{d.y2}}"></line></svg>
+            </sc-for>
+            <sc-for list="{{ch.rects}}" as="d" hint-placeholder-count="0">
+              <div class="drect" style="left: {{d.l}}%; top: {{d.t}}%; width: {{d.w}}%; height: {{d.h}}%"></div>
+            </sc-for>
+            <sc-if value="{{ch.hasPend}}" hint-placeholder-val="{{ false }}"><span class="pend" style="left: {{ch.pendX}}%; top: {{ch.pendY}}%"></span></sc-if>
+            <div class="lastln" style="top: {{ch.lastTop}}%"></div>
+            <button type="button" class="hit {{ch.hitCls}}" aria-label="{{ch.hitLabel}}" onClick="{{ch.plotClick}}"></button>
+          </div>
+          <div class="axis">
+            <sc-for list="{{ch.ticks}}" as="t" hint-placeholder-count="4"><span class="axl" style="top: {{t.top}}%">{{t.label}}</span></sc-for>
+            <span class="axl last" style="top: {{ch.lastTop}}%">{{ch.last}}</span>
+          </div>
+        </div>
+        <div class="ch-foot">
+          <sc-for list="{{ch.times}}" as="t" hint-placeholder-count="5"><span>{{t.label}}</span></sc-for>
+        </div>
+        <div class="ch-legend"><span>{{ch.legend}}</span></div>
+      </div>
+    </sc-if>
+
+    <!-- Orders -->
+    <sc-if value="{{tOrders}}" hint-placeholder-val="{{ false }}">
+      <div class="col" style="gap: 32px">
+        <section class="blk" aria-labelledby="oo-h">
+          <div class="blk-h">
+            <h2 id="oo-h">Open orders <span class="mut">{{ord.openN}}</span></h2>
+            <button type="button" class="btn btn-s" disabled="{{ord.cancelAllOff}}" onClick="{{ord.cancelAll}}">Cancel all</button>
+          </div>
+          <div class="card tbl-card"><div class="scroll"><div style="min-width: 780px; --cols: 84px 64px minmax(110px, 1fr) 72px 76px 96px 190px">
+            <div class="row head"><span>Time</span><span>Side</span><span>Instrument</span><span class="num">Qty</span><span>Type</span><span class="num">Price</span><span></span></div>
+            <sc-for list="{{ord.open}}" as="o" hint-placeholder-count="1">
+              <div class="row">
+                <span>{{o.t}}</span>
+                <span><span class="sd {{o.sdCls}}">{{o.side}}</span></span>
+                <span class="sym">{{o.sym}}</span>
+                <span class="num">{{o.qty}}</span>
+                <span>{{o.type}}</span>
+                <span class="num">{{o.price}}</span>
+                <span style="display: flex; gap: 8px; justify-content: flex-end">
+                  <button type="button" class="btn btn-s" disabled="{{locked}}" onClick="{{o.modify}}">Modify</button>
+                  <button type="button" class="btn btn-s" disabled="{{locked}}" onClick="{{o.cancel}}">Cancel</button>
+                </span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ord.noOpen}}" hint-placeholder-val="{{ false }}"><div class="empty">No open orders.</div></sc-if>
+          </div></div></div>
+        </section>
+        <section class="blk" aria-labelledby="co-h">
+          <div class="blk-h"><h2 id="co-h">Completed orders <span class="mut">{{ord.doneN}}</span></h2></div>
+          <div class="card tbl-card"><div class="scroll"><div style="min-width: 780px; --cols: 84px 64px minmax(110px, 1fr) 72px 76px 96px 190px">
+            <div class="row head"><span>Time</span><span>Side</span><span>Instrument</span><span class="num">Qty</span><span>Type</span><span class="num">Price</span><span>Status</span></div>
+            <sc-for list="{{ord.done}}" as="o" hint-placeholder-count="4">
+              <div class="row">
+                <span>{{o.t}}</span>
+                <span><span class="sd {{o.sdCls}}">{{o.side}}</span></span>
+                <span class="sym">{{o.sym}}</span>
+                <span class="num">{{o.qty}}</span>
+                <span>{{o.type}}</span>
+                <span class="num">{{o.price}}</span>
+                <span style="display: flex; flex-direction: column; padding: 6px 0"><span class="b6 {{o.stCls}}">{{o.status}}</span><span class="mut sm">{{o.reason}}</span></span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ord.noDone}}" hint-placeholder-val="{{ false }}"><div class="empty">No completed orders yet.</div></sc-if>
+          </div></div></div>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- Positions -->
+    <sc-if value="{{tPositions}}" hint-placeholder-val="{{ false }}">
+      <section class="blk" aria-labelledby="po-h">
+        <div class="blk-h">
+          <h2 id="po-h">Open positions <span class="mut">{{pos.n}}</span></h2>
+          <button type="button" class="btn btn-s btn-dout" disabled="{{pos.exitAllOff}}" onClick="{{pos.exitAll}}">Exit all</button>
+        </div>
+        <div class="card tbl-card"><div class="scroll"><div style="min-width: 720px; --cols: minmax(130px, 1fr) 80px 104px 104px 150px 104px">
+          <div class="row head"><span>Instrument</span><span class="num">Qty</span><span class="num">Avg price</span><span class="num">Last</span><span class="num">P&amp;L</span><span></span></div>
+          <sc-for list="{{pos.rows}}" as="p" hint-placeholder-count="2">
+            <div class="row">
+              <span class="ins"><span class="sym">{{p.sym}}</span><span class="mut sm">{{p.name}}</span></span>
+              <span class="num">{{p.qty}}</span>
+              <span class="num">{{p.avg}}</span>
+              <span class="num">{{p.last}}</span>
+              <span class="num b6 {{p.cls}}">{{p.pnl}}</span>
+              <span style="display: flex; justify-content: flex-end"><button type="button" class="btn btn-s btn-dout" disabled="{{locked}}" onClick="{{p.exit}}">Exit</button></span>
+            </div>
+          </sc-for>
+          <sc-if value="{{pos.none}}" hint-placeholder-val="{{ false }}"><div class="empty">No open positions.</div></sc-if>
+        </div></div></div>
+        <p class="mut sm">{{pos.note}}</p>
+      </section>
+    </sc-if>
+
+    <!-- Trades -->
+    <sc-if value="{{tTrades}}" hint-placeholder-val="{{ false }}">
+      <section class="blk" aria-labelledby="tr-h">
+        <div class="blk-h"><h2 id="tr-h">Trades <span class="mut">{{trd.n}}</span></h2><span class="mut sm">This session</span></div>
+        <div class="card tbl-card"><div class="scroll"><div style="min-width: 700px; --cols: 96px 64px minmax(130px, 1fr) 80px 104px 124px">
+          <div class="row head"><span>Time</span><span>Side</span><span>Instrument</span><span class="num">Qty</span><span class="num">Price</span><span class="num">Value</span></div>
+          <sc-for list="{{trd.rows}}" as="t" hint-placeholder-count="4">
+            <div class="row">
+              <span>{{t.t}}</span>
+              <span><span class="sd {{t.sdCls}}">{{t.side}}</span></span>
+              <span><span class="sym">{{t.sym}}</span><sc-if value="{{t.auto}}" hint-placeholder-val="{{ false }}"><span class="auto">auto</span></sc-if></span>
+              <span class="num">{{t.qty}}</span>
+              <span class="num">{{t.price}}</span>
+              <span class="num">{{t.value}}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{trd.none}}" hint-placeholder-val="{{ false }}"><div class="empty">No trades yet this session.</div></sc-if>
+          <div class="row foot"><span class="b6">Totals</span><span></span><span></span><span></span><span class="num"><span class="mut sm">Bought</span> {{trd.bought}}</span><span class="num"><span class="mut sm">Sold</span> {{trd.sold}}</span></div>
+        </div></div></div>
+      </section>
+    </sc-if>
+
+    <!-- P&L -->
+    <sc-if value="{{tPnl}}" hint-placeholder-val="{{ false }}">
+      <section class="blk" aria-labelledby="pl-h">
+        <div class="blk-h">
+          <h2 id="pl-h">Profit and loss</h2>
+          <button type="button" class="link" onClick="{{pl.toRecord}}">Full record<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button>
+        </div>
+        <div class="stats">
+          <div class="card stat"><span class="mut sm">Realised</span><span class="{{pl.rCls}}" style="display: flex; align-items: baseline; gap: 8px"><span class="b6">{{pl.rAr}}</span><span class="big stat-n">{{pl.real}}</span></span></div>
+          <div class="card stat"><span class="mut sm">Unrealised</span><span class="{{pl.uCls}}" style="display: flex; align-items: baseline; gap: 8px"><span class="b6">{{pl.uAr}}</span><span class="big stat-n">{{pl.unreal}}</span></span></div>
+          <div class="card stat"><span class="mut sm">Net</span><span class="{{pl.nCls}}" style="display: flex; align-items: baseline; gap: 8px"><span class="b6">{{pl.nAr}}</span><span class="big stat-n">{{pl.net}}</span></span></div>
+        </div>
+        <div class="card tbl-card"><div class="scroll"><div style="min-width: 560px; --cols: minmax(130px, 1fr) 120px 120px 130px">
+          <div class="row head"><span>Instrument</span><span class="num">Realised</span><span class="num">Unrealised</span><span class="num">Net</span></div>
+          <sc-for list="{{pl.rows}}" as="p" hint-placeholder-count="4">
+            <div class="row">
+              <span class="ins"><span class="sym">{{p.sym}}</span><span class="mut sm">{{p.name}}</span></span>
+              <span class="num {{p.rCls}}">{{p.real}}</span>
+              <span class="num {{p.uCls}}">{{p.unreal}}</span>
+              <span class="num b6 {{p.nCls}}">{{p.net}}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{pl.none}}" hint-placeholder-val="{{ false }}"><div class="empty">No trades yet this session.</div></sc-if>
+          <sc-if value="{{pl.hasCharges}}" hint-placeholder-val="{{ false }}"><div class="row foot"><span class="mut">Charges</span><span></span><span></span><span class="num">{{pl.charges}}</span></div></sc-if>
+        </div></div></div>
+      </section>
+    </sc-if>
+
+  </main>
+</div>
+</sc-if>
+
+<!-- RECORD -->
+<sc-if value="{{isRecord}}" hint-placeholder-val="{{ false }}">
+<main class="page">
+  <div class="pg-h"><h1>Record</h1><p class="mut">{{rc.sub}}</p></div>
+  <div class="seg" style="align-self: flex-start" role="group" aria-label="Record">
+    <sc-for list="{{rc.tabs}}" as="t" hint-placeholder-count="2"><button type="button" aria-pressed="{{t.on}}" onClick="{{t.pick}}">{{t.label}}</button></sc-for>
+  </div>
+  <div class="card filters">
+    <div class="field"><label class="lab" for="rc-from">From</label><input id="rc-from" class="inp" type="date" value="{{rc.from}}" onInput="{{rc.onFrom}}"></div>
+    <div class="field"><label class="lab" for="rc-to">To</label><input id="rc-to" class="inp" type="date" value="{{rc.to}}" onInput="{{rc.onTo}}"></div>
+    <button type="button" class="btn btn-p" onClick="{{rc.submit}}">Submit</button>
+  </div>
+
+  <sc-if value="{{rc.showHist}}" hint-placeholder-val="{{ true }}">
+    <div class="card tbl-card">
+      <div class="sumline"><span class="b6">{{rc.market}}</span><span class="mut">·</span><span>{{rc.sessions}}</span><span class="mut">·</span><span class="mut">Net P&amp;L</span><span class="b6 {{rc.netCls}}">{{rc.net}}</span></div>
+      <div class="scroll"><div style="min-width: 700px; --cols: 112px 88px 70px minmax(120px, 1fr) 80px 104px">
+        <div class="row head"><span>Date</span><span>Time</span><span>Side</span><span>Symbol</span><span class="num">Qty</span><span class="num">Price</span></div>
+        <sc-for list="{{rc.rows}}" as="t" hint-placeholder-count="6">
+          <div class="row">
+            <span>{{t.date}}</span>
+            <span>{{t.t}}</span>
+            <span><span class="sd {{t.sdCls}}">{{t.side}}</span></span>
+            <span><span class="sym">{{t.sym}}</span><sc-if value="{{t.auto}}" hint-placeholder-val="{{ false }}"><span class="auto">auto</span></sc-if></span>
+            <span class="num">{{t.qty}}</span>
+            <span class="num">{{t.price}}</span>
+          </div>
+        </sc-for>
+      </div></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{rc.showTax}}" hint-placeholder-val="{{ false }}">
+    <div class="card tbl-card">
+      <div class="sumline"><span class="b6">{{rc.market}} tax</span><span class="mut">·</span><span>{{rc.period}}</span></div>
+      <div style="--cols: minmax(0, 1fr) 160px">
+        <sc-for list="{{rc.taxLines}}" as="l" hint-placeholder-count="6">
+          <div class="row"><span class="{{l.cls}}">{{l.label}}</span><span class="num {{l.vcls}}">{{l.value}}</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <p class="mut sm">Lines and period follow the tax rules of the selected market.</p>
+  </sc-if>
+
+  <sc-if value="{{rc.showEmpty}}" hint-placeholder-val="{{ false }}">
+    <div class="card empty" style="border-top: 1px solid var(--line)">{{rc.empty}}</div>
+  </sc-if>
+  <sc-if value="{{rc.showPending}}" hint-placeholder-val="{{ false }}">
+    <div class="card empty" style="border-top: 1px solid var(--line)">Dates changed. Press Submit to update the results.</div>
+  </sc-if>
+</main>
+</sc-if>
+
+<!-- FUNDS -->
+<sc-if value="{{isFunds}}" hint-placeholder-val="{{ false }}">
+<main class="page">
+  <div class="pg-h"><h1>Funds</h1></div>
+  <div class="fund-grid">
+    <section class="card fund" aria-label="Bank balance"><span class="mut">Bank balance</span><span class="big fund-n">{{fd.bank}}</span></section>
+    <section class="card fund" aria-label="Trading balance"><span class="mut">Trading balance</span><span class="big fund-n">{{fd.trading}}</span></section>
+  </div>
+  <div><button type="button" class="btn btn-p btn-l" onClick="{{fd.transfer}}">Transfer</button></div>
+</main>
+</sc-if>
+
+<!-- ORDER WINDOW -->
+<sc-if value="{{od.open}}" hint-placeholder-val="{{ false }}">
+  <button type="button" class="scrim" aria-label="Close order window" onClick="{{od.close}}"></button>
+  <aside class="drawer {{od.cls}}" role="dialog" aria-modal="true" aria-labelledby="ord-h">
+    <div class="dr-h">
+      <h2 id="ord-h">{{od.title}}</h2>
+      <button type="button" class="ib bare" aria-label="Close" onClick="{{od.close}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    </div>
+    <sc-if value="{{od.hasWarn}}" hint-placeholder-val="{{ false }}">
+      <div class="strip strip-bad" role="status"><span class="strip-t b6">{{od.warn}}</span></div>
+    </sc-if>
+    <div class="seg w" role="group" aria-label="Side">
+      <button type="button" class="sgb" aria-pressed="{{od.buyOn}}" disabled="{{od.sideOff}}" onClick="{{od.setBuy}}">Buy</button>
+      <button type="button" class="sgs" aria-pressed="{{od.sellOn}}" disabled="{{od.sideOff}}" onClick="{{od.setSell}}">Sell</button>
+    </div>
+    <div class="field">
+      <span class="lab" id="ord-i">Instrument</span>
+      <sc-if value="{{od.hasSym}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px">
+          <div class="ins"><span class="sym" style="font-size: 18px">{{od.sym}}</span><span class="mut sm">{{od.name}}</span></div>
+          <button type="button" class="link" disabled="{{od.sideOff}}" onClick="{{od.changeSym}}">Change</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{od.noSym}}" hint-placeholder-val="{{ false }}">
+        <input id="ord-q" class="inp" type="search" placeholder="Search by name or symbol" aria-labelledby="ord-i" value="{{od.query}}" onInput="{{od.onQuery}}">
+        <div class="res">
+          <sc-for list="{{od.results}}" as="r" hint-placeholder-count="5">
+            <button type="button" onClick="{{r.pick}}"><span><span class="sym">{{r.sym}}</span> <span class="mut sm">{{r.name}}</span></span><span class="num">{{r.price}}</span></button>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+    <div class="field">
+      <span class="lab">Current price</span>
+      <div style="display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px">
+        <span class="big" style="font-size: 30px">{{od.price}}</span>
+        <span class="b6 {{od.chCls}}">{{od.changeTxt}}</span>
+      </div>
+    </div>
+    <div class="field">
+      <label class="lab" for="ord-qty">Quantity</label>
+      <input id="ord-qty" class="inp" type="number" min="1" step="1" inputmode="numeric" value="{{od.qty}}" disabled="{{od.fieldsOff}}" onInput="{{od.onQty}}">
+    </div>
+    <div class="field">
+      <span class="lab" id="ord-t">Type</span>
+      <div class="seg w" role="group" aria-labelledby="ord-t">
+        <button type="button" aria-pressed="{{od.mktOn}}" disabled="{{od.fieldsOff}}" onClick="{{od.setMkt}}">Market</button>
+        <button type="button" aria-pressed="{{od.lmtOn}}" disabled="{{od.fieldsOff}}" onClick="{{od.setLmt}}">Limit</button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="lab" for="ord-px">Price</label>
+      <input id="ord-px" class="inp" type="text" inputmode="decimal" value="{{od.priceVal}}" disabled="{{od.priceOff}}" onInput="{{od.onPrice}}">
+    </div>
+    <div class="est"><span class="mut">Est. cost</span><span class="b6" style="font-size: 20px">{{od.est}}</span></div>
+    <button type="button" class="btn btn-l btn-w {{od.btnCls}}" disabled="{{od.btnOff}}" onClick="{{od.submit}}">{{od.btn}}</button>
+  </aside>
+</sc-if>
+
+<!-- CONFIRM DIALOG -->
+<sc-if value="{{dlg.open}}" hint-placeholder-val="{{ false }}">
+  <button type="button" class="scrim" aria-label="Close dialog" onClick="{{dlg.cancel}}"></button>
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="dlg-h" aria-describedby="dlg-b">
+    <h2 id="dlg-h">{{dlg.title}}</h2>
+    <p id="dlg-b" class="mut">{{dlg.body}}</p>
+    <div class="mact">
+      <button type="button" class="btn" onClick="{{dlg.cancel}}">{{dlg.cancelLabel}}</button>
+      <button type="button" class="btn {{dlg.okCls}}" onClick="{{dlg.ok}}">{{dlg.okLabel}}</button>
+    </div>
+  </div>
+</sc-if>
+
+<!-- TRANSFER WINDOW -->
+<sc-if value="{{tr.open}}" hint-placeholder-val="{{ false }}">
+  <button type="button" class="scrim" aria-label="Close transfer window" disabled="{{tr.busy}}" onClick="{{tr.close}}"></button>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tr-h2">
+    <h2 id="tr-h2">Transfer</h2>
+    <sc-if value="{{tr.isForm}}" hint-placeholder-val="{{ true }}">
+      <div class="field">
+        <span class="lab" id="tr-d">Direction</span>
+        <div class="radios" role="radiogroup" aria-labelledby="tr-d">
+          <sc-for list="{{tr.dirs}}" as="d" hint-placeholder-count="2">
+            <button type="button" class="radio" role="radio" aria-checked="{{d.on}}" onClick="{{d.pick}}"><span class="rdot"></span>{{d.label}}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div class="field">
+        <label class="lab" for="tr-amt">Amount</label>
+        <input id="tr-amt" class="inp" type="text" inputmode="decimal" placeholder="0.00" value="{{tr.amount}}" onInput="{{tr.onAmount}}">
+        <span class="mut sm">{{tr.avail}}</span>
+      </div>
+      <div class="mact">
+        <button type="button" class="btn" onClick="{{tr.close}}">Cancel</button>
+        <button type="button" class="btn btn-p" disabled="{{tr.subOff}}" onClick="{{tr.submit}}">Submit</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{tr.isProc}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; align-items: center; gap: 14px; padding: 12px 0 8px" role="status">
+        <span class="spin" aria-hidden="true"></span>
+        <span class="b6">Transferring {{tr.shown}}</span>
+      </div>
+    </sc-if>
+    <sc-if value="{{tr.isFail}}" hint-placeholder-val="{{ false }}">
+      <div class="strip strip-bad" role="alert"><div class="strip-t"><span class="b6">Transfer failed.</span> <span>{{tr.msg}}</span></div></div>
+      <div class="mact">
+        <button type="button" class="btn" onClick="{{tr.close}}">Cancel</button>
+        <button type="button" class="btn btn-p" onClick="{{tr.retry}}">Try again</button>
+      </div>
+    </sc-if>
+  </div>
+</sc-if>
+
+<!-- TOAST -->
+<sc-if value="{{toast.show}}" hint-placeholder-val="{{ false }}">
+  <div class="toast" role="status" aria-live="polite">{{toast.msg}}</div>
+</sc-if>
+
+<!-- PROTOTYPE CONTROLS -->
+<div class="dock">
+  <sc-if value="{{dock.open}}" hint-placeholder-val="{{ true }}">
+    <div class="dock-p" role="region" aria-label="Prototype controls">
+      <div class="dock-g"><span class="lab">Home, live card</span>
+        <div class="dock-r"><sc-for list="{{dock.live}}" as="x" hint-placeholder-count="4"><button type="button" class="chip" onClick="{{x.go}}">{{x.label}}</button></sc-for></div>
+      </div>
+      <div class="dock-g"><span class="lab">Home, banner</span>
+        <div class="dock-r"><sc-for list="{{dock.strips}}" as="x" hint-placeholder-count="7"><button type="button" class="chip" onClick="{{x.go}}">{{x.label}}</button></sc-for></div>
+      </div>
+      <div class="dock-g"><span class="lab">Inside a session</span>
+        <div class="dock-r"><sc-for list="{{dock.sess}}" as="x" hint-placeholder-count="5"><button type="button" class="chip" onClick="{{x.go}}">{{x.label}}</button></sc-for></div>
+      </div>
+      <div class="dock-g"><span class="lab">Other screens</span>
+        <div class="dock-r"><sc-for list="{{dock.screens}}" as="x" hint-placeholder-count="7"><button type="button" class="chip" onClick="{{x.go}}">{{x.label}}</button></sc-for></div>
+      </div>
+      <p class="mut xs">Prototype controls only. Prices and clocks move on their own.</p>
+    </div>
+  </sc-if>
+  <button type="button" class="chip dock-t" aria-expanded="{{dock.open}}" onClick="{{dock.toggle}}">{{dock.label}}</button>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","lab"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    this._iv = setInterval(() => { try { this.tick(); } catch (e) { /* keep running */ } }, 1000);
+  }
+  componentWillUnmount() {
+    clearInterval(this._iv);
+    (this._to || []).forEach((id) => clearTimeout(id));
+  }
+  up() { this._vv = (this._vv || 0) + 1; this.setState({ _v: this._vv }); }
+  later(fn, ms) { this._to = this._to || []; this._to.push(setTimeout(fn, ms)); }
+
+  /* ---------- small helpers ---------- */
+  f2(n) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  f0(n) { return Math.round(n).toLocaleString('en-US'); }
+  r2(n) { return Math.round(n * 100) / 100; }
+  sg(n) { const v = this.r2(n); if (v > 0) return '+' + this.f2(v); if (v < 0) return '−' + this.f2(-v); return this.f2(0); }
+  ar(n) { const v = this.r2(n); return v > 0 ? '▲ ' : (v < 0 ? '▼ ' : ''); }
+  sa(n) { return this.ar(n) + this.sg(n); }
+  arS(n) { const v = this.r2(n); return v > 0 ? '▲ +' : (v < 0 ? '▼ −' : ''); }
+  tone(n) { const v = this.r2(n); return v > 0 ? 'gain' : (v < 0 ? 'loss' : ''); }
+  pad(n) { return String(n).padStart(2, '0'); }
+  clk(s) { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), mi = Math.floor((s % 3600) / 60), x = s % 60; return h > 0 ? h + ':' + this.pad(mi) + ':' + this.pad(x) : this.pad(mi) + ':' + this.pad(x); }
+  hms(s) { s = Math.max(0, Math.floor(s)); return this.pad(Math.floor(s / 3600) % 24) + ':' + this.pad(Math.floor((s % 3600) / 60)) + ':' + this.pad(s % 60); }
+  SY() { return ['ABCD', 'EFGH', 'IJKL', 'MNOP', 'QRST']; }
+  MK() {
+    return {
+      'India': { win: '20:00 to 21:30', open: '20:00', close: '21:30', closeS: 77400 },
+      'US': { win: '19:30 to 21:00', open: '19:30', close: '21:00', closeS: 75600 },
+      'UK': { win: '18:30 to 20:00', open: '18:30', close: '20:00', closeS: 72000 }
+    };
+  }
+  P0() {
+    return {
+      ABCD: { n: 'Company A', prev: 101.55, last: 102.40, hi: 102.80, lo: 101.20, vol: 184200, tick: 0.05 },
+      EFGH: { n: 'Company B', prev: 58.70, last: 58.35, hi: 59.10, lo: 58.05, vol: 96500, tick: 0.05 },
+      IJKL: { n: 'Company C', prev: 236.10, last: 239.55, hi: 240.30, lo: 231.40, vol: 52300, tick: 0.05 },
+      MNOP: { n: 'Company D', prev: 16.10, last: 15.75, hi: 16.40, lo: 15.60, vol: 410800, tick: 0.01 },
+      QRST: { n: 'Company E', prev: 8.30, last: 8.22, hi: 8.45, lo: 8.10, vol: 733900, tick: 0.01 }
+    };
+  }
+  theme(mode) {
+    const T = {
+      night: { bg: '#0D1117', panel: '#151B23', raised: '#1C232D', line: '#2B3440', ink: '#E6EAF0', muted: '#8D99A8', accent: '#5AA2FF', onAccent: '#06121F', soft: 'rgba(90,162,255,0.14)', btnBg: '#2F6FEB', btnFg: '#FFFFFF', gain: '#3DBE8B', loss: '#F0716F', gainBg: 'rgba(61,190,139,0.14)', lossBg: 'rgba(240,113,111,0.14)', buy: '#148050', onBuy: '#FFFFFF', sell: '#C93B46', onSell: '#FFFFFF', warnBg: 'rgba(224,168,46,0.14)', warnLine: 'rgba(224,168,46,0.5)', ma: '#B79CFF', scrim: 'rgba(3,6,10,0.62)', shadow: '0 18px 48px rgba(0,0,0,0.5)', scheme: 'dark' },
+      lab: { bg: '#F3F5F8', panel: '#FFFFFF', raised: '#EEF1F5', line: '#DDE2E9', ink: '#121821', muted: '#5A6676', accent: '#1D5FD1', onAccent: '#FFFFFF', soft: 'rgba(29,95,209,0.10)', btnBg: '#1D5FD1', btnFg: '#FFFFFF', gain: '#0C7A4F', loss: '#C0322C', gainBg: 'rgba(12,122,79,0.10)', lossBg: 'rgba(192,50,44,0.09)', buy: '#0B8457', onBuy: '#FFFFFF', sell: '#D13438', onSell: '#FFFFFF', warnBg: '#FFF4D6', warnLine: '#E3B341', ma: '#6A3FD0', scrim: 'rgba(15,20,28,0.40)', shadow: '0 18px 48px rgba(15,20,28,0.16)', scheme: 'light' }
+    };
+    return T[mode] || T.night;
+  }
+  varsOf(t) {
+    return '--bg:' + t.bg + ';--panel:' + t.panel + ';--raised:' + t.raised + ';--line:' + t.line + ';--ink:' + t.ink + ';--muted:' + t.muted +
+      ';--accent:' + t.accent + ';--onAccent:' + t.onAccent + ';--soft:' + t.soft + ';--btnBg:' + t.btnBg + ';--btnFg:' + t.btnFg +
+      ';--gain:' + t.gain + ';--loss:' + t.loss + ';--gainBg:' + t.gainBg + ';--lossBg:' + t.lossBg + ';--buy:' + t.buy + ';--onBuy:' + t.onBuy + ';--sell:' + t.sell + ';--onSell:' + t.onSell +
+      ';--warnBg:' + t.warnBg + ';--warnLine:' + t.warnLine + ';--ma:' + t.ma + ';--scrim:' + t.scrim + ';--shadow:' + t.shadow +
+      ';--focus:' + t.accent + ';color-scheme:' + t.scheme + ';';
+  }
+  fmtD(iso) {
+    const p = String(iso || '').split('-');
+    if (p.length !== 3) return iso || '';
+    const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return parseInt(p[2], 10) + ' ' + mo[parseInt(p[1], 10) - 1] + ' ' + p[0];
+  }
+
+  /* ---------- model ---------- */
+  mm() { if (!this._m) this._m = this.initM(); return this._m; }
+  initM() {
+    this._n = 0;
+    this.series = {};
+    const P = this.P0();
+    this.base = {};
+    Object.keys(P).forEach((k) => { this.base[k] = P[k].last; });
+    const wide = !(typeof window !== 'undefined' && window.innerWidth < 761);
+    return {
+      theme: this.props.theme === 'lab' ? 'lab' : 'night',
+      market: 'India', view: 'home', tab: 'market', menu: null, dock: wide,
+      strip: 'none', liveCard: 'open', openClock: 2820, untilOpen: 8049, liveNet: 0,
+      cur: null, live: null, practice: null,
+      dialog: null, toast: null, toastT: 0,
+      tBal: 100000, bBal: 250000, low: false,
+      prices: P, sel: null, depthSym: null,
+      ch: { sym: 'ABCD', tf: '5m', type: 'candles', ma: false, tool: 'cur', draw: [], redo: [], pend: null },
+      od: null, pCond: 'Normal day', pLen: 90, pFail: false, pErr: false, stSeq: 0,
+      tr: null, recTab: 'history',
+      hist: { from: '2026-09-27', to: '2026-10-04', done: true },
+      tax: { from: '2026-09-27', to: '2026-10-04', done: true }
+    };
+  }
+  freshLive(clock) {
+    const m = this.mm();
+    const tr = (id, t, side, sym, qty, price) => ({ id: id, t: t, side: side, sym: sym, qty: qty, price: price, auto: false });
+    const od = (id, t, side, sym, qty, type, price, status, fill, reason) => ({ id: id, t: t, side: side, sym: sym, qty: qty, type: type, price: price, status: status, fill: fill, reason: reason || '' });
+    return {
+      kind: 'live', market: m.market, closeS: this.MK()[m.market].closeS, clock: clock, total: 5400,
+      halted: false, haltLeft: 0, closed: false, leftAt: null,
+      trades: [
+        tr(1, '20:06:14', 'Buy', 'IJKL', 50, 232.00),
+        tr(2, '20:11:42', 'Buy', 'ABCD', 10, 101.80),
+        tr(3, '20:19:05', 'Sell', 'IJKL', 50, 239.79),
+        tr(4, '20:27:31', 'Buy', 'MNOP', 50, 16.20)
+      ],
+      orders: [
+        od(1001, '20:06:14', 'Buy', 'IJKL', 50, 'Market', null, 'Executed', 232.00),
+        od(1002, '20:11:42', 'Buy', 'ABCD', 10, 'Market', null, 'Executed', 101.80),
+        od(1003, '20:15:20', 'Buy', 'QRST', 100, 'Limit', 8.10, 'Cancelled', null),
+        od(1004, '20:19:05', 'Sell', 'IJKL', 50, 'Market', null, 'Executed', 239.79),
+        od(1005, '20:27:31', 'Buy', 'MNOP', 50, 'Market', null, 'Executed', 16.20),
+        od(1006, '20:33:50', 'Buy', 'IJKL', 500, 'Market', null, 'Rejected', null, 'Not enough balance'),
+        od(1007, '20:38:09', 'Buy', 'EFGH', 20, 'Limit', 58.00, 'Open', null)
+      ],
+      nid: 1008, tid: 5, bal: null
+    };
+  }
+  freshPractice(len, cond) {
+    const m = this.mm();
+    return { kind: 'practice', market: m.market, cond: cond, clock: len * 60, total: len * 60, halted: false, haltLeft: 0, closed: false, trades: [], orders: [], nid: 2001, tid: 1, bal: m.tBal, closeS: 0 };
+  }
+  dummy() {
+    const m = this.mm();
+    return { kind: 'live', market: m.market, closeS: this.MK()[m.market].closeS, clock: 0, total: 5400, halted: false, haltLeft: 0, closed: false, trades: [], orders: [], nid: 1, tid: 1, bal: 0, leftAt: null };
+  }
+  S() { const m = this.mm(); return m.cur ? m[m.cur] : null; }
+  wall(s) {
+    if (s.kind === 'live') return this.hms(s.closeS - s.clock);
+    return this.hms(50400 + (s.total - s.clock));
+  }
+  calc(s) {
+    const pos = {}, real = {};
+    s.trades.forEach((t) => {
+      const p = pos[t.sym] || (pos[t.sym] = { qty: 0, avg: 0 });
+      if (real[t.sym] === undefined) real[t.sym] = 0;
+      if (t.side === 'Buy') { const q = p.qty + t.qty; p.avg = (p.avg * p.qty + t.price * t.qty) / q; p.qty = q; }
+      else { real[t.sym] += (t.price - p.avg) * t.qty; p.qty = Math.max(0, p.qty - t.qty); if (p.qty === 0) p.avg = 0; }
+    });
+    return { pos: pos, real: real };
+  }
+  netOf(s) {
+    const m = this.mm(); const c = this.calc(s); let n = 0;
+    Object.keys(c.pos).forEach((k) => { n += c.real[k] + c.pos[k].qty * (m.prices[k].last - c.pos[k].avg); });
+    return n;
+  }
+  toast(msg) { const m = this.mm(); m.toast = msg; m.toastT = 4; }
+  liveState() {
+    const m = this.mm(); const L = m.live;
+    if (L) { if (m.cur === 'live') return L.closed ? 'inClosed' : 'in'; return L.closed ? 'ended' : 'left'; }
+    return m.liveCard;
+  }
+
+  /* ---------- clock and prices ---------- */
+  step(mul) {
+    const m = this.mm();
+    this.SY().forEach((k) => {
+      const p = m.prices[k]; const b = this.base[k];
+      const d = (Math.random() - 0.5) * 2 * p.tick * mul + (b - p.last) * 0.05;
+      let n = this.r2(p.last + d);
+      if (n === p.last && Math.random() < 0.5) n = this.r2(p.last + (Math.random() < 0.5 ? -p.tick : p.tick));
+      if (n < p.tick) n = p.tick;
+      p.last = n; if (n > p.hi) p.hi = n; if (n < p.lo) p.lo = n;
+      p.vol += Math.floor(Math.random() * 400);
+    });
+  }
+  tick() {
+    const m = this.mm(); this._n = (this._n || 0) + 1;
+    if (m.toast) { m.toastT--; if (m.toastT <= 0) m.toast = null; }
+    if (m.liveCard === 'before') { m.untilOpen = Math.max(0, m.untilOpen - 1); if (m.untilOpen === 0) m.liveCard = 'open'; }
+    if (m.liveCard === 'open' && !m.live) { m.openClock = Math.max(0, m.openClock - 1); if (m.openClock === 0) m.liveCard = 'ended'; }
+    const L = m.live;
+    if (L && !L.closed) {
+      L.clock--;
+      if (L.halted) { L.haltLeft--; if (L.haltLeft <= 0) { L.halted = false; if (m.cur === 'live') this.toast('Trading has resumed'); } }
+      if (L.clock <= 0) { L.clock = 0; this.closeSession(L); if (m.cur !== 'live') { m.strip = 'liveEnded'; m.liveNet = this.netOf(L); } }
+    }
+    const Pr = m.practice;
+    if (Pr && m.cur === 'practice' && !Pr.closed) {
+      Pr.clock--;
+      if (Pr.halted) { Pr.haltLeft--; if (Pr.haltLeft <= 0) { Pr.halted = false; this.toast('Trading has resumed'); } }
+      if (Pr.clock <= 0) { Pr.clock = 0; this.closeSession(Pr); }
+    }
+    const s = this.S();
+    const frozen = !!s && (s.closed || s.halted);
+    if (!frozen) {
+      const MUL = { 'Normal day': 1, 'Calm range': 0.5, 'Trending day': 1.1, 'Whipsaw': 1.8, 'Unstable day': 2.6, 'Thin liquidity': 1.4 };
+      this.step(m.cur === 'practice' && m.practice ? (MUL[m.practice.cond] || 1) : 1);
+      Object.keys(this.series).forEach((key) => {
+        const sym = key.split('|')[0]; const arr = this.series[key]; const c = arr[arr.length - 1]; const px = m.prices[sym].last;
+        c.c = px; if (px > c.h) c.h = px; if (px < c.l) c.l = px;
+      });
+      if (s && !s.closed) {
+        s.orders.forEach((o) => {
+          if (o.status !== 'Open') return;
+          const last = m.prices[o.sym].last;
+          if (o.side === 'Buy' && last <= o.price) this.fill(s, o, o.price);
+          else if (o.side === 'Sell' && last >= o.price) this.fill(s, o, o.price);
+        });
+      }
+    }
+    this.up();
+  }
+  fill(s, o, px) {
+    o.status = 'Executed'; o.fill = px;
+    s.trades.push({ id: s.tid++, t: this.wall(s), side: o.side, sym: o.sym, qty: o.qty, price: px, auto: false });
+    this.toast((o.side === 'Buy' ? 'Bought ' : 'Sold ') + o.qty + ' ' + o.sym + ' at ' + this.f2(px));
+  }
+  closeSession(s) {
+    const m = this.mm(); if (s.closed) return;
+    const c = this.calc(s);
+    Object.keys(c.pos).forEach((sym) => {
+      const p = c.pos[sym];
+      if (p.qty > 0) s.trades.push({ id: s.tid++, t: this.wall(s), side: 'Sell', sym: sym, qty: p.qty, price: m.prices[sym].last, auto: true });
+    });
+    s.orders.forEach((o) => { if (o.status === 'Open') o.status = 'Cancelled'; });
+    s.closed = true; s.halted = false;
+    this.toast(s.kind === 'live' ? 'Market closed' : 'Practice ended');
+  }
+
+  /* ---------- chart data ---------- */
+  getSeries(sym, tf) {
+    const key = sym + '|' + tf;
+    if (this.series[key]) return this.series[key];
+    const m = this.mm();
+    const N = 64;
+    const sig = { '1m': 0.0011, '5m': 0.0024, '15m': 0.0041, '1h': 0.0072, '1D': 0.0145 }[tf] || 0.002;
+    let seed = 7;
+    for (let i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) >>> 0;
+    const rnd = () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const last = m.prices[sym].last;
+    const closes = [last];
+    for (let i = 1; i < N; i++) { const prev = closes[0]; closes.unshift(prev * (1 - (rnd() - 0.5) * 2 * sig * 1.5 + (last - prev) * 0.0 )); }
+    const arr = [];
+    for (let i = 0; i < N; i++) {
+      const c = closes[i]; const o = i === 0 ? c * (1 + (rnd() - 0.5) * sig) : closes[i - 1];
+      const w = c * sig * 0.7;
+      arr.push({ o: o, c: c, h: Math.max(o, c) + rnd() * w, l: Math.min(o, c) - rnd() * w });
+    }
+    this.series[key] = arr;
+    return arr;
+  }
+  timeLabels(tf, N, s) {
+    const mins = { '1m': 1, '5m': 5, '15m': 15, '1h': 60, '1D': 1440 }[tf] || 5;
+    const now = s ? (s.kind === 'live' ? s.closeS - s.clock : 50400 + (s.total - s.clock)) : 74580;
+    const idx = [0, Math.round((N - 1) / 4), Math.round((N - 1) / 2), Math.round(3 * (N - 1) / 4), N - 1];
+    return idx.map((i) => {
+      if (tf === '1D') {
+        const d = new Date(2026, 9, 4 - (N - 1 - i));
+        return { label: d.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] };
+      }
+      const sec = now - (N - 1 - i) * mins * 60;
+      const w = ((sec % 86400) + 86400) % 86400;
+      return { label: this.pad(Math.floor(w / 3600)) + ':' + this.pad(Math.floor((w % 3600) / 60)) };
+    });
+  }
+  depthFor(sym) {
+    const m = this.mm(); const p = m.prices[sym]; const t = p.tick;
+    const bid0 = this.r2(p.last - t), ask0 = this.r2(p.last + t);
+    let h = 0; for (let i = 0; i < sym.length; i++) h = (h * 7 + sym.charCodeAt(i)) % 97;
+    const bq = [], aq = []; let tb = 0, ta = 0, mx = 1;
+    for (let i = 0; i < 5; i++) {
+      const qb = 60 + ((h * 13 + i * 53 + this._n * 17) % 240);
+      const qa = 60 + ((h * 7 + i * 71 + this._n * 29) % 240);
+      bq.push(qb); aq.push(qa); tb += qb; ta += qa; if (qb > mx) mx = qb; if (qa > mx) mx = qa;
+    }
+    return {
+      spread: this.f2(this.r2(ask0 - bid0)),
+      bids: bq.map((q, i) => ({ q: this.f0(q), p: this.f2(this.r2(bid0 - i * t)), w: Math.round(q / mx * 100) })),
+      asks: aq.map((q, i) => ({ q: this.f0(q), p: this.f2(this.r2(ask0 + i * t)), w: Math.round(q / mx * 100) })),
+      tb: this.f0(tb), ta: this.f0(ta)
+    };
+  }
+
+  /* ---------- actions ---------- */
+  go(v) {
+    const m = this.mm();
+    if (v === 'session' && !this.S()) v = 'home';
+    m.view = v; m.menu = null; this.up();
+  }
+  openOrder(side, sym) {
+    const m = this.mm(); const s = this.S(); if (!s || s.closed || s.halted) return;
+    const p = sym ? m.prices[sym] : null;
+    m.od = { side: side, sym: sym || null, qty: '10', type: 'Market', price: p ? p.last.toFixed(2) : '', mod: null, query: '' };
+    m.menu = null; this.up();
+  }
+  modifyOrder(o) {
+    const m = this.mm(); const s = this.S(); if (!s || s.closed || s.halted) return;
+    m.od = { side: o.side, sym: o.sym, qty: String(o.qty), type: o.type, price: o.price != null ? o.price.toFixed(2) : m.prices[o.sym].last.toFixed(2), mod: o.id, query: '' };
+    this.up();
+  }
+  submitOrder() {
+    const m = this.mm(), o = m.od, s = this.S();
+    if (!o || !o.sym || !s || s.closed || s.halted) return;
+    const qty = parseInt(o.qty, 10); if (!(qty > 0)) return;
+    const last = m.prices[o.sym].last;
+    let px = null;
+    if (o.type === 'Limit') { px = parseFloat(o.price); if (!(px > 0)) return; }
+    if (o.mod) {
+      const ex = s.orders.find((x) => x.id === o.mod);
+      if (ex) { ex.qty = qty; ex.type = o.type; ex.price = px; }
+      m.od = null; this.toast('Order updated'); this.up(); return;
+    }
+    const ord = { id: s.nid++, t: this.wall(s), side: o.side, sym: o.sym, qty: qty, type: o.type, price: px, status: 'Open', fill: null, reason: '' };
+    const bal = s.kind === 'live' ? m.tBal : s.bal;
+    const held = (this.calc(s).pos[o.sym] || { qty: 0 }).qty;
+    if (o.side === 'Buy' && qty * (px || last) > bal) { ord.status = 'Rejected'; ord.reason = 'Not enough balance'; s.orders.push(ord); this.toast('Order rejected. Not enough balance'); }
+    else if (o.side === 'Sell' && qty > held) { ord.status = 'Rejected'; ord.reason = 'More than you hold'; s.orders.push(ord); this.toast('Order rejected. You hold ' + held + ' ' + o.sym); }
+    else if (o.type === 'Market' || (o.side === 'Buy' && px >= last) || (o.side === 'Sell' && px <= last)) { s.orders.push(ord); this.fill(s, ord, last); }
+    else { s.orders.push(ord); this.toast('Order placed'); }
+    m.od = null; this.up();
+  }
+  cancelOrder(o) { o.status = 'Cancelled'; this.toast('Order cancelled'); this.up(); }
+  exitPos(sym, quiet) {
+    const m = this.mm(), s = this.S(); if (!s || s.closed || s.halted) return;
+    const p = this.calc(s).pos[sym]; if (!p || p.qty <= 0) return;
+    const ord = { id: s.nid++, t: this.wall(s), side: 'Sell', sym: sym, qty: p.qty, type: 'Market', price: null, status: 'Open', fill: null, reason: '' };
+    s.orders.push(ord); this.fill(s, ord, m.prices[sym].last);
+    if (!quiet) this.up();
+  }
+  exitAll() {
+    const s = this.S(); if (!s || s.closed || s.halted) return;
+    const c = this.calc(s);
+    Object.keys(c.pos).forEach((k) => { if (c.pos[k].qty > 0) this.exitPos(k, true); });
+    this.toast('All positions closed'); this.up();
+  }
+  cancelAll() {
+    const s = this.S(); if (!s) return;
+    s.orders.forEach((o) => { if (o.status === 'Open') o.status = 'Cancelled'; });
+    this.toast('All open orders cancelled'); this.up();
+  }
+  joinLive() {
+    const m = this.mm();
+    if (m.cur === 'practice') { m.dialog = { kind: 'toLive' }; this.up(); return; }
+    this.doJoinLive();
+  }
+  doJoinLive() {
+    const m = this.mm();
+    if (!m.live) { m.prices = this.P0(); this.series = {}; m.live = this.freshLive(m.openClock); }
+    m.cur = 'live'; m.view = 'session'; m.tab = 'market'; m.strip = 'none'; m.dialog = null; m.od = null; m.sel = null; m.depthSym = null;
+    this.up();
+  }
+  askPractice() {
+    const m = this.mm();
+    if (m.cur === 'live') { m.dialog = { kind: 'toPractice' }; this.up(); return; }
+    m.view = 'practice'; m.pErr = false; this.up();
+  }
+  startPractice() {
+    const m = this.mm(); if (m.low) return;
+    m.view = 'starting'; m.pErr = false; m.stSeq = (m.stSeq || 0) + 1; const seq = m.stSeq;
+    this.later(() => {
+      const q = this.mm();
+      if (q.view !== 'starting' || q.stSeq !== seq) return;
+      if (q.pFail) { q.pFail = false; q.pErr = true; q.view = 'practice'; }
+      else { q.practice = this.freshPractice(q.pLen, q.pCond); q.cur = 'practice'; q.view = 'session'; q.tab = 'market'; q.strip = 'none'; q.sel = null; q.depthSym = null; }
+      this.up();
+    }, 2400);
+    this.up();
+  }
+  askExit() {
+    const m = this.mm(), s = this.S(); if (!s) return;
+    if (s.closed) { this.leave(false); return; }
+    m.dialog = { kind: 'exit' }; this.up();
+  }
+  leave(quiet) {
+    const m = this.mm(); const k = m.cur, s = this.S(); if (!s) return;
+    if (k === 'live') {
+      if (s.closed) { if (!quiet) { m.strip = 'liveEnded'; m.liveNet = this.netOf(s); } }
+      else { s.leftAt = this.wall(s).slice(0, 5); if (!quiet) m.strip = 'none'; }
+    } else { if (!quiet) m.strip = 'practiceEnded'; m.practice = null; }
+    m.cur = null; m.od = null; m.dialog = null;
+    if (!quiet) m.view = 'home';
+    this.up();
+  }
+  dlgOk() {
+    const m = this.mm(); const d = m.dialog; if (!d) return;
+    if (d.kind === 'exit') { this.leave(false); return; }
+    if (d.kind === 'toLive') { this.leave(true); this.doJoinLive(); return; }
+    if (d.kind === 'toPractice') { this.leave(true); m.dialog = null; m.view = 'practice'; m.pErr = false; this.up(); }
+  }
+  openTransfer() { const m = this.mm(); m.tr = { dir: 'bt', amount: '', phase: 'form', msg: '', amt: 0 }; m.menu = null; this.up(); }
+  submitTransfer() {
+    const m = this.mm(), t = m.tr; if (!t) return;
+    const amt = parseFloat(String(t.amount).replace(/,/g, '')); if (!(amt > 0)) return;
+    t.phase = 'proc'; t.amt = amt; this.up();
+    this.later(() => {
+      const q = this.mm(); if (!q.tr || q.tr.phase !== 'proc') return;
+      const bt = q.tr.dir === 'bt'; const src = bt ? q.bBal : q.tBal;
+      if (amt > src) { q.tr.phase = 'fail'; q.tr.msg = 'There is not enough in your ' + (bt ? 'bank' : 'trading') + ' balance.'; }
+      else {
+        if (bt) { q.bBal = this.r2(q.bBal - amt); q.tBal = this.r2(q.tBal + amt); } else { q.tBal = this.r2(q.tBal - amt); q.bBal = this.r2(q.bBal + amt); }
+        if (q.low && q.tBal >= 100) { q.low = false; if (q.strip === 'low') q.strip = 'none'; }
+        q.tr = null; this.toast('Transferred ' + this.f2(amt) + ' to ' + (bt ? 'Trading balance' : 'Bank balance'));
+      }
+      this.up();
+    }, 1600);
+  }
+  drop() {
+    const m = this.mm(); if (!m.cur) return;
+    this.leave(true);
+  }
+  jump(k) {
+    const m = this.mm();
+    m.menu = null; m.dialog = null; m.od = null; m.tr = null; m.toast = null;
+    const lowOff = () => { if (m.low) { m.low = false; m.tBal = 100000; } };
+    const home = (strip) => { this.drop(); m.view = 'home'; m.strip = strip || 'none'; };
+    if (k === 'liveBefore') { lowOff(); home(); m.live = null; m.liveCard = 'before'; m.untilOpen = 8049; }
+    else if (k === 'liveOpen') { lowOff(); home(); m.live = null; m.liveCard = 'open'; m.openClock = 2820; }
+    else if (k === 'liveLeft') { lowOff(); home(); m.prices = this.P0(); this.series = {}; m.live = this.freshLive(2280); m.live.leftAt = '20:31'; }
+    else if (k === 'liveEnded') { lowOff(); home(); m.live = null; m.liveCard = 'ended'; }
+    else if (k === 'sNone') { lowOff(); home(); }
+    else if (k === 'sLoading') { lowOff(); home('loading'); this.later(() => { const q = this.mm(); if (q.strip === 'loading') { q.strip = 'first'; this.up(); } }, 2600); }
+    else if (k === 'sFirst') { lowOff(); home('first'); }
+    else if (k === 'sLow') { home('low'); m.low = true; m.tBal = 12.5; }
+    else if (k === 'sFailed') { lowOff(); home('failed'); }
+    else if (k === 'sLiveEnded') { lowOff(); home('liveEnded'); m.live = null; m.liveCard = 'ended'; m.liveNet = 382; }
+    else if (k === 'sPracticeEnded') { lowOff(); home('practiceEnded'); }
+    else if (k === 'inLive' || k === 'closing' || k === 'halted' || k === 'closed') {
+      lowOff(); this.drop(); m.live = null; m.liveCard = 'open'; m.openClock = 2820; this.doJoinLive();
+      const L = m.live;
+      if (k === 'closing') L.clock = 298;
+      if (k === 'halted') { L.halted = true; L.haltLeft = 45; }
+      if (k === 'closed') { m.prices.ABCD.last = 102.55; m.prices.MNOP.last = 15.90; this.closeSession(L); m.toast = null; m.tab = 'pnl'; }
+    }
+    else if (k === 'practice') { lowOff(); this.drop(); m.practice = this.freshPractice(90, 'Normal day'); m.cur = 'practice'; m.view = 'session'; m.tab = 'market'; m.strip = 'none'; m.sel = null; m.depthSym = null; }
+    else if (k === 'setup') { lowOff(); this.drop(); m.view = 'practice'; m.pErr = false; }
+    else if (k === 'setupLow') { this.drop(); m.low = true; m.tBal = 12.5; m.view = 'practice'; m.pErr = false; }
+    else if (k === 'setupFail') { lowOff(); this.drop(); m.view = 'practice'; m.pErr = true; }
+    else if (k === 'starting') { lowOff(); this.drop(); m.view = 'practice'; this.startPractice(); return; }
+    else if (k === 'record') { lowOff(); this.drop(); m.view = 'record'; }
+    else if (k === 'funds') { lowOff(); this.drop(); m.view = 'funds'; }
+    else if (k === 'transfer') { lowOff(); this.drop(); m.view = 'funds'; this.openTransfer(); return; }
+    this.up();
+  }
+
+  /* ---------- view models ---------- */
+  renderVals() {
+    const m = this.mm();
+    const s = this.S();
+    const ss = s || this.dummy();
+    const out = {};
+    Object.assign(out, this.vmBase(m, s), this.vmHome(m), this.vmPractice(m), this.vmSession(m, s, ss), this.vmRecord(m), this.vmOverlays(m, s), this.vmDock(m));
+    return out;
+  }
+
+  vmBase(m, s) {
+    const T = this.theme(m.theme); const MK = this.MK();
+    const homeish = m.view === 'home' || m.view === 'practice' || m.view === 'starting';
+    const inLiveOpen = !!m.live && !m.live.closed;
+    const locked = !!m.cur || inLiveOpen;
+    const nav = [['Home', 'home', homeish], ['Record', 'record', m.view === 'record'], ['Funds', 'funds', m.view === 'funds']];
+    return {
+      vars: this.varsOf(T),
+      goHome: () => this.go('home'),
+      navItems: nav.map((n) => ({ label: n[0], cur: n[2] ? 'page' : undefined, go: () => this.go(n[1]) })),
+      marketLabel: m.market, marketOpen: m.menu === 'market', marketLocked: locked,
+      marketTitle: locked ? 'Locked while a live session is open' : 'Change market',
+      toggleMarket: () => { m.menu = m.menu === 'market' ? null : 'market'; this.up(); },
+      markets: ['India', 'US', 'UK'].map((k) => ({ label: k, win: MK[k].win, on: m.market === k, pick: () => { m.market = k; m.menu = null; this.up(); } })),
+      acctOpen: m.menu === 'account',
+      toggleAcct: () => { m.menu = m.menu === 'account' ? null : 'account'; this.up(); },
+      closeMenu: () => { m.menu = null; this.up(); },
+      themeOpts: [
+        { label: 'Dark', on: m.theme === 'night', pick: () => { m.theme = 'night'; this.up(); } },
+        { label: 'Light', on: m.theme === 'lab', pick: () => { m.theme = 'lab'; this.up(); } }
+      ],
+      signOut: () => { m.menu = null; this.toast('Signed out. Sign-in screens are not part of this prototype.'); this.up(); },
+      isHome: m.view === 'home', isPractice: m.view === 'practice', isStarting: m.view === 'starting',
+      isSession: m.view === 'session' && !!s, isRecord: m.view === 'record', isFunds: m.view === 'funds',
+      toast: { show: !!m.toast, msg: m.toast || '' }
+    };
+  }
+
+  vmHome(m) {
+    const MK = this.MK(); const st = this.liveState(); const L = m.live;
+    const mk = MK[L ? L.market : m.market];
+    let strip = { show: false, cls: '', spin: false, title: '', body: '', hasAmt: false, amt: '', amtCls: '', hasAct: false, actLabel: '', act: null, hasX: false, x: null };
+    if (m.cur) {
+      strip = Object.assign(strip, { show: true, title: "You're in a " + (m.cur === 'live' ? 'live' : 'practice') + ' session.', hasAct: true, actLabel: 'Return to session', act: () => this.go('session') });
+    } else if (m.strip === 'loading') {
+      strip = Object.assign(strip, { show: true, spin: true, title: 'Opening your accounts.', body: 'This takes a moment.' });
+    } else if (m.strip === 'first') {
+      strip = Object.assign(strip, { show: true, cls: 'strip-ok', title: 'Your accounts are open.', body: 'Your trading balance and bank balance are ready.', hasAct: true, actLabel: 'Continue', act: () => { m.strip = 'none'; this.up(); } });
+    } else if (m.strip === 'low') {
+      strip = Object.assign(strip, { show: true, cls: 'strip-warn', title: 'Your trading balance is low.', body: 'Next top-up in 42 min. Practice is paused.' });
+    } else if (m.strip === 'failed') {
+      strip = Object.assign(strip, { show: true, cls: 'strip-bad', title: "We couldn't open your accounts.", hasAct: true, actLabel: 'Try again', act: () => { m.strip = 'loading'; this.later(() => { const q = this.mm(); if (q.strip === 'loading') { q.strip = 'first'; this.up(); } }, 2200); this.up(); } });
+    } else if (m.strip === 'liveEnded') {
+      strip = Object.assign(strip, { show: true, title: 'Live session ended.', hasAmt: true, amt: this.sa(m.liveNet), amtCls: this.tone(m.liveNet), hasAct: true, actLabel: 'View in Record', act: () => this.go('record'), hasX: true, x: () => { m.strip = 'none'; this.up(); } });
+    } else if (m.strip === 'practiceEnded') {
+      strip = Object.assign(strip, { show: true, title: 'Practice session ended.', body: 'Nothing from it was recorded.', hasX: true, x: () => { m.strip = 'none'; this.up(); } });
+    }
+    let nOpen = 0;
+    if (L) { const c = this.calc(L); Object.keys(c.pos).forEach((k) => { if (c.pos[k].qty > 0) nOpen++; }); }
+    const base = 'Humans and agents trade together. Everything you do here is recorded.';
+    const closeNote = 'Open positions close automatically at ' + mk.close + '.';
+    const live = { market: L ? L.market : m.market, window: 'Today, ' + mk.win + ', your time', status: '', dotCls: 'dot-h', label: '', big: '', info: base, btn: 'Join live session', btnOff: false, act: () => this.joinLive(), note: '' };
+    if (st === 'before') { Object.assign(live, { status: 'Opens at ' + mk.open, label: 'Opens in', big: this.clk(m.untilOpen), btnOff: true, note: 'You can join from ' + mk.open + '.' }); }
+    else if (st === 'open') { Object.assign(live, { status: 'Open now', dotCls: 'dot-s', label: 'Closes in', big: this.clk(m.openClock), note: closeNote }); }
+    else if (st === 'in') { Object.assign(live, { status: "You're in this session", dotCls: 'dot-s', label: 'Closes in', big: this.clk(L.clock), info: 'You are trading in this session now.', btn: 'Return to session', act: () => this.go('session') }); }
+    else if (st === 'inClosed') { Object.assign(live, { status: 'Market closed', label: 'Closed at', big: mk.close, info: 'This session is read-only now.', btn: 'Return to session', act: () => this.go('session') }); }
+    else if (st === 'left') { Object.assign(live, { status: 'You left early', dotCls: 'dot-s', label: 'Closes in', big: this.clk(L.clock), info: 'You left at ' + L.leftAt + ' with ' + nOpen + ' open position' + (nOpen === 1 ? '' : 's') + '.', btn: 'Rejoin live session', note: closeNote }); }
+    else { Object.assign(live, { status: 'Ended', label: 'Next session tomorrow at', big: mk.open, info: "Today's live session has ended. Your trades are in Record.", btnOff: true }); }
+    const prac = { btn: 'Set up practice', off: false, act: () => this.askPractice(), note: '' };
+    if (m.cur === 'practice') { prac.btn = 'Return to session'; prac.act = () => this.go('session'); prac.note = 'Practice is in progress.'; }
+    else if (m.low) { prac.off = true; prac.note = 'Paused until your next top-up.'; }
+    return {
+      strip: strip, homeLoading: m.strip === 'loading' && !m.cur, homeReady: !(m.strip === 'loading' && !m.cur),
+      live: live, prac: prac,
+      bal: { trading: this.f2(m.tBal), bank: this.f2(m.bBal), transfer: () => this.openTransfer() }
+    };
+  }
+
+  vmPractice(m) {
+    const D = {
+      'Normal day': 'Ordinary trading. A good place to start.',
+      'Calm range': 'Prices drift inside a narrow band.',
+      'Trending day': 'Prices lean one way for most of the session.',
+      'Whipsaw': 'Prices reverse often. Hard to hold a view.',
+      'Unstable day': 'Large, fast moves with little warning.',
+      'Thin liquidity': 'Few agents trading. Your orders move the price.'
+    };
+    const conds = Object.keys(D).map((k) => ({ name: k, desc: D[k], on: m.pCond === k, off: m.low, pick: () => { m.pCond = k; this.up(); } }));
+    const lens = [60, 75, 90, 105].map((n) => ({ label: n + ' min', on: m.pLen === n, off: m.low, pick: () => { m.pLen = n; this.up(); } }));
+    let warn = '', warnCls = '';
+    if (m.low) { warn = 'Your trading balance is below the minimum for practice. Next top-up in 42 min.'; warnCls = 'strip-warn'; }
+    else if (m.pErr) { warn = "We couldn't start your practice session. Nothing was used."; warnCls = 'strip-bad'; }
+    return {
+      conds: conds, lens: lens,
+      ps: { market: m.market, cond: m.pCond, len: m.pLen + ' min', bal: this.f2(m.tBal), hasWarn: !!warn, warn: warn, warnCls: warnCls, startOff: m.low, startLabel: m.pErr ? 'Try again' : 'Start practice', start: () => this.startPractice() },
+      stg: { line: m.market + ', ' + m.pCond + ', ' + m.pLen + ' min', cancel: () => { m.stSeq++; m.view = 'practice'; this.up(); } }
+    };
+  }
+
+  vmSession(m, s, ss) {
+    const MK = this.MK(); const c = this.calc(ss);
+    const SYMS = this.SY(); const px = (k) => m.prices[k];
+    const net = this.netOf(ss);
+    const openList = SYMS.filter((k) => c.pos[k] && c.pos[k].qty > 0);
+    const openN = openList.length;
+    const isLive = ss.kind === 'live';
+    const locked = !s || ss.closed || ss.halted;
+    const close = isLive ? MK[ss.market].close : '';
+    const openOrders = ss.orders.filter((o) => o.status === 'Open').slice().reverse();
+    const doneOrders = ss.orders.filter((o) => o.status !== 'Open').slice().reverse();
+    const T = ['market', 'chart', 'orders', 'positions', 'trades', 'pnl'];
+    const TL = { market: 'Market', chart: 'Chart', orders: 'Orders', positions: 'Positions', trades: 'Trades', pnl: 'P&L' };
+    const badge = (k) => k === 'orders' ? openOrders.length : (k === 'positions' ? openN : 0);
+    const tabs = T.map((k) => ({ label: TL[k], cur: m.tab === k ? 'page' : undefined, go: () => { m.tab = k; this.up(); }, hasBadge: badge(k) > 0, badge: badge(k) }));
+    // phase strip
+    let phase = { show: false, cls: '', title: '', body: '', hasAct: false, actLabel: '', act: null };
+    if (ss.closed) {
+      phase = isLive
+        ? { show: true, cls: '', title: 'Market closed.', body: 'This session is read-only. Open positions were closed automatically at ' + close + '.', hasAct: true, actLabel: 'View in Record', act: () => this.go('record') }
+        : { show: true, cls: '', title: 'Practice ended.', body: 'Nothing from it was recorded.', hasAct: false, actLabel: '', act: null };
+    } else if (ss.halted) {
+      phase = { show: true, cls: 'strip-bad', title: 'Trading is halted.', body: 'Orders are off until it resumes.', hasAct: false, actLabel: '', act: null };
+    } else if (ss.clock <= 300 && s) {
+      phase = { show: true, cls: 'strip-warn', title: 'Closing soon.', body: (isLive ? 'The market closes in ' : 'Practice ends in ') + this.clk(ss.clock) + '. Open positions close automatically.', hasAct: false, actLabel: '', act: null };
+    }
+    // market rows
+    const depth = m.depthSym ? this.depthFor(m.depthSym) : { spread: '', bids: [], asks: [], tb: '', ta: '' };
+    const mrows = SYMS.map((k) => {
+      const p = px(k); const chg = p.last - p.prev; const pct = chg / p.prev * 100;
+      const held = c.pos[k] ? c.pos[k].qty : 0; const sel = m.sel === k;
+      return {
+        sym: k, name: p.n, last: this.f2(p.last), change: this.sa(chg),
+        pct: (pct > 0.004 ? '+' : (pct < -0.004 ? '−' : '')) + Math.abs(pct).toFixed(2) + '%', chCls: this.tone(chg),
+        hi: this.f2(p.hi), lo: this.f2(p.lo), vol: this.f0(p.vol), held: held > 0 ? String(held) : '–',
+        sel: sel, showDepth: sel && m.depthSym === k, depthLabel: m.depthSym === k ? 'Hide depth' : 'Depth',
+        pick: () => { m.sel = m.sel === k ? null : k; if (m.sel !== k) m.depthSym = null; else if (m.depthSym && m.depthSym !== k) m.depthSym = null; this.up(); },
+        buy: () => this.openOrder('Buy', k), sell: () => this.openOrder('Sell', k),
+        depth: () => { m.depthSym = m.depthSym === k ? null : k; this.up(); },
+        chart: () => { m.ch.sym = k; m.ch.draw = []; m.ch.redo = []; m.ch.pend = null; m.tab = 'chart'; this.up(); }
+      };
+    });
+    // orders
+    const orderRow = (o) => {
+      const priceTxt = o.price != null ? this.f2(o.price) : (o.fill != null ? this.f2(o.fill) : 'Market');
+      return {
+        t: o.t, side: o.side, sdCls: o.side === 'Buy' ? 'sd-b' : 'sd-s', sym: o.sym, qty: o.qty, type: o.type,
+        price: o.status === 'Executed' && o.fill != null ? this.f2(o.fill) : priceTxt,
+        status: o.status, stCls: o.status === 'Rejected' ? 'loss' : (o.status === 'Cancelled' ? 'st-x' : ''), reason: o.reason || '',
+        modify: () => this.modifyOrder(o), cancel: () => this.cancelOrder(o)
+      };
+    };
+    // positions
+    const posRows = openList.map((k) => {
+      const p = c.pos[k]; const last = px(k).last; const pnl = p.qty * (last - p.avg);
+      return { sym: k, name: px(k).n, qty: p.qty, avg: this.f2(p.avg), last: this.f2(last), pnl: this.sa(pnl), cls: this.tone(pnl), exit: () => this.exitPos(k) };
+    });
+    // trades
+    let bought = 0, sold = 0;
+    ss.trades.forEach((t) => { if (t.side === 'Buy') bought += t.qty * t.price; else sold += t.qty * t.price; });
+    const tradeRows = ss.trades.slice().reverse().map((t) => ({ t: t.t, side: t.side, sdCls: t.side === 'Buy' ? 'sd-b' : 'sd-s', sym: t.sym, auto: t.auto, qty: t.qty, price: this.f2(t.price), value: this.f2(t.qty * t.price) }));
+    // pnl
+    let rT = 0, uT = 0; const plRows = [];
+    Object.keys(c.pos).forEach((k) => {
+      const p = c.pos[k]; const r = c.real[k] || 0; const u = p.qty * (px(k).last - p.avg); rT += r; uT += u;
+      plRows.push({ sym: k, name: px(k).n, real: this.sg(r), unreal: this.sg(u), net: this.sa(r + u), rCls: this.tone(r), uCls: this.tone(u), nCls: this.tone(r + u) });
+    });
+    // chart
+    const ch = this.vmChart(m, s);
+
+    return {
+      sb: {
+        cls: isLive ? '' : 'pr', dot: isLive ? 'dot-s' : 'dot-h', kind: isLive ? 'Live' : 'Practice', market: ss.market,
+        clockLabel: ss.closed ? 'Closed' : 'Time left', clock: this.clk(ss.clock), pnl: this.sa(net), pnlCls: this.tone(net), open: openN,
+        exitLabel: ss.closed ? 'Leave session' : 'Exit session', exitCls: ss.closed ? 'btn-s btn-p' : 'btn-s btn-dout', exit: () => this.askExit()
+      },
+      tabs: tabs, locked: locked,
+      buyTop: () => this.openOrder('Buy', m.tab === 'chart' ? m.ch.sym : m.sel),
+      sellTop: () => this.openOrder('Sell', m.tab === 'chart' ? m.ch.sym : m.sel),
+      ss: phase,
+      tMarket: m.tab === 'market', tChart: m.tab === 'chart', tOrders: m.tab === 'orders', tPositions: m.tab === 'positions', tTrades: m.tab === 'trades', tPnl: m.tab === 'pnl',
+      mrows: mrows, depth: depth,
+      ch: ch,
+      ord: { open: openOrders.map(orderRow), done: doneOrders.map(orderRow), openN: '(' + openOrders.length + ')', doneN: '(' + doneOrders.length + ')', noOpen: openOrders.length === 0, noDone: doneOrders.length === 0, cancelAllOff: locked || openOrders.length === 0, cancelAll: () => this.cancelAll() },
+      pos: { rows: posRows, n: '(' + openN + ')', none: openN === 0, exitAllOff: locked || openN === 0, exitAll: () => this.exitAll(), note: isLive ? 'Open positions close automatically at ' + close + '.' : 'Open positions close automatically when practice ends.' },
+      trd: { rows: tradeRows, n: '(' + ss.trades.length + ')', none: ss.trades.length === 0, bought: this.f2(bought), sold: this.f2(sold) },
+      pl: {
+        real: this.f2(Math.abs(rT)), unreal: this.f2(Math.abs(uT)), net: this.f2(Math.abs(rT + uT)),
+        rAr: this.arS(rT), uAr: this.arS(uT), nAr: this.arS(rT + uT), rCls: this.tone(rT), uCls: this.tone(uT), nCls: this.tone(rT + uT),
+        rows: plRows, none: plRows.length === 0, hasCharges: false, charges: '', toRecord: () => this.go('record')
+      }
+    };
+  }
+
+  vmChart(m, s) {
+    const c = m.ch; const p = m.prices[c.sym]; const arr = this.getSeries(c.sym, c.tf); const N = arr.length;
+    let hi = -1e9, lo = 1e9;
+    arr.forEach((x) => { if (x.h > hi) hi = x.h; if (x.l < lo) lo = x.l; });
+    const pad = (hi - lo) * 0.1 || 0.5; hi += pad; lo -= pad;
+    const Y = (v) => (hi - v) / (hi - lo) * 100;
+    const slot = 100 / N;
+    const isCandle = c.type === 'candles';
+    const candles = isCandle ? arr.map((x, i) => {
+      const top = Y(Math.max(x.o, x.c)), bot = Y(Math.min(x.o, x.c));
+      return { left: (i * slot).toFixed(3), w: slot.toFixed(3), cls: x.c >= x.o ? 'up' : 'dn', wt: Y(x.h).toFixed(2), wh: (Y(x.l) - Y(x.h)).toFixed(2), bt: top.toFixed(2), bh: Math.max(bot - top, 0.3).toFixed(2) };
+    }) : [];
+    const pts = arr.map((x, i) => ((i + 0.5) * slot).toFixed(2) + ',' + Y(x.c).toFixed(2));
+    const linePts = pts.join(' ');
+    const areaPts = (0.5 * slot).toFixed(2) + ',100 ' + linePts + ' ' + ((N - 0.5) * slot).toFixed(2) + ',100';
+    const ma = [];
+    for (let i = 19; i < N; i++) { let sum = 0; for (let j = i - 19; j <= i; j++) sum += arr[j].c; ma.push(((i + 0.5) * slot).toFixed(2) + ',' + Y(sum / 20).toFixed(2)); }
+    const chg = p.last - p.prev; const pct = chg / p.prev * 100;
+    const tools = { cur: 'Cursor', t: 'Trend line', h: 'Horizontal line', r: 'Rectangle' };
+    const setTool = (t) => () => { c.tool = t; c.pend = null; this.up(); };
+    const lines = c.draw.filter((d) => d.k === 'h' || d.k === 't').map((d) => d.k === 'h' ? { x1: 0, y1: d.y, x2: 100, y2: d.y } : { x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 });
+    const rects = c.draw.filter((d) => d.k === 'r').map((d) => ({ l: Math.min(d.x1, d.x2), t: Math.min(d.y1, d.y2), w: Math.abs(d.x2 - d.x1), h: Math.abs(d.y2 - d.y1) }));
+    const help = c.tool === 'cur' ? 'Pick a drawing tool on the left, then click on the chart.' : (c.tool === 'h' ? 'Click once on the chart to place a horizontal line.' : 'Click twice on the chart to draw a ' + tools[c.tool].toLowerCase() + '.');
+    return {
+      sym: c.sym,
+      syms: this.SY().map((k) => ({ sym: k, label: k + '  ' + m.prices[k].n })),
+      onSym: (e) => { c.sym = e.target.value; c.draw = []; c.redo = []; c.pend = null; this.up(); },
+      last: this.f2(p.last), change: this.sa(chg) + '  (' + (pct > 0.004 ? '+' : (pct < -0.004 ? '−' : '')) + Math.abs(pct).toFixed(2) + '%)', chCls: this.tone(chg),
+      tfs: ['1m', '5m', '15m', '1h', '1D'].map((f) => ({ label: f, on: c.tf === f, pick: () => { c.tf = f; c.draw = []; c.redo = []; c.pend = null; this.up(); } })),
+      candleOn: isCandle, lineOn: !isCandle,
+      setCandle: () => { c.type = 'candles'; this.up(); }, setLine: () => { c.type = 'line'; this.up(); },
+      maOn: c.ma, toggleMa: () => { c.ma = !c.ma; this.up(); },
+      undoOff: c.draw.length === 0, redoOff: c.redo.length === 0,
+      undo: () => { if (c.draw.length) { c.redo.push(c.draw.pop()); this.up(); } },
+      redo: () => { if (c.redo.length) { c.draw.push(c.redo.pop()); this.up(); } },
+      toolCur: c.tool === 'cur', toolTrend: c.tool === 't', toolH: c.tool === 'h', toolRect: c.tool === 'r',
+      setCur: setTool('cur'), setTrend: setTool('t'), setH: setTool('h'), setRect: setTool('r'),
+      noDraw: c.draw.length === 0, clear: () => { c.draw = []; c.redo = []; c.pend = null; this.up(); },
+      grid: [1, 2, 3, 4].map((k) => ({ top: k * 20 })),
+      ticks: [1, 2, 3, 4].map((k) => ({ top: k * 20, label: this.f2(hi - (hi - lo) * k / 5) })),
+      candles: candles, isLine: !isCandle, linePts: linePts, areaPts: areaPts,
+      showMa: c.ma, maPts: ma.join(' '),
+      lines: lines, rects: rects, hasPend: !!c.pend, pendX: c.pend ? c.pend.x : 0, pendY: c.pend ? c.pend.y : 0,
+      lastTop: Y(p.last).toFixed(2),
+      hitCls: c.tool === 'cur' ? '' : 'draw',
+      hitLabel: c.tool === 'cur' ? 'Chart area' : 'Chart area. Click to use the ' + tools[c.tool].toLowerCase() + ' tool.',
+      plotClick: (e) => {
+        if (c.tool === 'cur') return;
+        const r = e.currentTarget.getBoundingClientRect();
+        const x = Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100));
+        const y = Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100));
+        if (c.tool === 'h') { c.draw.push({ k: 'h', y: y }); c.redo = []; }
+        else if (!c.pend) { c.pend = { x: x, y: y }; }
+        else { c.draw.push({ k: c.tool, x1: c.pend.x, y1: c.pend.y, x2: x, y2: y }); c.pend = null; c.redo = []; }
+        this.up();
+      },
+      times: this.timeLabels(c.tf, N, s),
+      legend: c.sym + ', ' + c.tf + ', ' + (isCandle ? 'candles' : 'line') + (c.ma ? ', MA 20 on' : '') + '. ' + help
+    };
+  }
+
+  vmRecord(m) {
+    const hist = m.recTab === 'history'; const R = hist ? m.hist : m.tax;
+    const sessions = this.SESS().filter((x) => x.market === m.market && x.date >= R.from && x.date <= R.to).reverse();
+    const rows = []; let net = 0, gain = 0, loss = 0;
+    sessions.forEach((x) => {
+      const r = this.sessReal(x.trades); net += r.net; gain += r.gain; loss += r.loss;
+      x.trades.forEach((t) => rows.push({ date: x.label, t: t.t, side: t.side, sdCls: t.side === 'Buy' ? 'sd-b' : 'sd-s', sym: t.sym, auto: t.auto, qty: t.qty, price: this.f2(t.price) }));
+    });
+    const rule = '[Line from ' + m.market + "'s tax rules]";
+    const taxLines = [
+      { label: 'Profit from closed trades', value: this.sg(gain), cls: '', vcls: 'gain' },
+      { label: 'Loss from closed trades', value: this.sg(loss), cls: '', vcls: 'loss' },
+      { label: 'Net result', value: this.sa(net), cls: 'b6', vcls: this.tone(net) + ' b6' },
+      { label: rule, value: '[amount]', cls: 'mut', vcls: 'mut' },
+      { label: rule, value: '[amount]', cls: 'mut', vcls: 'mut' },
+      { label: 'Tax to pay', value: '[amount]', cls: 'b6', vcls: 'mut' }
+    ];
+    const has = sessions.length > 0;
+    return {
+      rc: {
+        sub: 'Live sessions only. Practice is never recorded.',
+        tabs: [{ label: 'Trade history', on: hist, pick: () => { m.recTab = 'history'; this.up(); } }, { label: 'Tax', on: !hist, pick: () => { m.recTab = 'tax'; this.up(); } }],
+        from: R.from, to: R.to,
+        onFrom: (e) => { R.from = e.target.value; R.done = false; this.up(); },
+        onTo: (e) => { R.to = e.target.value; R.done = false; this.up(); },
+        submit: () => { R.done = true; this.up(); },
+        showHist: hist && R.done && has, showTax: !hist && R.done && has,
+        showEmpty: R.done && !has, showPending: !R.done,
+        empty: 'No live sessions in ' + m.market + ' between ' + this.fmtD(R.from) + ' and ' + this.fmtD(R.to) + '.',
+        market: m.market, sessions: sessions.length + ' session' + (sessions.length === 1 ? '' : 's'),
+        net: this.sa(net), netCls: this.tone(net), rows: rows,
+        period: this.fmtD(R.from) + ' to ' + this.fmtD(R.to), taxLines: taxLines
+      }
+    };
+  }
+  SESS() {
+    const T = (t, side, sym, qty, price, auto) => ({ t: t, side: side, sym: sym, qty: qty, price: price, auto: !!auto });
+    return [
+      { date: '2026-09-29', label: '29 Sep 2026', market: 'India', trades: [T('20:04:10', 'Buy', 'EFGH', 20, 58.40), T('20:21:33', 'Sell', 'EFGH', 20, 59.15)] },
+      { date: '2026-10-01', label: '1 Oct 2026', market: 'India', trades: [T('20:09:02', 'Buy', 'QRST', 100, 8.40), T('20:17:48', 'Buy', 'ABCD', 8, 100.10), T('20:34:20', 'Sell', 'ABCD', 8, 100.90), T('21:30:00', 'Sell', 'QRST', 100, 8.12, true)] },
+      { date: '2026-10-04', label: '4 Oct 2026', market: 'India', trades: [T('20:06:14', 'Buy', 'IJKL', 50, 232.00), T('20:11:42', 'Buy', 'ABCD', 10, 101.80), T('20:19:05', 'Sell', 'IJKL', 50, 239.79), T('20:27:31', 'Buy', 'MNOP', 50, 16.20), T('21:30:00', 'Sell', 'ABCD', 10, 102.55, true), T('21:30:00', 'Sell', 'MNOP', 50, 15.90, true)] }
+    ];
+  }
+  sessReal(trades) {
+    const avg = {}, qty = {}; let net = 0, gain = 0, loss = 0;
+    trades.forEach((t) => {
+      if (t.side === 'Buy') { const q = (qty[t.sym] || 0) + t.qty; avg[t.sym] = ((avg[t.sym] || 0) * (qty[t.sym] || 0) + t.price * t.qty) / q; qty[t.sym] = q; }
+      else { const r = (t.price - avg[t.sym]) * t.qty; net += r; if (r >= 0) gain += r; else loss += r; qty[t.sym] = (qty[t.sym] || 0) - t.qty; }
+    });
+    return { net: net, gain: gain, loss: loss };
+  }
+
+  vmOverlays(m, s) {
+    const MK = this.MK(); const o = m.od; const locked = !s || s.closed || s.halted;
+    const sym = o ? o.sym : null; const p = sym ? m.prices[sym] : null;
+    const qtyN = o ? (parseInt(o.qty, 10) || 0) : 0;
+    const limitN = o ? (parseFloat(o.price) || 0) : 0;
+    const unit = o && o.type === 'Limit' ? limitN : (p ? p.last : 0);
+    const chg = p ? p.last - p.prev : 0;
+    const q = o ? (o.query || '').toLowerCase() : '';
+    const results = this.SY().filter((k) => (k + ' ' + m.prices[k].n).toLowerCase().indexOf(q) >= 0).map((k) => ({
+      sym: k, name: m.prices[k].n, price: this.f2(m.prices[k].last),
+      pick: () => { o.sym = k; if (!o.price || o.type === 'Market') o.price = m.prices[k].last.toFixed(2); this.up(); }
+    }));
+    const warn = s && s.halted ? 'Trading is halted' : (s && s.closed ? 'Market is closed' : '');
+    const od = {
+      open: !!o && !!s, cls: s && s.kind === 'practice' ? 'pr' : '',
+      title: o && o.mod ? 'Modify order' : 'Order', hasWarn: !!warn, warn: warn,
+      buyOn: !!o && o.side === 'Buy', sellOn: !!o && o.side === 'Sell', sideOff: !!o && !!o.mod,
+      setBuy: () => { o.side = 'Buy'; this.up(); }, setSell: () => { o.side = 'Sell'; this.up(); },
+      hasSym: !!sym, noSym: !sym, sym: sym || '', name: p ? p.n : '',
+      query: o ? o.query : '', onQuery: (e) => { o.query = e.target.value; this.up(); }, results: results,
+      price: p ? this.f2(p.last) : '–', chCls: this.tone(chg),
+      qty: o ? o.qty : '', onQty: (e) => { o.qty = e.target.value; this.up(); },
+      mktOn: !!o && o.type === 'Market', lmtOn: !!o && o.type === 'Limit',
+      setMkt: () => { o.type = 'Market'; this.up(); },
+      setLmt: () => { o.type = 'Limit'; if (!o.price && p) o.price = p.last.toFixed(2); this.up(); },
+      priceVal: o ? (o.type === 'Market' ? 'At market price' : o.price) : '',
+      priceOff: !o || !sym || locked || o.type === 'Market',
+      onPrice: (e) => { o.price = e.target.value; this.up(); },
+      fieldsOff: !sym || locked,
+      est: sym && qtyN > 0 && unit > 0 ? this.f2(qtyN * unit) : '–',
+      btn: o ? (o.mod ? 'Update order' : o.side + (sym ? ' ' + sym : '')) : 'Order',
+      btnCls: o && o.side === 'Sell' ? 'btn-sell' : 'btn-buy',
+      btnOff: !o || !sym || locked || qtyN <= 0 || (o.type === 'Limit' && !(limitN > 0)),
+      submit: () => this.submitOrder(),
+      close: () => { m.od = null; this.up(); }
+    };
+    od.changeTxt = sym ? this.sa(chg) : '';
+    od.changeSym = () => { o.sym = null; o.query = ''; this.up(); };
+    // dialog
+    const d = m.dialog; const close = s && s.kind === 'live' ? MK[s.market].close : (m.live ? MK[m.live.market].close : MK[m.market].close);
+    let dlg = { open: false, title: '', body: '', okLabel: '', cancelLabel: '', okCls: 'btn-danger', ok: () => this.dlgOk(), cancel: () => { m.dialog = null; this.up(); } };
+    if (d) {
+      if (d.kind === 'exit' && m.cur === 'live') dlg = Object.assign(dlg, { open: true, title: 'Exit the live session?', body: 'You can rejoin until ' + close + '. Your open positions stay open and close automatically at ' + close + '.', okLabel: 'Exit session', cancelLabel: 'Stay in session' });
+      else if (d.kind === 'exit') dlg = Object.assign(dlg, { open: true, title: 'Exit practice?', body: 'Practice ends for good. Nothing from it is recorded.', okLabel: 'Exit practice', cancelLabel: 'Stay in practice' });
+      else if (d.kind === 'toLive') dlg = Object.assign(dlg, { open: true, title: 'Leave practice to join live?', body: 'Practice ends for good and nothing from it is recorded. You go straight into the live session.', okLabel: 'Leave practice and join', cancelLabel: 'Stay in practice' });
+      else if (d.kind === 'toPractice') dlg = Object.assign(dlg, { open: true, title: 'Leave live to start practice?', body: 'You can rejoin the live session until ' + close + '. Your open positions stay open and close automatically at ' + close + '.', okLabel: 'Leave live and continue', cancelLabel: 'Stay in live' });
+    }
+    // transfer
+    const t = m.tr; const bt = !t || t.dir === 'bt';
+    const src = bt ? m.bBal : m.tBal;
+    const amtN = t ? (parseFloat(String(t.amount).replace(/,/g, '')) || 0) : 0;
+    const tr = {
+      open: !!t, busy: !!t && t.phase === 'proc',
+      isForm: !!t && t.phase === 'form', isProc: !!t && t.phase === 'proc', isFail: !!t && t.phase === 'fail',
+      dirs: [
+        { label: 'Bank to Trading', on: bt, pick: () => { t.dir = 'bt'; this.up(); } },
+        { label: 'Trading to Bank', on: !bt, pick: () => { t.dir = 'tb'; this.up(); } }
+      ],
+      amount: t ? t.amount : '', onAmount: (e) => { t.amount = e.target.value; this.up(); },
+      avail: 'Available in ' + (bt ? 'Bank balance' : 'Trading balance') + ': ' + this.f2(src),
+      subOff: !(amtN > 0), submit: () => this.submitTransfer(),
+      shown: t ? this.f2(t.amt || 0) : '', msg: t ? t.msg : '',
+      close: () => { m.tr = null; this.up(); },
+      retry: () => { t.phase = 'form'; this.up(); }
+    };
+    return {
+      od: od, dlg: dlg, tr: tr,
+      fd: { bank: this.f2(m.bBal), trading: this.f2(m.tBal), transfer: () => this.openTransfer() }
+    };
+  }
+
+  vmDock(m) {
+    const mk = (arr) => arr.map((a) => ({ label: a[0], go: () => this.jump(a[1]) }));
+    return {
+      dock: {
+        open: m.dock, label: m.dock ? 'Hide prototype controls' : 'Prototype controls',
+        toggle: () => { m.dock = !m.dock; this.up(); },
+        live: mk([['Before open', 'liveBefore'], ['Open now', 'liveOpen'], ['Left early', 'liveLeft'], ['Ended', 'liveEnded']]),
+        strips: mk([['None', 'sNone'], ['Loading', 'sLoading'], ['First visit', 'sFirst'], ['Low balance', 'sLow'], ['Failed to open', 'sFailed'], ['Live ended', 'sLiveEnded'], ['Practice ended', 'sPracticeEnded']]),
+        sess: mk([['Live, mid-session', 'inLive'], ['Closing soon', 'closing'], ['Halted', 'halted'], ['Market closed', 'closed'], ['Practice', 'practice']]),
+        screens: mk([['Practice setup', 'setup'], ['Setup, low balance', 'setupLow'], ["Couldn't start", 'setupFail'], ['Starting', 'starting'], ['Record', 'record'], ['Funds', 'funds'], ['Transfer window', 'transfer']])
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
