@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foundation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+input::placeholder{color:var(--muted);opacity:1}
+</style>
+</helmet>
+<div style="--focus: {{ink}}; --muted: {{muted}}; width: 760px; min-height: 2500px; box-sizing: border-box; padding: 32px; background: {{bg}}; color: {{ink}}; font-family: 'IBM Plex Sans', sans-serif; font-feature-settings: 'tnum'; display: flex; flex-direction: column; gap: 32px">
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <h1 style="margin: 0; font-family: 'IBM Plex Sans Condensed', 'IBM Plex Sans', sans-serif; font-weight: 600; font-size: 44px; line-height: 1; letter-spacing: -0.01em">{{name}}</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.4; color: {{muted}}">{{blurb}}</p>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <div style="position: relative; background: {{panel}}; border: 1px solid {{line}}; border-radius: 14px; overflow: hidden; height: 250px">
+      <svg viewBox="0 0 696 250" width="696" height="250" role="img" aria-label="A crowd of dots settling into a price line, with one amber dot at the end of the line" style="display: block">
+        <path d="{{farD}}" fill="none" stroke="{{ink}}" stroke-opacity="0.26" stroke-width="3" stroke-linecap="round"></path>
+        <path d="{{midD}}" fill="none" stroke="{{ink}}" stroke-opacity="0.45" stroke-width="4.5" stroke-linecap="round"></path>
+        <path d="{{nearD}}" fill="none" stroke="{{ink}}" stroke-opacity="0.7" stroke-width="6" stroke-linecap="round"></path>
+        <path d="{{traceD}}" fill="none" stroke="{{ink}}" stroke-width="8" stroke-linecap="round"></path>
+        <circle cx="{{youX}}" cy="{{youY}}" r="19" fill="none" stroke="{{signal}}" stroke-opacity="0.5" stroke-width="2"></circle>
+        <circle cx="{{youX}}" cy="{{youY}}" r="10" fill="{{signal}}"></circle>
+      </svg>
+      <span style="position: absolute; right: 22px; top: {{labelTop}}px; font-family: 'Doto', monospace; font-weight: 900; font-size: 28px; line-height: 1; color: {{ink}}; text-shadow: 0 0 6px {{panel}}, 0 0 6px {{panel}}, 0 0 10px {{panel}}">482.35</span>
+    </div>
+    <p style="margin: 0; font-size: 15px; line-height: 1.5; color: {{muted}}">Every dot is a trader. The price is where they meet. The amber dot is you.</p>
+  </div>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Colour</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+      <sc-for list="{{swatches}}" as="s" hint-placeholder-count="8">
+        <div style="display: flex; flex-direction: column; gap: 10px; background: {{panel}}; border: 1px solid {{line}}; border-radius: 14px; padding: 12px">
+          <div style="height: 44px; border-radius: 8px; background: {{s.hex}}; border: 1px solid {{line}}"></div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 14px; font-weight: 600">{{s.name}}</span>
+            <span style="font-size: 12px; color: {{muted}}">{{s.hex}}</span>
+            <span style="font-size: 12px; line-height: 1.35; color: {{muted}}">{{s.use}}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">The crowd</h2>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 12px; background: {{panel}}; border: 1px solid {{line}}; border-radius: 14px; padding: 16px">
+        <svg viewBox="0 0 302 62" width="302" height="62" role="img" aria-label="A field of solid dots with one solid amber dot" style="display: block">
+          <path d="{{gridD}}" fill="none" stroke="{{ink}}" stroke-opacity="0.6" stroke-width="7" stroke-linecap="round"></path>
+          <circle cx="{{youGx}}" cy="{{youGy}}" r="7" fill="{{signal}}"></circle>
+        </svg>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 16px; font-weight: 600">Live</span>
+          <span style="font-size: 14px; line-height: 1.4; color: {{muted}}">Solid dots. This session counts toward your record.</span>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px; background: {{panel}}; border: 1.5px dashed {{muted}}; border-radius: 14px; padding: 16px">
+        <svg viewBox="0 0 302 62" width="302" height="62" role="img" aria-label="A field of hollow dots with one hollow amber dot" style="display: block">
+          <path d="{{gridD}}" fill="none" stroke="{{ink}}" stroke-opacity="0.8" stroke-width="7" stroke-linecap="round"></path>
+          <path d="{{gridD}}" fill="none" stroke="{{panel}}" stroke-width="3.4" stroke-linecap="round"></path>
+          <circle cx="{{youGx}}" cy="{{youGy}}" r="6.2" fill="none" stroke="{{signal}}" stroke-width="2.4"></circle>
+        </svg>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 16px; font-weight: 600">Practice</span>
+          <span style="font-size: 14px; line-height: 1.4; color: {{muted}}">Hollow dots, dashed edges. Against agents only, not recorded.</span>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: center; background: {{panel}}; border: 1px solid {{line}}; border-radius: 14px; padding: 16px">
+      <div style="position: relative; width: 360px; height: 204px">
+        <svg viewBox="0 0 360 204" width="360" height="204" role="img" aria-label="An order book drawn as rows of dots: sellers above in the loss colour, buyers below in the gain colour" style="display: block">
+          <line x1="0" y1="100" x2="360" y2="100" stroke="{{line}}" stroke-width="1" stroke-dasharray="3 4"></line>
+          <path d="{{askD}}" fill="none" stroke="{{loss}}" stroke-width="7" stroke-linecap="round"></path>
+          <path d="{{bidD}}" fill="none" stroke="{{gain}}" stroke-width="7" stroke-linecap="round"></path>
+        </svg>
+        <sc-for list="{{labels}}" as="l" hint-placeholder-count="10">
+          <span style="position: absolute; left: 0; top: {{l.top}}px; font-size: 12px; line-height: 16px; color: {{muted}}">{{l.t}}</span>
+        </sc-for>
+        <span style="position: absolute; left: 64px; top: 84px; font-size: 12px; line-height: 16px; color: {{muted}}; background: {{panel}}; padding-right: 6px">Spread 0.10</span>
+      </div>
+      <div style="flex: 1 1 220px; min-width: 200px; display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 16px; font-weight: 600">Order book</span>
+        <span style="font-size: 14px; line-height: 1.5; color: {{muted}}">Each dot is a block of 10 shares waiting at that price. Sellers above, buyers below. A big market order eats through the dots.</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Session board</h2>
+    <div style="background: {{panel}}; border: 1px solid {{line}}; border-radius: 14px; overflow: hidden">
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+        <div style="display: flex; align-items: center; gap: 16px; padding: 16px; border-top: {{r.borderTop}}">
+          <span style="width: 56px; font-family: 'Doto', monospace; font-weight: 900; font-size: 32px; line-height: 1">{{r.code}}</span>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 16px; font-weight: 600">{{r.name}}</span>
+            <span style="font-size: 13px; color: {{muted}}">{{r.hours}}</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end">
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600">
+              <span style="width: 10px; height: 10px; border-radius: 5px; background: {{r.dot}}; opacity: {{r.dotOp}}"></span>{{r.status}}
+            </span>
+            <span style="font-size: 13px; color: {{muted}}">{{r.pre}} <span style="font-family: 'Doto', monospace; font-weight: 700; font-size: 20px; color: {{ink}}">{{r.clock}}</span></span>
+          </div>
+          <button type="button" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 999px; border: {{r.aBorder}}; background: {{r.aBg}}; color: {{r.aFg}}; font-family: inherit; font-size: 14px; font-weight: 600">
+            <span style="width: 10px; height: 10px; border-radius: 5px; box-sizing: border-box; background: {{r.dBg}}; border: {{r.dBorder}}"></span>{{r.aLabel}}
+          </button>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Type</h2>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 10px; background: {{panel}}; border: 1px solid {{line}}; border-radius: 14px; padding: 16px">
+        <span style="font-size: 14px; font-weight: 600">Machine voice</span>
+        <span style="font-family: 'Doto', monospace; font-weight: 900; font-size: 56px; line-height: 1">11:42:08</span>
+        <span style="font-family: 'Doto', monospace; font-weight: 700; font-size: 40px; line-height: 1">482.35</span>
+        <span style="font-size: 13px; line-height: 1.4; color: {{muted}}">Clocks, prices and market names, drawn in dots. Big sizes only.</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; background: {{panel}}; border: 1px solid {{line}}; border-radius: 14px; padding: 16px">
+        <span style="font-size: 14px; font-weight: 600">Human voice</span>
+        <span style="font-family: 'IBM Plex Sans Condensed', 'IBM Plex Sans', sans-serif; font-weight: 600; font-size: 32px; line-height: 1.1; letter-spacing: -0.01em">A market made of people and machines.</span>
+        <span style="font-size: 15px; line-height: 1.55">Pick a market, start a session, and see what your orders do to the price.</span>
+        <span style="font-size: 13px; line-height: 1.4; color: {{muted}}">Headlines, explanations, buttons and forms.</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Controls</h2>
+    <div style="display: flex; flex-direction: column; gap: 24px; background: {{panel}}; border: 1px solid {{line}}; border-radius: 14px; padding: 20px">
+
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <button type="button" style="display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px; border: 0; background: {{signal}}; color: {{signalInk}}; font-family: inherit; font-size: 16px; font-weight: 600">
+          <span style="width: 12px; height: 12px; border-radius: 6px; background: {{signalInk}}"></span>Join live session
+        </button>
+        <button type="button" style="display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px; border: 1.5px dashed {{ink}}; background: transparent; color: {{ink}}; font-family: inherit; font-size: 16px; font-weight: 600">
+          <span style="width: 12px; height: 12px; border-radius: 6px; box-sizing: border-box; border: 1.5px solid {{ink}}"></span>Start practice
+        </button>
+        <button type="button" style="min-height: 48px; padding: 0 12px; border: 0; background: transparent; color: {{ink}}; font-family: inherit; font-size: 16px; font-weight: 500; text-decoration: underline; text-underline-offset: 4px">Cancel</button>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+        <span style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; border: 1px solid {{line}}; background: {{raised}}; font-size: 14px; font-weight: 500">
+          <span style="width: 10px; height: 10px; border-radius: 5px; background: {{signal}}"></span>Live
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; border: 1.5px dashed {{muted}}; font-size: 14px; font-weight: 500">
+          <span style="width: 10px; height: 10px; border-radius: 5px; box-sizing: border-box; border: 1.5px solid {{ink}}"></span>Practice
+        </span>
+        <span style="display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 999px; background: {{gainBg}}; color: {{gain}}; font-size: 14px; font-weight: 600">▲ +1.82%</span>
+        <span style="display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 999px; background: {{lossBg}}; color: {{loss}}; font-size: 14px; font-weight: 600">▼ −0.28%</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px; max-width: 360px">
+        <label for="fnd-email" style="font-size: 14px; font-weight: 500">Email</label>
+        <input id="fnd-email" type="email" placeholder="you@example.com" style="min-height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1.5px solid {{muted}}; background: {{raised}}; color: {{ink}}; font-family: inherit; font-size: 16px">
+        <span style="font-size: 13px; color: {{muted}}">We'll send a sign-in link. No password.</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; background: {{raised}}; border: 1px solid {{line}}">
+          <span style="width: 12px; height: 12px; border-radius: 6px; background: {{signal}}"></span>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 15px; font-weight: 600">Live session</span>
+            <span style="font-size: 13px; color: {{muted}}">India. Counts toward your record.</span>
+          </div>
+          <span style="font-family: 'Doto', monospace; font-weight: 700; font-size: 26px; line-height: 1">11:42:08</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; border: 1.5px dashed {{muted}}">
+          <span style="width: 12px; height: 12px; border-radius: 6px; box-sizing: border-box; border: 1.5px solid {{ink}}"></span>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 15px; font-weight: 600">Practice session</span>
+            <span style="font-size: 13px; color: {{muted}}">India. Against agents, not recorded.</span>
+          </div>
+          <span style="font-family: 'Doto', monospace; font-weight: 700; font-size: 26px; line-height: 1">52:10</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","lab"],"default":"night"},"$preview":{"width":760,"height":2500}}'>
+class Component extends DCLogic {
+  rng(seed) {
+    let s = seed;
+    return () => {
+      s = (s * 1664525 + 1013904223) % 4294967296;
+      return s / 4294967296;
+    };
+  }
+  dots(points) {
+    return points.map((p) => 'M' + p[0].toFixed(1) + ' ' + p[1].toFixed(1) + 'h0.01').join('');
+  }
+  renderVals() {
+    const T = {
+      night: {
+        name: 'Night', blurb: 'Dark. Easier on the eyes over a 90-minute session.',
+        bg: '#14120F', panel: '#1D1A16', raised: '#26221D', line: '#38332B',
+        ink: '#F3EEE6', muted: '#A59E92', signal: '#FFB224', signalInk: '#14120F',
+        gain: '#3DDC97', loss: '#FF6B6B',
+        gainBg: 'rgba(61,220,151,0.14)', lossBg: 'rgba(255,107,107,0.14)'
+      },
+      lab: {
+        name: 'Lab', blurb: 'Light. Clean and clinical, like a specimen sheet.',
+        bg: '#E7EAEE', panel: '#F6F7F9', raised: '#FFFFFF', line: '#C9CFD8',
+        ink: '#12161C', muted: '#566170', signal: '#FFB224', signalInk: '#12161C',
+        gain: '#07744D', loss: '#B3283C',
+        gainBg: 'rgba(7,116,77,0.10)', lossBg: 'rgba(179,40,60,0.10)'
+      }
+    };
+    const th = T[this.props.theme === 'lab' ? 'lab' : 'night'];
+
+    const W = 696, H = 250, xs0 = 28, xs1 = 668, N = 48;
+    const rn = this.rng(11);
+    let v = 0;
+    const raw = [];
+    for (let i = 0; i < N; i++) { v += (rn() - 0.46) * 1.6; raw.push(v); }
+    const sm = raw.map((_, i) => {
+      let a = 0, c = 0;
+      for (let k = -2; k <= 2; k++) { const j = i + k; if (j >= 0 && j < N) { a += raw[j]; c++; } }
+      return a / c;
+    });
+    const mn = Math.min.apply(null, sm), mx = Math.max.apply(null, sm);
+    const ys = sm.map((s) => 180 - ((s - mn) / (mx - mn)) * 110);
+    const lineY = (x) => {
+      const t = Math.min(Math.max((x - xs0) / (xs1 - xs0), 0), 1) * (N - 1);
+      const i = Math.min(Math.floor(t), N - 2);
+      const f = t - i;
+      return ys[i] + (ys[i + 1] - ys[i]) * f;
+    };
+    const trace = [];
+    for (let x = xs0; x <= xs1 - 16; x += 8) trace.push([x, lineY(x)]);
+    const youX = xs1, youY = ys[N - 1];
+
+    const r2 = this.rng(5);
+    const far = [], mid = [], near = [];
+    for (let k = 0; k < 360; k++) {
+      const x = 14 + r2() * (W - 28);
+      const u1 = Math.max(r2(), 1e-6), u2 = r2();
+      const g = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+      const d = g * 34;
+      const y = lineY(x) + d;
+      if (y < 10 || y > H - 10) continue;
+      if (Math.abs(d) < 7) continue;
+      if (Math.hypot(x - youX, y - youY) < 24) continue;
+      const a = Math.abs(d);
+      (a < 16 ? near : a < 38 ? mid : far).push([x, y]);
+    }
+
+    const gp = [];
+    const youIdx = 1 * 20 + 13;
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 20; c++) {
+        if (r * 20 + c === youIdx) continue;
+        gp.push([8 + c * 15, 8 + r * 15]);
+      }
+    }
+
+    const asks = [['482.60', 14], ['482.55', 6], ['482.50', 10], ['482.45', 4], ['482.40', 2]];
+    const bids = [['482.30', 3], ['482.25', 12], ['482.20', 7], ['482.15', 18], ['482.10', 5]];
+    const askPts = [], bidPts = [], labels = [];
+    asks.forEach((a, i) => {
+      const y = 10 + i * 17;
+      labels.push({ top: y - 8, t: a[0] });
+      for (let j = 0; j < a[1]; j++) askPts.push([64 + j * 11, y]);
+    });
+    bids.forEach((b, i) => {
+      const y = 122 + i * 17;
+      labels.push({ top: y - 8, t: b[0] });
+      for (let j = 0; j < b[1]; j++) bidPts.push([64 + j * 11, y]);
+    });
+
+    const swatches = [
+      { name: 'Ground', hex: th.bg, use: 'Behind everything' },
+      { name: 'Panel', hex: th.panel, use: 'Cards and boards' },
+      { name: 'Line', hex: th.line, use: 'Dividers, outlines' },
+      { name: 'Ink', hex: th.ink, use: 'Text and crowd dots' },
+      { name: 'Muted', hex: th.muted, use: 'Secondary text' },
+      { name: 'Signal', hex: th.signal, use: 'You, live, main buttons' },
+      { name: 'Gain', hex: th.gain, use: 'Up, buyers' },
+      { name: 'Loss', hex: th.loss, use: 'Down, sellers' }
+    ];
+
+    const rows = [
+      { code: 'IN', name: 'India', hours: '09:15 to 15:30 IST', status: 'Open now', pre: 'closes in', clock: '03:47:12', dot: th.signal, dotOp: 1, live: true },
+      { code: 'US', name: 'United States', hours: '19:00 to 01:30 IST', status: 'Opens later', pre: 'opens in', clock: '03:21:08', dot: th.muted, dotOp: 1, live: false },
+      { code: 'UK', name: 'United Kingdom', hours: '12:30 to 21:00 IST', status: 'Closed', pre: 'opens tomorrow at', clock: '12:30', dot: th.muted, dotOp: 0.45, live: false }
+    ].map((r, i) => Object.assign({}, r, {
+      borderTop: '1px solid ' + th.line,
+      aLabel: r.live ? 'Join live' : 'Practice',
+      aBg: r.live ? th.signal : 'transparent',
+      aFg: r.live ? th.signalInk : th.ink,
+      aBorder: r.live ? '0 solid transparent' : '1.5px dashed ' + th.ink,
+      dBg: r.live ? th.signalInk : 'transparent',
+      dBorder: r.live ? '0 solid transparent' : '1.5px solid ' + th.ink
+    }));
+
+    return {
+      name: th.name, blurb: th.blurb,
+      bg: th.bg, panel: th.panel, raised: th.raised, line: th.line,
+      ink: th.ink, muted: th.muted, signal: th.signal, signalInk: th.signalInk,
+      gain: th.gain, loss: th.loss, gainBg: th.gainBg, lossBg: th.lossBg,
+      farD: this.dots(far), midD: this.dots(mid), nearD: this.dots(near), traceD: this.dots(trace),
+      youX: youX, youY: youY.toFixed(1),
+      labelTop: Math.max(Math.round(youY - 54), 10),
+      swatches: swatches,
+      gridD: this.dots(gp), youGx: 8 + 13 * 15, youGy: 8 + 1 * 15,
+      askD: this.dots(askPts), bidD: this.dots(bidPts), labels: labels,
+      rows: rows
+    };
+  }
+}
+</script>
+</body>
+</html>
