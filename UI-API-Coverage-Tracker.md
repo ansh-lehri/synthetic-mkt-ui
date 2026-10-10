@@ -36,7 +36,7 @@ Three axes total:
 | 9 | Home | Transfer money (bank ↔ trading) | `POST /account/transfer` | Broker | ✅ |
 | 10 | Practice setup | Condition + length → start | `POST /session/practice/start` | Session/ref §4 | 🟢 prov |
 | 11 | Terminal | Instrument list / watchlist | `GET /v1/instruments` | Session/ref §4 | 🟢 prov |
-| 12 | Terminal | Price chart (timeframes) | `GET /candles` + WS `candle` | Market-data | ✅ |
+| 12 | Terminal | Price chart (timeframes) | `GET /candles` + WS `candle` | Market-data — data path final; chart UI/toolbar is a placeholder, redesign planned (KLineCharts stays) | ✅ |
 | 13 | Terminal | Order book / depth | WS `snapshot` (depth) | Market-data | ✅ |
 | 14 | Terminal | Live price / tape | WS `snapshot` (last_price, change_pct) | Market-data | ✅ |
 | 15 | Terminal | Tick/price formatting | `GET /v1/instruments` (tick_size, decimals) | Session/ref §4 | 🟢 prov |

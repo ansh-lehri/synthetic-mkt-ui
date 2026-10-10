@@ -343,6 +343,12 @@ orders/trades/P&L tabs (3b) and the session bar's states (3c).
   column (21rem, 24rem at `2xl`; the 3b order ticket joins that column) and grows with the
   viewport height; below `lg` the book stacks under the chart. Record still uses the board's
   1240px cap.
+- **Chart UI is a PLACEHOLDER.** The chart header, left drawing-tools toolbar and layout in
+  `ChartTab.tsx` / `PriceChart.tsx` are ported from the board only so the data path works. The
+  owner has a different chart design in mind and it **will change quite a lot**. KLineCharts stays
+  the library. Don't polish or extend the current chart UI (tools, header controls, layout);
+  the data layer underneath (WS/history/Model A merge, tick-formatter hooks, token theming) is the
+  part to keep.
 - **Gotchas found:** `pkill -f` patterns match the shell that contains them (use a separate
   call); a KLineCharts overlay needs a hover before the click (programmatic clicks without a
   prior mouse move do nothing); Vite's HMR socket also sends `{"type":"connected"}`.
