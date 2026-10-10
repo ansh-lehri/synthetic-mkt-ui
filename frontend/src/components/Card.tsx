@@ -15,7 +15,7 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
 /** Base surface panel: `--line` border, `--r-lg` radius. */
 export function Card({ as: Tag = 'div', title, actions, flush = false, className, children, ...rest }: CardProps) {
   return (
-    <Tag {...rest} className={cx('rounded-lg border border-line bg-surface text-ink', className)}>
+    <Tag {...rest} className={cx('rounded-lg border border-line bg-panel text-ink', className)}>
       {(title || actions) && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
           {title && <h3 className="text-sm font-semibold">{title}</h3>}

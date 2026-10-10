@@ -65,17 +65,17 @@ export function TabStrip({ tabs, activeId, onChange, label = 'Account', children
               onKeyDown={(e) => onKeyDown(e, i)}
               className={cx(
                 '-mb-px inline-flex min-h-[44px] shrink-0 items-center gap-2 border-b-2 px-4 text-sm',
-                active ? 'border-signal font-semibold text-ink' : 'border-transparent text-muted hover:text-ink',
+                active ? 'border-accent font-semibold text-ink' : 'border-transparent text-muted hover:text-ink',
                 t.status === 'degraded' && 'opacity-70',
               )}
             >
               {t.label}
               {t.count !== undefined && (
-                <span className="rounded-pill border border-line px-2 font-mono text-xs tabular-nums text-muted">{t.count}</span>
+                <span className="rounded-pill border border-line px-2 tnum text-xs text-muted">{t.count}</span>
               )}
               {t.status === 'degraded' && (
                 <>
-                  <span aria-hidden="true" className="text-warn">
+                  <span aria-hidden="true" className="text-ink">
                     !
                   </span>
                   <span className="sr-only">(data degraded)</span>

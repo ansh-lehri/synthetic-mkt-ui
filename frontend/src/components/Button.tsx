@@ -23,15 +23,15 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-signal text-signal-ink hover:brightness-95 border-transparent',
-  buy: 'bg-buy text-buy-ink hover:brightness-95 border-transparent',
-  sell: 'bg-sell text-sell-ink hover:brightness-95 border-transparent',
+  primary: 'bg-btnBg text-btnFg hover:brightness-95 border-transparent',
+  buy: 'bg-buy text-onBuy hover:brightness-95 border-transparent',
+  sell: 'bg-sell text-onSell hover:brightness-95 border-transparent',
   // Exit is red but outlined, so it reads as "leave" rather than a second Sell.
-  exit: 'bg-transparent text-sell border-sell hover:bg-sell-soft',
-  ghost: 'bg-transparent text-ink border-line hover:bg-surface-raised',
+  exit: 'bg-transparent text-loss border-loss hover:bg-lossBg',
+  ghost: 'bg-transparent text-ink border-line hover:bg-raised',
 }
 
-const DISABLED = 'bg-surface-raised text-muted border-line cursor-not-allowed'
+const DISABLED = 'bg-raised text-muted border-line cursor-not-allowed'
 
 /** The one button. Coloured primaries, 44px minimum target, visible focus ring (global). */
 export function Button({

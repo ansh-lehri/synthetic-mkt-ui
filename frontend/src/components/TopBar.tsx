@@ -61,7 +61,7 @@ function AccountMenu({ label, items }: { label: string; items: AccountMenuItem[]
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex min-h-[44px] items-center gap-2 rounded-pill border border-line bg-surface-raised px-4 text-sm text-ink hover:bg-surface"
+        className="inline-flex min-h-[44px] items-center gap-2 rounded-pill border border-line bg-raised px-4 text-sm text-ink hover:bg-panel"
       >
         <span aria-hidden="true">◉</span>
         <span className="max-w-[10rem] truncate">{label}</span>
@@ -74,7 +74,7 @@ function AccountMenu({ label, items }: { label: string; items: AccountMenuItem[]
           id={menuId}
           role="menu"
           aria-label="Account"
-          className="absolute right-0 z-30 mt-2 min-w-[12rem] rounded-md border border-line bg-surface p-1 shadow-lg"
+          className="absolute right-0 z-30 mt-2 min-w-[12rem] rounded-md border border-line bg-panel p-1 shadow-card"
         >
           {items.map((it, i) => (
             <button
@@ -89,7 +89,7 @@ function AccountMenu({ label, items }: { label: string; items: AccountMenuItem[]
                 setOpen(false)
                 it.onSelect()
               }}
-              className="flex min-h-[44px] w-full items-center rounded-sm px-3 text-left text-sm text-ink hover:bg-surface-raised"
+              className="flex min-h-[44px] w-full items-center rounded-sm px-3 text-left text-sm text-ink hover:bg-raised"
             >
               {it.label}
             </button>
@@ -107,11 +107,11 @@ function AccountMenu({ label, items }: { label: string; items: AccountMenuItem[]
 export function TopBar({ markets, market, onMarketChange, accountLabel, accountItems, themeSlot, marketsLoading = false }: TopBarProps) {
   const selectId = useId()
   return (
-    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-2">
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-panel px-4 py-2">
       <div className="flex items-center gap-3">
         <span className="text-base font-semibold">Market Simulator</span>
-        <span className="inline-flex items-center gap-1 rounded-pill border border-signal bg-surface-raised px-2 py-0.5 text-xs font-medium text-ink">
-          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-pill bg-signal" />
+        <span className="inline-flex items-center gap-1 rounded-pill border border-accent bg-raised px-2 py-0.5 text-xs font-medium text-ink">
+          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-pill bg-accent" />
           Simulation
         </span>
       </div>
@@ -126,7 +126,7 @@ export function TopBar({ markets, market, onMarketChange, accountLabel, accountI
             value={market}
             disabled={marketsLoading || markets.length === 0}
             onChange={(e) => onMarketChange(e.target.value)}
-            className="min-h-[44px] rounded-md border border-line bg-surface-raised px-3 text-sm text-ink disabled:cursor-not-allowed disabled:text-muted"
+            className="min-h-[44px] rounded-md border border-line bg-raised px-3 text-sm text-ink disabled:cursor-not-allowed disabled:text-muted"
           >
             {marketsLoading && <option value="">Loading…</option>}
             {markets.map((m) => (

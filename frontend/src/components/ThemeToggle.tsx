@@ -16,7 +16,7 @@ export function ThemeToggle() {
         setTheme(next)
       }}
       aria-label={`Switch to ${LABEL[next]} theme`}
-      className="inline-flex min-h-[44px] items-center gap-2 rounded-pill border border-line bg-surface-raised px-4 text-sm text-ink hover:bg-surface"
+      className="inline-flex min-h-[44px] items-center gap-2 rounded-pill border border-line bg-raised px-4 text-sm text-ink hover:bg-panel"
     >
       <span aria-hidden="true">{theme === 'night' ? '☾' : '☀'}</span>
       {LABEL[theme]}

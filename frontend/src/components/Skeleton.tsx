@@ -5,7 +5,7 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <span
       aria-hidden="true"
-      className={cx('block animate-pulse rounded-sm bg-surface-raised motion-reduce:animate-none', className ?? 'h-4 w-full')}
+      className={cx('block animate-pulse rounded-sm bg-raised motion-reduce:animate-none', className ?? 'h-4 w-full')}
     />
   )
 }

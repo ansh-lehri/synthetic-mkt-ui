@@ -181,7 +181,16 @@ browser at 1600px and 375px (no console errors, no horizontal scroll, all target
   when the real router lands.
 - **Per-subtree themes.** `tokens.css` theme selectors are no longer `:root`-only
   (`[data-theme="lab"]`, `:root, [data-theme="night"]`), so any element can pin a theme. This is
-  how `/kit` shows both at once. `color-scheme` follows the same scoping in `index.css`.
+  how `/kit` shows both at once (`color-scheme` is set inside the same theme blocks).
+- **Blue token names everywhere.** Components use only the board's names (`bg-bg`, `panel`,
+  `raised`, `line`, `ink`, `muted`, `accent`, `soft`, `btnBg`/`btnFg`, `gain`/`loss`,
+  `gainBg`/`lossBg`, `buy`/`onBuy`, `sell`/`onSell`, `warnBg`/`warnLine`, `ma`, `focus`) plus
+  `shadow-card` and `var(--scrim)`. Old amber-era names (`surface`, `signal`, `*-soft`, `*-ink`,
+  `warn`, `neutral`) must not come back. Up/down *numbers and status* use `gain`/`loss`;
+  Buy/Sell *action buttons* use `buy`/`sell`; Exit is outlined `loss` (as on the board);
+  the primary button is `btnBg`/`btnFg`; selected chips are `soft` fill + `accent` border.
+- **Numerals:** IBM Plex Sans only. Use the `tnum` utility (`font-feature-settings:'tnum'`,
+  in `index.css`) on numeric text. No `font-mono` / Condensed anywhere.
 - **`Num` is the only thing that shows a number.** Kinds: `price`, `price-change`, `money`,
   `signed-money`, `percent`, `qty`. `available={false}` renders "—" (use it for every `has_*` /
   `mark_available` gate). Signed kinds always show ▲/▼/• plus +/−, and a screen-reader word.

@@ -52,7 +52,7 @@ export function ConfirmDialog({
       onClick={(e) => {
         if (e.target === ref.current) onCancel()
       }}
-      className="fixed inset-0 !m-auto h-fit w-[calc(100%-2rem)] max-w-md rounded-lg border border-line bg-surface p-0 text-ink shadow-xl"
+      className="fixed inset-0 !m-auto h-fit w-[calc(100%-2rem)] max-w-md rounded-lg border border-line bg-panel p-0 text-ink shadow-card"
     >
       <div className="p-5">
         <h2 id={titleId} className="text-base font-semibold">

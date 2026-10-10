@@ -7,7 +7,7 @@ export function Spinner({ label = 'Loading', size = 20, className }: { label?: s
       <span
         aria-hidden="true"
         style={{ width: size, height: size }}
-        className="inline-block animate-spin rounded-pill border-2 border-line border-t-signal motion-reduce:animate-none"
+        className="inline-block animate-spin rounded-pill border-2 border-line border-t-accent motion-reduce:animate-none"
       />
       <span className="sr-only">{label}</span>
     </span>

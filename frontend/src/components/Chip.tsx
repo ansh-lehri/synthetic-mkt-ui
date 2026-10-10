@@ -16,8 +16,8 @@ export function Chip({ selected = false, className, type = 'button', children, .
       className={cx(
         'inline-flex min-h-[44px] items-center gap-2 rounded-pill border px-4 text-sm transition-colors',
         selected
-          ? 'border-signal border-2 bg-surface-raised font-semibold text-ink'
-          : 'border-line bg-transparent text-muted hover:bg-surface-raised hover:text-ink',
+          ? 'border-accent bg-soft font-semibold text-ink'
+          : 'border-line bg-transparent text-muted hover:bg-raised hover:text-ink',
         rest.disabled && 'cursor-not-allowed opacity-60',
         className,
       )}

@@ -38,12 +38,12 @@ function Row({ level, side, fmt, max }: { level: DepthLevel | undefined; side: '
       className="h-7"
       // Depth bar spans the whole row; width is data, colour is a token.
       style={{
-        backgroundImage: `linear-gradient(to left, var(${side === 'bid' ? '--buy-soft' : '--sell-soft'}) ${pct}%, transparent ${pct}%)`,
+        backgroundImage: `linear-gradient(to left, var(${side === 'bid' ? '--gainBg' : '--lossBg'}) ${pct}%, transparent ${pct}%)`,
       }}
     >
       <td className="px-3 text-right">
         <span className="sr-only">{side === 'bid' ? 'Bid ' : 'Ask '}</span>
-        <Num kind="price" value={level.price} fmt={fmt} className={side === 'bid' ? '!text-buy' : '!text-sell'} />
+        <Num kind="price" value={level.price} fmt={fmt} className={side === 'bid' ? '!text-gain' : '!text-loss'} />
       </td>
       <td className="px-3 text-right">
         <Num kind="qty" value={level.qty} />
@@ -91,7 +91,7 @@ export function DepthLadder({ fmt, bids, asks, hasBid, hasAsk, lastPrice, hasLas
         {askRows.map((l, i) => (
           <Row key={`a${i}`} level={l} side="ask" fmt={fmt} max={max} />
         ))}
-        <tr className="border-y border-line bg-surface-raised">
+        <tr className="border-y border-line bg-raised">
           <td className="px-3 py-2 text-right" colSpan={2}>
             <span className="mr-2 text-xs text-muted">Last</span>
             <Num kind="price" value={lastPrice ?? 0} fmt={fmt} available={hasLast && lastPrice !== undefined} size="lg" className="font-semibold" />

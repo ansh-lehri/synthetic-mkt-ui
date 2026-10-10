@@ -37,18 +37,18 @@ export type NumProps = Common &
 
 const SIZE: Record<Size, string> = { sm: 'text-xs', md: 'text-sm', lg: 'text-lg', xl: 'text-2xl' }
 
-const TONE: Record<Direction, string> = { up: 'text-buy', down: 'text-sell', flat: 'text-neutral' }
+const TONE: Record<Direction, string> = { up: 'text-gain', down: 'text-loss', flat: 'text-muted' }
 const GLYPH: Record<Direction, string> = { up: '▲', down: '▼', flat: '•' }
 const WORD: Record<Direction, string> = { up: 'up', down: 'down', flat: 'unchanged' }
 
 /**
  * THE numeric display primitive — the only thing in the app that shows a number. Renders
- * through the tick formatter in a tabular mono face. Signed kinds pair colour with ▲/▼ and
+ * through the tick formatter in IBM Plex Sans with tabular numerals. Signed kinds pair colour with ▲/▼ and
  * +/− (text carries the sign, so colour is never the only cue).
  */
 export function Num(props: NumProps) {
   const { available = true, size = 'md', className } = props
-  const base = cx('font-mono tabular-nums whitespace-nowrap', SIZE[size], className)
+  const base = cx('tnum whitespace-nowrap', SIZE[size], className)
 
   if (!available) {
     return (

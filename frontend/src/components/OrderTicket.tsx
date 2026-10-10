@@ -58,7 +58,7 @@ function Segmented<T extends string>({
   return (
     <fieldset className="min-w-0">
       <legend className="sr-only">{legend}</legend>
-      <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-md border border-line bg-surface-raised p-1">
+      <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-md border border-line bg-raised p-1">
         {options.map((o) => {
           const gated = o.capability && !o.capability.enabled
           const label: ReactNode = (
@@ -102,7 +102,7 @@ function Segmented<T extends string>({
 }
 
 function StepButtons({ onStep, what }: { onStep: (d: 1 | -1) => void; what: string }) {
-  const cls = 'inline-flex h-11 w-11 items-center justify-center text-lg text-ink hover:bg-surface'
+  const cls = 'inline-flex h-11 w-11 items-center justify-center text-lg text-ink hover:bg-panel'
   return (
     <span className="flex items-stretch border-l border-line">
       <button type="button" aria-label={`Decrease ${what}`} onClick={() => onStep(-1)} className={cls}>
@@ -183,8 +183,8 @@ export function OrderTicket({
           value={side}
           onChange={setSide}
           options={[
-            { value: 'buy', label: 'Buy', glyph: '▲', tone: 'bg-buy text-buy-ink' },
-            { value: 'sell', label: 'Sell', glyph: '▼', tone: 'bg-sell text-sell-ink' },
+            { value: 'buy', label: 'Buy', glyph: '▲', tone: 'bg-buy text-onBuy' },
+            { value: 'sell', label: 'Sell', glyph: '▼', tone: 'bg-sell text-onSell' },
           ]}
         />
         <Segmented<OrderType>
@@ -193,8 +193,8 @@ export function OrderTicket({
           value={type}
           onChange={setType}
           options={[
-            { value: 'limit', label: 'Limit', tone: 'bg-surface text-ink border border-line' },
-            { value: 'market', label: 'Market', tone: 'bg-surface text-ink border border-line', capability: marketOrders },
+            { value: 'limit', label: 'Limit', tone: 'bg-panel text-ink border border-line' },
+            { value: 'market', label: 'Market', tone: 'bg-panel text-ink border border-line', capability: marketOrders },
           ]}
         />
         {!marketOrders.enabled && <p className="-mt-2 text-xs text-muted">{marketOrders.reason}</p>}
@@ -223,7 +223,7 @@ export function OrderTicket({
             autoComplete="off"
           />
         ) : (
-          <p className="rounded-md border border-line bg-surface-raised px-3 py-2 text-sm text-muted">
+          <p className="rounded-md border border-line bg-raised px-3 py-2 text-sm text-muted">
             Fills at the best available price; no cost estimate.
           </p>
         )}

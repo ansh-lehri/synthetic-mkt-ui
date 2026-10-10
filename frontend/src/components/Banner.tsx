@@ -4,10 +4,10 @@ import { cx } from '../lib/cx'
 export type BannerTone = 'info' | 'warn' | 'error' | 'success'
 
 const TONE: Record<BannerTone, { box: string; icon: string; glyph: string; label: string }> = {
-  info: { box: 'border-line bg-surface-raised', icon: 'text-ink', glyph: 'ⓘ', label: 'Info' },
-  warn: { box: 'border-warn bg-surface-raised', icon: 'text-warn', glyph: '⚠', label: 'Warning' },
-  error: { box: 'border-sell bg-sell-soft', icon: 'text-sell', glyph: '✕', label: 'Error' },
-  success: { box: 'border-buy bg-buy-soft', icon: 'text-buy', glyph: '✓', label: 'Success' },
+  info: { box: 'border-line bg-raised', icon: 'text-ink', glyph: 'ⓘ', label: 'Info' },
+  warn: { box: 'border-warnLine bg-warnBg', icon: 'text-ink', glyph: '⚠', label: 'Warning' },
+  error: { box: 'border-loss bg-lossBg', icon: 'text-loss', glyph: '✕', label: 'Error' },
+  success: { box: 'border-gain bg-gainBg', icon: 'text-gain', glyph: '✓', label: 'Success' },
 }
 
 export interface BannerProps {
@@ -46,7 +46,7 @@ export function Banner({ tone = 'info', title, children, action, onDismiss, clas
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss"
-          className="-my-2 -mr-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted hover:bg-surface"
+          className="-my-2 -mr-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted hover:bg-panel"
         >
           <span aria-hidden="true">✕</span>
         </button>

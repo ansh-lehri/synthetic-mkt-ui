@@ -23,7 +23,7 @@ export function Tooltip({
       <span
         id={id}
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-max max-w-[16rem] -translate-x-1/2 rounded-sm border border-line bg-surface-raised px-3 py-2 text-xs text-ink shadow-lg group-focus-within:block group-hover:block"
+        className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-max max-w-[16rem] -translate-x-1/2 rounded-sm border border-line bg-raised px-3 py-2 text-xs text-ink shadow-card group-focus-within:block group-hover:block"
       >
         {text}
       </span>

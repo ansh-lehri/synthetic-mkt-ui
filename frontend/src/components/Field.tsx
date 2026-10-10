@@ -6,7 +6,7 @@ export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   hint?: ReactNode
   /** Error message. Shown with a "!" so it isn't colour alone. */
   error?: string
-  /** Numbers (qty, price): mono tabular face + decimal keyboard on phones. */
+  /** Numbers (qty, price): tabular numerals + decimal keyboard on phones. */
   numeric?: boolean
   /** Trailing adornment inside the input (a unit, or ± buttons). */
   suffix?: ReactNode
@@ -29,8 +29,8 @@ export function Field({ label, hint, error, numeric = false, suffix, prefix, cla
       </label>
       <div
         className={cx(
-          'flex items-stretch overflow-hidden rounded-md border bg-surface-raised focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus',
-          error ? 'border-sell border-2' : 'border-line',
+          'flex items-stretch overflow-hidden rounded-md border bg-raised focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus',
+          error ? 'border-loss border-2' : 'border-line',
         )}
       >
         {prefix && <span className="flex items-center pl-3 text-sm text-muted">{prefix}</span>}
@@ -42,13 +42,13 @@ export function Field({ label, hint, error, numeric = false, suffix, prefix, cla
           inputMode={rest.inputMode ?? (numeric ? 'decimal' : undefined)}
           className={cx(
             'min-h-[44px] min-w-0 flex-1 bg-transparent px-3 text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:text-muted',
-            numeric ? 'font-mono tabular-nums text-sm' : 'text-sm',
+            numeric ? 'tnum text-sm' : 'text-sm',
           )}
         />
         {suffix && <span className="flex items-center pr-1 text-sm text-muted">{suffix}</span>}
       </div>
       {error && (
-        <p id={errId} className="mt-1 flex gap-1 text-xs text-sell">
+        <p id={errId} className="mt-1 flex gap-1 text-xs text-loss">
           <span aria-hidden="true">!</span>
           <span>{error}</span>
         </p>

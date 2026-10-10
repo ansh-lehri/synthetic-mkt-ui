@@ -8,8 +8,8 @@ export type SessionMode = 'live' | 'practice'
 
 const PHASE: Record<SessionPhase, { label: string; glyph: string; tone: string }> = {
   preopen: { label: 'Pre-open', glyph: '○', tone: 'text-muted' },
-  open: { label: 'Open', glyph: '●', tone: 'text-buy' },
-  closing: { label: 'Closing', glyph: '◆', tone: 'text-warn' },
+  open: { label: 'Open', glyph: '●', tone: 'text-gain' },
+  closing: { label: 'Closing', glyph: '◆', tone: 'text-ink' },
   closed: { label: 'Closed', glyph: '■', tone: 'text-muted' },
 }
 
@@ -36,11 +36,11 @@ export function SessionBar({ mode, market, phase, clock, timezone, condition, on
   const practice = mode === 'practice'
 
   return (
-    <div className={cx('flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-surface px-4 py-2', className)}>
+    <div className={cx('flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-panel px-4 py-2', className)}>
       <span
         className={cx(
           'inline-flex items-center gap-1 rounded-pill border px-3 py-1 text-xs font-semibold',
-          practice ? 'border-dashed border-warn text-ink' : 'border-solid border-buy text-ink',
+          practice ? 'border-dashed border-warnLine bg-warnBg text-ink' : 'border-solid border-gain text-ink',
         )}
       >
         <span aria-hidden="true">{practice ? '◇' : '◆'}</span>
@@ -58,7 +58,7 @@ export function SessionBar({ mode, market, phase, clock, timezone, condition, on
         </span>
       </span>
 
-      <span className="font-mono text-sm tabular-nums" title={timezone}>
+      <span className="tnum text-sm" title={timezone}>
         {clock} <span className="text-xs text-muted">{timezone}</span>
       </span>
 

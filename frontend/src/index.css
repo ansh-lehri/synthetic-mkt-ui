@@ -2,14 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  /* Tabular numerals — IBM Plex Sans only, no mono face. Used on every numeric cell. */
+  .tnum {
+    font-feature-settings: 'tnum';
+  }
+}
+
 @layer base {
-  /* Native controls (select, scrollbars, dialog) follow the theme, also when pinned to a subtree. */
-  [data-theme='night'] {
-    color-scheme: dark;
-  }
-  [data-theme='lab'] {
-    color-scheme: light;
-  }
   body {
     @apply bg-bg font-sans text-ink antialiased;
     font-size: var(--fs-md);
@@ -21,7 +21,7 @@
   }
 }
 
-/* Modal backdrop for <dialog> (ConfirmDialog): token-derived, so it follows the theme. */
+/* Modal backdrop for <dialog> (ConfirmDialog): the --scrim token, so it follows the theme. */
 dialog::backdrop {
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  background: var(--scrim);
 }

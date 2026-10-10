@@ -221,7 +221,7 @@ function KitSections() {
             setFeedback({ kind: 'accepted', message: `${d.side} ${d.qty} ${d.instrument} submitted.` })
           }}
         />
-        {last && <pre className="overflow-x-auto rounded-md border border-line bg-surface-raised p-3 text-xs">{JSON.stringify(last)}</pre>}
+        {last && <pre className="overflow-x-auto rounded-md border border-line bg-raised p-3 text-xs">{JSON.stringify(last)}</pre>}
         <Row>
           <Button variant="ghost" onClick={() => setFeedback({ kind: 'rejected', message: 'Rejected: insufficient_funds.' })}>Show reject</Button>
           <Button variant="ghost" onClick={() => setFeedback({ kind: 'partial', message: '4 of 10 filled; the rest is still working.' })}>Show partial</Button>
@@ -248,7 +248,7 @@ function KitSections() {
 export default function KitPage() {
   return (
     <div className="min-h-screen bg-bg text-ink">
-      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3">
+      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-panel px-4 py-3">
         <h1 className="text-base font-semibold">Component kit</h1>
         <span className="text-sm text-muted">Each column is pinned to its theme. The toggle changes the page theme.</span>
         <div className="ml-auto">
