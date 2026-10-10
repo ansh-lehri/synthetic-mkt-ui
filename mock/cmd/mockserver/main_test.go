@@ -14,6 +14,7 @@ import (
 	"time"
 
 	api "github.com/ansh-2505-lehri/synthetic-mkt-ui/contract/generated/go"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/broker"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/market"
 	"github.com/gorilla/websocket"
 )
@@ -45,19 +46,31 @@ type env struct {
 	srv   *httptest.Server
 	wall  *fakeNow
 	clock *market.Clock
+	bwall *fakeNow // the broker's own clock (order fills / cancels), advanced by e.tick
 }
+
+// Fill timing under the test broker clock.
+const (
+	tPartial = time.Second
+	tFill    = 2500 * time.Millisecond
+	tCancel  = 800 * time.Millisecond
+)
 
 // newEnv starts the mock at simulated 10:00 on day 0 (market open).
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	wall := &fakeNow{t: time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)}
 	clock := market.NewClock(testSpeed, 30*time.Second, testDay0, wall.now)
-	srv := httptest.NewServer(newHandlerWith(clock))
+	bwall := &fakeNow{t: time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)}
+	srv := httptest.NewServer(newHandlerWith(clock, broker.Config{Now: bwall.now, PartialAfter: tPartial, FillAfter: tFill, CancelAfter: tCancel}))
 	t.Cleanup(srv.Close)
-	e := &env{t: t, srv: srv, wall: wall, clock: clock}
+	e := &env{t: t, srv: srv, wall: wall, clock: clock, bwall: bwall}
 	e.advanceSim(time.Hour) // 09:00 -> 10:00
 	return e
 }
+
+// tick moves the broker's clock (order fills and cancels) forward.
+func (e *env) tick(d time.Duration) { e.bwall.advance(d) }
 
 // advanceSim moves the simulated clock forward by d of SIMULATED time.
 func (e *env) advanceSim(d time.Duration) { e.wall.advance(time.Duration(float64(d) / testSpeed)) }
@@ -389,17 +402,20 @@ func TestOrders(t *testing.T) {
 	wantError(t, e.want("GET", "/v1/orders", "", 405))
 
 	// cancel: 202 accepted (not "cancelled"); foreign/unknown -> 409 unknown_order
-	decode(t, e.want("POST", "/v1/orders/cancel", `{"account_id":"o1","order_id":"o1:3"}`, 202), &oid)
+	var cid api.OrderIdResponse
+	decode(t, e.want("POST", "/v1/orders/cancel", `{"account_id":"o1","order_id":"`+oid.OrderId+`"}`, 202), &cid)
 	wantReason(t, e.want("POST", "/v1/orders/cancel", `{"account_id":"o1","order_id":"zz:3"}`, 409), "unknown_order")
+	wantReason(t, e.want("POST", "/v1/orders/cancel", `{"account_id":"o1","order_id":"`+oid.OrderId+`"}`, 409), "not_cancellable") // already cancelling
 
 	// modify: 200 ok; 409 carries a ModifyResponse (rejected), not an envelope
+	decode(t, e.want("POST", "/v1/orders", limit, 202), &oid)
 	var mr api.ModifyResponse
-	mod := `{"account_id":"o1","order_id":"o1:3","instrument":"ACME","side":"buy","is_market":false,"new_qty":5,"new_price":10055}`
+	mod := `{"account_id":"o1","order_id":"` + oid.OrderId + `","instrument":"ACME","side":"buy","is_market":false,"new_qty":5,"new_price":10055}`
 	decode(t, e.want("POST", "/v1/orders/modify", mod, 200), &mr)
 	if mr.ModifyStatus != api.Ok || mr.Replace == nil {
 		t.Fatalf("bad modify ok: %+v", mr)
 	}
-	decode(t, e.want("POST", "/v1/orders/modify", strings.Replace(mod, "o1:3", "zz:3", 1), 409), &mr)
+	decode(t, e.want("POST", "/v1/orders/modify", strings.Replace(mod, oid.OrderId, "zz:3", 1), 409), &mr)
 	if mr.ModifyStatus != api.Rejected || mr.Replace != nil {
 		t.Fatalf("bad modify rejected: %+v", mr)
 	}

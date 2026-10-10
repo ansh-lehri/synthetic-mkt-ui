@@ -1,21 +1,22 @@
 // Package broker serves the account/order axis: the 12 broker endpoints (orders, money,
 // live account reads, durable account reads).
 //
-// Skeleton behaviour (no market realism): responses are valid, correctly-shaped placeholder
-// data. Two rules from the contract ARE enforced:
+// Behaviour: responses are valid, correctly-shaped data. Rules from the contract that ARE
+// enforced:
 //   - live reads (/balance, /positions, /orders, /observation) and orders need an active
 //     session: 409 otherwise (live reads use the {"error"} envelope, orders the {"reason"} one);
 //   - durable reads (/trades, /pnl, /costs*) are 200 incl. empty — never 404/409/504.
 //
-// Nothing is simulated: a placed order does not appear in /v1/account/orders.
+// Orders are simulated by a small in-memory per-account ledger (ledger.go): a placed limit
+// order rests, partly fills, fills, and moves balance/positions/trades; cancel lands after a
+// short delay. There is no market model beyond that.
 package broker
 
 import (
 	"fmt"
 	"net/http"
-	"strings"
+	"sync"
 	"sync/atomic"
-	"time"
 
 	api "github.com/ansh-2505-lehri/synthetic-mkt-ui/contract/generated/go"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
@@ -25,7 +26,36 @@ import (
 
 type handler struct {
 	sessions *store.Sessions
+	cfg      Config
 	orderSeq atomic.Int64
+
+	mu      sync.Mutex
+	ledgers map[string]*ledger
+}
+
+// ledgerNow returns the account's ledger advanced to now (created on first use). Callers hold h.mu.
+func (h *handler) ledgerNow(acct string) *ledger {
+	now := h.cfg.Now()
+	l := h.ledgers[acct]
+	if l == nil {
+		l = newLedger(h.cfg, now)
+		h.ledgers[acct] = l
+	}
+	l.advance(now)
+	return l
+}
+
+// items is the account's trade history: this session's closed trades, then the seeded history.
+func (h *handler) items(acct string) []historyItem {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	now := h.cfg.Now()
+	base := history(now)
+	if l := h.ledgers[acct]; l != nil {
+		l.advance(now)
+		return append(append([]historyItem{}, l.trades...), base...)
+	}
+	return base
 }
 
 func (h *handler) nextOrderID(accountID string) string {
@@ -33,8 +63,8 @@ func (h *handler) nextOrderID(accountID string) string {
 }
 
 // Register mounts the broker routes on mux.
-func Register(mux *http.ServeMux, sessions *store.Sessions) {
-	h := &handler{sessions: sessions}
+func Register(mux *http.ServeMux, sessions *store.Sessions, cfg Config) {
+	h := &handler{sessions: sessions, cfg: cfg, ledgers: map[string]*ledger{}}
 	// orders
 	mux.HandleFunc("/v1/orders", httpx.Method(http.MethodPost, h.place))
 	mux.HandleFunc("/v1/orders/cancel", httpx.Method(http.MethodPost, h.cancel))
@@ -90,28 +120,48 @@ func (h *handler) place(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteReason(w, http.StatusConflict, "no_session")
 		return
 	}
-	// 422: business rejects, reason envelope.
-	_, known := catalog.Lookup(req.Instrument)
-	switch {
-	case !known:
-		httpx.WriteReason(w, http.StatusUnprocessableEntity, "unknown_instrument")
-	case req.Side != api.Buy && req.Side != api.Sell:
-		httpx.WriteReason(w, http.StatusUnprocessableEntity, "bad_side")
-	case req.Qty <= 0:
-		httpx.WriteReason(w, http.StatusUnprocessableEntity, "bad_qty")
-	case req.Type == api.PlaceOrderRequestTypeMarket:
+	// 422: business rejects, reason envelope. Argument errors win, in the contract's order.
+	if reason := argReason(req.Instrument, string(req.Side), req.Qty); reason != "" {
+		httpx.WriteReason(w, http.StatusUnprocessableEntity, reason)
+		return
+	}
+	switch req.Type {
+	case api.PlaceOrderRequestTypeMarket:
 		// Mirrors the real backend today: market orders reject (Phase 7 gate).
 		httpx.WriteReason(w, http.StatusUnprocessableEntity, "no_market_price")
-	case req.Type != api.PlaceOrderRequestTypeLimit:
-		httpx.WriteReason(w, http.StatusUnprocessableEntity, "bad_type")
-	case req.LimitPrice == nil || *req.LimitPrice <= 0:
-		httpx.WriteReason(w, http.StatusUnprocessableEntity, "bad_price")
-	case req.Side == api.Buy && req.Qty*(*req.LimitPrice) > sampleBalance().Available:
-		httpx.WriteReason(w, http.StatusUnprocessableEntity, "insufficient_funds")
+		return
+	case api.PlaceOrderRequestTypeLimit:
 	default:
-		// 202 = accepted, NOT executed. The outcome is seen by polling observation/trades.
-		httpx.WriteJSON(w, http.StatusAccepted, api.OrderIdResponse{OrderId: h.nextOrderID(req.AccountId)})
+		httpx.WriteReason(w, http.StatusUnprocessableEntity, "bad_type")
+		return
 	}
+	var limit int64
+	if req.LimitPrice != nil {
+		limit = *req.LimitPrice
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l := h.ledgerNow(req.AccountId)
+	id := h.nextOrderID(req.AccountId)
+	if reason := l.rest(id, req.Instrument, string(req.Side), req.Qty, limit, h.cfg.Now()); reason != "" {
+		httpx.WriteReason(w, http.StatusUnprocessableEntity, reason)
+		return
+	}
+	// 202 = accepted, NOT executed. The outcome is seen by polling observation/trades.
+	httpx.WriteJSON(w, http.StatusAccepted, api.OrderIdResponse{OrderId: id})
+}
+
+// argReason runs the order-argument checks that precede the type checks.
+func argReason(instrument, side string, qty int64) string {
+	switch _, known := catalog.Lookup(instrument); {
+	case !known:
+		return "unknown_instrument"
+	case side != "buy" && side != "sell":
+		return "bad_side"
+	case qty <= 0:
+		return "bad_qty"
+	}
+	return ""
 }
 
 func (h *handler) cancel(w http.ResponseWriter, r *http.Request) {
@@ -127,12 +177,15 @@ func (h *handler) cancel(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteReason(w, http.StatusConflict, "no_session")
 		return
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l := h.ledgerNow(req.AccountId)
 	// unknown_order deliberately merges "not found" and "belongs to another account".
-	if !strings.HasPrefix(req.OrderId, req.AccountId+":") {
-		httpx.WriteReason(w, http.StatusConflict, "unknown_order")
+	if reason := l.cancel(req.OrderId, h.cfg.Now()); reason != "" {
+		httpx.WriteReason(w, http.StatusConflict, reason)
 		return
 	}
-	// 202 = cancel accepted locally, NOT "cancelled".
+	// 202 = cancel accepted locally, NOT "cancelled" (cancel_in_flight until it lands).
 	httpx.WriteJSON(w, http.StatusAccepted, api.OrderIdResponse{OrderId: req.OrderId})
 }
 
@@ -160,11 +213,31 @@ func (h *handler) modify(w http.ResponseWriter, r *http.Request) {
 		reject("no_session")
 		return
 	}
-	if !strings.HasPrefix(req.OrderId, req.AccountId+":") {
-		reject("unknown_order")
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l := h.ledgerNow(req.AccountId)
+	if reason := l.cancelNow(req.OrderId); reason != "" {
+		reject(reason)
 		return
 	}
+	// The cancel leg landed. Now place the replacement; if THAT is refused the user is left
+	// with no order: modify_status "partial" plus a warning to surface verbatim.
 	newID := h.nextOrderID(req.AccountId)
+	var reason string
+	if req.IsMarket {
+		reason = "no_market_price"
+	} else {
+		reason = l.rest(newID, req.Instrument, string(req.Side), req.NewQty, *req.NewPrice, h.cfg.Now())
+	}
+	if reason != "" {
+		httpx.WriteJSON(w, http.StatusOK, api.ModifyResponse{
+			ModifyStatus: api.Partial,
+			Cancel:       api.ModifyLeg{Status: ptr("accepted"), OrderId: &req.OrderId},
+			Replace:      &api.ModifyLeg{Status: ptr("rejected"), Reason: &reason},
+			Warning:      ptr("The original order was cancelled but the replacement was rejected (" + reason + "). You no longer have a working order."),
+		})
+		return
+	}
 	httpx.WriteJSON(w, http.StatusOK, api.ModifyResponse{
 		ModifyStatus: api.Ok,
 		Cancel:       api.ModifyLeg{Status: ptr("accepted"), OrderId: &req.OrderId},
@@ -214,17 +287,23 @@ func (h *handler) transfer(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- live reads (409 without a session)
 
 func (h *handler) balance(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.liveAccount(w, r); !ok {
+	acct, ok := h.liveAccount(w, r)
+	if !ok {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, sampleBalance())
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	httpx.WriteJSON(w, http.StatusOK, h.ledgerNow(acct).balance())
 }
 
 func (h *handler) positions(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.liveAccount(w, r); !ok {
+	acct, ok := h.liveAccount(w, r)
+	if !ok {
 		return
 	}
-	positions := samplePositions()
+	h.mu.Lock()
+	positions := h.ledgerNow(acct).positions()
+	h.mu.Unlock()
 	if inst := r.URL.Query().Get("instrument"); inst != "" {
 		filtered := positions[:0:0]
 		for _, p := range positions {
@@ -242,7 +321,9 @@ func (h *handler) orders(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, api.OrdersResponse{Orders: sampleOrders(acct)})
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	httpx.WriteJSON(w, http.StatusOK, api.OrdersResponse{Orders: h.ledgerNow(acct).openOrders()})
 }
 
 // observation is the atomic dashboard read: balance + positions + orders + recent trades.
@@ -251,19 +332,24 @@ func (h *handler) observation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, api.Observation{
-		Balance:        sampleBalance(),
-		Positions:      samplePositions(),
-		Orders:         sampleOrders(acct),
-		RecentTrades:   recentTrades(),
+	h.mu.Lock()
+	l := h.ledgerNow(acct)
+	obs := api.Observation{
+		Balance:        l.balance(),
+		Positions:      l.positions(),
+		Orders:         l.openOrders(),
+		RecentTrades:   recentTrades(append(append([]historyItem{}, l.trades...), history(h.cfg.Now())...)),
 		TradesDegraded: false,
-	})
+	}
+	h.mu.Unlock()
+	httpx.WriteJSON(w, http.StatusOK, obs)
 }
 
 // ---------------------------------------------------------------- durable reads (200 incl. empty)
 
 func (h *handler) trades(w http.ResponseWriter, r *http.Request) {
-	if _, ok := httpx.RequireQuery(w, r, "account_id"); !ok {
+	acct, ok := httpx.RequireQuery(w, r, "account_id")
+	if !ok {
 		return
 	}
 	limit, ok := httpx.OptionalLimit(w, r, 50)
@@ -274,7 +360,7 @@ func (h *handler) trades(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, next := page(history(time.Now()), before, limit)
+	items, next := page(h.items(acct), before, limit)
 	trades := make([]api.Trade, 0, len(items)) // empty is 200 with trades: [], never 404
 	for _, it := range items {
 		trades = append(trades, it.trade)
@@ -283,35 +369,38 @@ func (h *handler) trades(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) pnl(w http.ResponseWriter, r *http.Request) {
-	if _, ok := httpx.RequireQuery(w, r, "account_id"); !ok {
+	acct, ok := httpx.RequireQuery(w, r, "account_id")
+	if !ok {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, pnlSummary(history(time.Now())))
+	httpx.WriteJSON(w, http.StatusOK, pnlSummary(h.items(acct)))
 }
 
 // costsCountry validates account_id + the case-sensitive country param. US -> 501 (tax/costs
 // are IN-only); anything other than IN/US -> 400.
-func costsCountry(w http.ResponseWriter, r *http.Request) bool {
-	if _, ok := httpx.RequireQuery(w, r, "account_id"); !ok {
-		return false
+func costsCountry(w http.ResponseWriter, r *http.Request) (string, bool) {
+	acct, ok := httpx.RequireQuery(w, r, "account_id")
+	if !ok {
+		return "", false
 	}
 	country, ok := httpx.RequireQuery(w, r, "country")
 	if !ok {
-		return false
+		return "", false
 	}
 	switch country {
 	case "IN":
-		return true
+		return acct, true
 	case "US":
 		httpx.WriteError(w, http.StatusNotImplemented, "costs are not implemented for country US")
 	default:
 		httpx.WriteError(w, http.StatusBadRequest, "country must be IN or US (case-sensitive)")
 	}
-	return false
+	return "", false
 }
 
 func (h *handler) costs(w http.ResponseWriter, r *http.Request) {
-	if !costsCountry(w, r) {
+	acct, ok := costsCountry(w, r)
+	if !ok {
 		return
 	}
 	limit, ok := httpx.OptionalLimit(w, r, 50)
@@ -322,7 +411,7 @@ func (h *handler) costs(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, next := page(history(time.Now()), before, limit)
+	items, next := page(h.items(acct), before, limit)
 	trades := make([]api.CostsTrade, 0, len(items))
 	for _, it := range items {
 		trades = append(trades, it.costs)
@@ -331,10 +420,11 @@ func (h *handler) costs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) costsSummary(w http.ResponseWriter, r *http.Request) {
-	if !costsCountry(w, r) {
+	acct, ok := costsCountry(w, r)
+	if !ok {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, costsSummary(history(time.Now())))
+	httpx.WriteJSON(w, http.StatusOK, costsSummary(h.items(acct)))
 }
 
 // ---------------------------------------------------------------- placeholder data
@@ -345,26 +435,9 @@ func sampleBalance() api.Balance {
 	return api.Balance{Available: 9_500_000, Reserved: 500_000, Settled: 9_000_000, Bank: 25_000_000}
 }
 
-// samplePositions: mark_available is always false today (Phase 7), so ltp and
-// gross_unrealized are 0. qty and weighted_avg_entry are real.
-func samplePositions() []api.Position {
-	return []api.Position{{
-		Instrument: "ACME", Qty: 10, ReservedQty: 0, WeightedAvgEntry: 10050,
-		MarkAvailable: false, Ltp: 0, GrossUnrealized: 0,
-	}}
-}
-
-func sampleOrders(accountID string) []api.OpenOrder {
-	return []api.OpenOrder{{
-		OrderId: accountID + ":0", Instrument: "BETA", Side: api.OpenOrderSideBuy, IsMarket: false,
-		LimitPrice: 4995, OrigQty: 20, RemainingQty: 20, FilledQty: 0,
-		ReservedCash: 99_900, ReservedUnits: 0, Status: api.Working, CancelInFlight: false,
-	}}
-}
-
-// recentTrades is observation's strip: up to 20, newest first, from the same history.
-func recentTrades() []api.Trade {
-	items, _ := page(history(time.Now()), nil, 20)
+// recentTrades is observation's strip: up to 20, newest first.
+func recentTrades(all []historyItem) []api.Trade {
+	items, _ := page(all, nil, 20)
 	out := make([]api.Trade, 0, len(items))
 	for _, it := range items {
 		out = append(out, it.trade)

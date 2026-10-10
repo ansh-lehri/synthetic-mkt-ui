@@ -24,3 +24,14 @@ export type Country = 'IN' | 'US'
 export type Bar = Schemas['Bar']
 export type CandleResponse = Schemas['CandleResponse']
 export type SessionPhase = Schemas['LiveSessionInfo']['phase']
+
+// ---- account axis (live reads + orders, used by the Terminal)
+export type Observation = Schemas['Observation']
+export type Balance = Schemas['Balance']
+export type Position = Schemas['Position']
+export type OpenOrder = Schemas['OpenOrder']
+export type PlaceOrderRequest = Schemas['PlaceOrderRequest']
+export type CancelOrderRequest = Schemas['CancelOrderRequest']
+export type ModifyOrderRequest = Schemas['ModifyOrderRequest']
+export type ModifyResponse = Schemas['ModifyResponse']
+export type OrderIdResponse = Schemas['OrderIdResponse']

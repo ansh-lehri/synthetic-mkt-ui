@@ -231,7 +231,8 @@ into the generated structs with unknown fields rejected, so the mock can't drift
   422 business reject (reason envelope: `unknown_instrument, bad_side, bad_qty, no_market_price,
   bad_type, bad_price, insufficient_funds`). Market orders always reject `no_market_price`
   (matches the real backend today). A valid limit order is `202 {order_id:"<acct>:<seq>"}`,
-  but nothing is simulated: it never shows up in `/account/orders` or fills.
+  but nothing is simulated: it never shows up in `/account/orders` or fills. (Superseded by
+  "Phase 3b decisions": orders are now simulated by an in-memory ledger.)
 - **Positions:** `mark_available:false`, `ltp:0`, `gross_unrealized:0`. `costs*` with
   `country=US` -> `501`; a non-`IN`/`US` country -> `400`.
 - **`/v1/candles`:** deterministic series on the tick grid (not a market model), real cursor
@@ -340,7 +341,8 @@ orders/trades/P&L tabs (3b) and the session bar's states (3c).
 - **Full-width Terminal (deliberate deviation from the board).** The board caps every page at
   `max-width:1240px`; the Terminal does not: shell, tabs and content span the viewport with
   16/24/32px gutters (`px-4 sm:px-6 lg:px-8`). At `lg`+ the chart sits beside a live order-book
-  column (21rem, 24rem at `2xl`; the 3b order ticket joins that column) and grows with the
+  column (21rem, 24rem at `2xl`; the 3b order ticket is NOT in it — it is the board's drawer, see
+  "Phase 3b decisions") and grows with the
   viewport height; below `lg` the book stacks under the chart. Record still uses the board's
   1240px cap.
 - **Chart UI is a PLACEHOLDER.** The chart header, left drawing-tools toolbar and layout in
@@ -352,6 +354,61 @@ orders/trades/P&L tabs (3b) and the session bar's states (3c).
 - **Gotchas found:** `pkill -f` patterns match the shell that contains them (use a separate
   call); a KLineCharts overlay needs a hover before the click (programmatic clicks without a
   prior mouse move do nothing); Vite's HMR socket also sends `{"type":"connected"}`.
+
+## Phase 3b decisions (Terminal, account/order half)
+
+Tabs Orders / Positions / Trades / P&L, the account strip and the order window on `/terminal`.
+Account state is ONE poll of `GET /v1/account/observation` (`api/orders.ts`, `useObservation`,
+every `OBSERVATION_POLL_MS` = 1s, TanStack Query) — never `/balance` + `/positions` + `/orders`
+separately. Market data stays on the WebSocket. Verified in a real browser against the mock.
+
+- **Order window = the board's right-hand drawer**, not a card in the chart's order-book column
+  (the board is the source of truth). Native `<dialog>`, opened by the strip's Buy / Sell buttons
+  or the Market tab row's Buy / Sell; reuses the kit `OrderTicket` (new props `initialSide`,
+  `blocked`; `TicketFeedback.title`). It stays open after placing so the order can be watched.
+- **Following one order** (`lib/orderFlow.ts`, pure, tested): `202` -> "accepted" -> the poll shows
+  working -> partially filled -> filled. "Filled" is only claimed when the position moved the way
+  the order would move it; an order that left the book with no such move is "No longer on the
+  book" (cancelled or refused) — never guessed as a fill. A fresh read is taken before placing
+  (exact starting position) and right after the `202` (so the first thing shown is "working").
+- **504 / 5xx / no response = UNKNOWN** (`isUnknownOutcome`). `useOrderEntry` never resubmits:
+  the ticket stays blocked until a read newer than the failure arrives, then says whether a
+  matching new order is on the book ("the reply timed out, but it did reach the exchange") or not
+  ("not confirmed — check Orders/Positions/Trades before placing it again"). Cancel/modify use the
+  same rule (re-read, tell the user, no retry). `422` / `409` reasons are mapped in `reasonText`
+  (`no_market_price` -> "Market orders are not available yet. Use a limit order.").
+- **Market is gated** by `lib/capabilities.ts` (`marketOrders: false`) -> `marketOrdersCapability`
+  (disabled radio, reason printed + tooltip). `positionMarks: false`: no Last / LTP / unrealised
+  P&L column on Positions; the P&L tab shows Unrealised as "—" with the reason.
+- **Cancel** is accepted (`202`), then the row shows "Cancelling…" (`cancel_in_flight`) until the
+  poll sees it leave. **Modify** is cancel+replace: `ok` -> "Order replaced", `partial` -> the
+  `warning` verbatim (you may have NO order), `409 rejected` -> nothing changed. "Cancel all" is N
+  cancels. There is no "Exit position" button (it needs a price; market orders are gated).
+- **Board vs contract (Orders/Trades/P&L).** `OpenOrder` has no timestamp and no completed-orders
+  list, so the Orders tab has no Time column and no "Completed orders" table. `recent_trades` are
+  closed round trips (Long/Short, entry/exit, net), not fills, and the contract has no session
+  start, so "Trades" is "Latest closed trades" and the strip/P&L realised figure is "latest N
+  trades" (up to 20), not a true session total. A buy that only opens a position creates no trade.
+- **`trades_degraded: true`** -> the Trades tab is greyed with a banner and a "!" on the tab, the
+  realised figures show "—"; balance/positions/orders stay live. A `409` on the poll = no live
+  session -> a warning banner, ordering disabled (joining a session is 3c / Home, not here; for
+  dev: `POST /v1/session/live/join {"account_id":"demo-account","market":"IN"}`).
+- **Mock ledger** (`mock/internal/broker/ledger.go`, in-memory per account, lazy time — no
+  goroutines; `broker.Config` injects the clock and delays in tests). Seeded: 95,000.00 units
+  available, 250,000.00 bank, ACME 10 @ 100.50. A limit order rests as `working` and reserves cash
+  (buy) or units (sell); after 1s an order bigger than one lot is HALF filled (`partially_filled`),
+  after 2.5s the rest fills and it leaves the book; every fill is at the limit price (it is not
+  matched against the market). Position qty and weighted avg (rounded to nearest) and balance
+  (`settled` = available + reserved) follow. Selling closes a long round trip -> a `Trade`
+  (`s-0001`…, entry = avg, costs from the IN rules, `manual`) that shows in `recent_trades`,
+  `/trades`, `/pnl` and `/costs*` (all agree). Cancel sets `cancel_in_flight` for 0.8s then
+  releases the reserve; modify is cancel-now + replace (`partial` + warning when the replacement is
+  refused). New 422s: qty not a lot multiple -> `bad_qty`, price off the tick grid -> `bad_price`,
+  selling more than held (no shorting) -> `insufficient_funds` (the contract has no other tag).
+  `not_cancellable` = a cancel is already in flight.
+- **Gotchas found:** the `dialog` backdrop uses `backdrop:bg-[var(--scrim)]`; Playwright's
+  `getByText('Filled')` also matches "Accepted is not filled" (match the `· Filled` title);
+  `getByLabel('Limit price')` also matches the ± buttons' aria-labels (use the textbox role).
 
 ## Still-open product decisions (don't block; flag if you hit them)
 
