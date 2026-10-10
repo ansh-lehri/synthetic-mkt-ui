@@ -14,7 +14,9 @@ import (
 	_ "time/tzdata" // market timezones must resolve even on minimal images
 
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/broker"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/httpx"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/market"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/marketdata"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/session"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/store"
@@ -37,13 +39,20 @@ func main() {
 	log.Fatal(srv.ListenAndServe())
 }
 
-// newHandler builds the full mock: all three route packages on one mux, CORS-open.
+// newHandler builds the full mock with the real session clock (paced by MOCK_SPEED).
 func newHandler() http.Handler {
-	sessions := store.NewSessions() // the only mutable state: which session each account is in
+	m, _ := catalog.FindMarket("IN")
+	return newHandlerWith(market.NewDefaultClock(m.Location()))
+}
+
+// newHandlerWith builds the mock around a given clock (tests inject a fake one): all three
+// route packages on one mux, CORS-open.
+func newHandlerWith(clock *market.Clock) http.Handler {
+	sessions := store.NewSessions() // the only mutable state besides the clock: which session each account is in
 	mux := http.NewServeMux()
 	broker.Register(mux, sessions)
-	marketdata.Register(mux)
-	session.Register(mux, sessions)
+	marketdata.Register(mux, clock)
+	session.Register(mux, sessions, clock)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "not found")
 	})

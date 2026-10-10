@@ -7,6 +7,7 @@ export function getMarkets(): Promise<MarketsResponse> {
   return apiGet<MarketsResponse>('/v1/markets')
 }
 
-export function useMarkets() {
-  return useQuery({ queryKey: ['markets'], queryFn: getMarkets })
+/** `refetchMs` keeps the live-session window and phase fresh (the Terminal polls it). */
+export function useMarkets(opts?: { refetchMs?: number }) {
+  return useQuery({ queryKey: ['markets'], queryFn: getMarkets, refetchInterval: opts?.refetchMs })
 }

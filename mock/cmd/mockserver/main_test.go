@@ -9,24 +9,58 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	api "github.com/ansh-2505-lehri/synthetic-mkt-ui/contract/generated/go"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/market"
 	"github.com/gorilla/websocket"
 )
 
-type env struct {
-	t   *testing.T
-	srv *httptest.Server
+// fakeNow is a hand-driven wall clock so session phases and bar closes are deterministic.
+type fakeNow struct {
+	mu sync.Mutex
+	t  time.Time
 }
 
+func (f *fakeNow) now() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.t
+}
+
+func (f *fakeNow) advance(d time.Duration) {
+	f.mu.Lock()
+	f.t = f.t.Add(d)
+	f.mu.Unlock()
+}
+
+const testSpeed = 60 // simulated seconds per real second
+
+var testDay0 = time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC) // first simulated day (naive-local)
+
+type env struct {
+	t     *testing.T
+	srv   *httptest.Server
+	wall  *fakeNow
+	clock *market.Clock
+}
+
+// newEnv starts the mock at simulated 10:00 on day 0 (market open).
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	srv := httptest.NewServer(newHandler())
+	wall := &fakeNow{t: time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)}
+	clock := market.NewClock(testSpeed, 30*time.Second, testDay0, wall.now)
+	srv := httptest.NewServer(newHandlerWith(clock))
 	t.Cleanup(srv.Close)
-	return &env{t: t, srv: srv}
+	e := &env{t: t, srv: srv, wall: wall, clock: clock}
+	e.advanceSim(time.Hour) // 09:00 -> 10:00
+	return e
 }
+
+// advanceSim moves the simulated clock forward by d of SIMULATED time.
+func (e *env) advanceSim(d time.Duration) { e.wall.advance(time.Duration(float64(d) / testSpeed)) }
 
 // call performs a request and returns status + raw body. It also checks the headers every
 // response must carry (JSON + open CORS).

@@ -50,6 +50,7 @@ export default function App() {
           Phase 0 scaffold — screens come in later phases.
         </p>
         <p className="mt-3 flex flex-wrap gap-4 text-sm">
+          <a className="font-semibold underline underline-offset-4" href="/terminal">Terminal</a>
           <a className="font-semibold underline underline-offset-4" href="/record">Record</a>
           <a className="font-semibold underline underline-offset-4" href="/kit">Component kit</a>
         </p>
