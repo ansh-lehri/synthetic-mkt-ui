@@ -243,6 +243,47 @@ into the generated structs with unknown fields rejected, so the mock can't drift
   candle pushes and no moving price yet (Model A realism comes later). Junk or unknown frames
   are ignored (the contract has no error frame).
 
+## Phase 2 decisions (Record screen)
+
+`/record` (pathname switch in `src/Routes.tsx`) is the first real-data screen: closed trades,
+P&L summary, tax/cost breakdown. Code in `frontend/src/features/record/`; reads in
+`frontend/src/api/account.ts` (TanStack Query). Verified in a real browser against the mock.
+
+- **Board vs contract.** The board's Record is a flat list of fills with a date filter. The
+  contract serves closed round trips (`/trades`: long/short, entry/exit, gross/costs/net, pct),
+  keyset-paged, with no date params. So the table is one row per closed trade
+  (Date, Time, Symbol, Side, Qty, Entry, Exit, Net P&L, Return); the layout, tabs, filter card,
+  summary line and empty/pending cards follow the board. There is no "Tax to pay" line (not in
+  the contract) — Gross P&L, each cost line, Total costs and Net result instead.
+- **Date range = cursor + client bound.** `To` becomes the starting `before` cursor (start of
+  the next market day); `From` is a client-side lower bound: older rows are dropped and
+  "Load older trades" disappears once the walk crosses it. "Days" are the MARKET's calendar days
+  (IANA tz from `/v1/markets`, DST-safe — `range.ts`). Broker-axis times are RFC3339 instants,
+  so the client converts them for display in the market tz (the "never touch UTC" rule is
+  about the naive-local market/session timestamps).
+- **Aggregates are all-time, lists follow the dates.** `/pnl` and `/costs/summary` take no
+  range, so the P&L card and tax summary are labelled "All time"; only the trades and per-trade
+  costs lists follow the From/To filter. Don't present a range-filtered total from partial pages.
+- **Paging:** page size 20 (`PAGE_SIZE`), "Load older trades" until `next_before` is `null`.
+  The Tax tab fetches `/costs` and `/trades` in step (same cursor) so cost rows (which carry
+  only a `trade_id`) can show date + symbol.
+- **Country = market code** (`IN`/`US`). `US` -> `501` is shown honestly ("only implemented for
+  India for now"); a 501 is never retried. Costs queries are lazy (Tax tab only).
+- **`exit_reason`** is a free string: `manual` shows nothing, anything containing "auto" shows
+  the board's `auto` tag, other values show as written. Cost-line names are labelled via
+  `labels.ts` (unknown names still render, humanised).
+- **Account id.** No auth contract: `lib/account.ts` reads `VITE_ACCOUNT_ID` (default
+  `demo-account`). It is the only place that does; replace it when sign-in exists.
+- **Visually-hidden text inside a scroll container needs `position: relative`.** `sr-only` is
+  absolutely positioned and escapes `overflow-x: auto`, which made the whole page scroll
+  sideways on phones. Scroll wrappers around tables are `relative overflow-x-auto`.
+- **Mock history (contract-consistent).** `/trades`, `/pnl`, `/costs`, `/costs/summary` and
+  `observation.recent_trades` all derive from one deterministic 27-trade history (3 a day over
+  ~9 days, newest first, unique exit times) with real keyset paging. It includes wins, losses,
+  an auto-square-off fee trade and one true breakeven (net 0, no cost lines). Mock tests assert
+  pages, per-trade costs, the cost summary and the P&L summary all agree. Still no simulation.
+- Added `SegmentedToggle` (the board's `.seg` pill switch) to the kit.
+
 ## Still-open product decisions (don't block; flag if you hit them)
 
 - `exchange_id` handshake: leaning **account-only** (UI sends `account_id`; backend binds).

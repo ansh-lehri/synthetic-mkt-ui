@@ -255,7 +255,7 @@ func (h *handler) observation(w http.ResponseWriter, r *http.Request) {
 		Balance:        sampleBalance(),
 		Positions:      samplePositions(),
 		Orders:         sampleOrders(acct),
-		RecentTrades:   sampleTrades(),
+		RecentTrades:   recentTrades(),
 		TradesDegraded: false,
 	})
 }
@@ -274,25 +274,19 @@ func (h *handler) trades(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	page := make([]api.Trade, 0, limit) // empty is 200 with trades: [], never 404
-	for _, t := range sampleTrades() {
-		if before != nil && !t.ExitAt.Before(*before) {
-			continue
-		}
-		if len(page) < limit {
-			page = append(page, t)
-		}
+	items, next := page(history(time.Now()), before, limit)
+	trades := make([]api.Trade, 0, len(items)) // empty is 200 with trades: [], never 404
+	for _, it := range items {
+		trades = append(trades, it.trade)
 	}
-	httpx.WriteJSON(w, http.StatusOK, api.TradesPage{Trades: page, NextBefore: nil})
+	httpx.WriteJSON(w, http.StatusOK, api.TradesPage{Trades: trades, NextBefore: next})
 }
 
 func (h *handler) pnl(w http.ResponseWriter, r *http.Request) {
 	if _, ok := httpx.RequireQuery(w, r, "account_id"); !ok {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, api.PnlSummary{
-		TradeCount: 1, GrossPnl: 4500, TotalCosts: 312, NetPnl: 4188, WinCount: 1, LossCount: 0,
-	})
+	httpx.WriteJSON(w, http.StatusOK, pnlSummary(history(time.Now())))
 }
 
 // costsCountry validates account_id + the case-sensitive country param. US -> 501 (tax/costs
@@ -320,28 +314,30 @@ func (h *handler) costs(w http.ResponseWriter, r *http.Request) {
 	if !costsCountry(w, r) {
 		return
 	}
-	if _, ok := httpx.OptionalLimit(w, r, 50); !ok {
+	limit, ok := httpx.OptionalLimit(w, r, 50)
+	if !ok {
 		return
 	}
-	if _, ok := httpx.OptionalRFC3339(w, r, "before"); !ok {
+	before, ok := httpx.OptionalRFC3339(w, r, "before")
+	if !ok {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, api.CostsPage{
-		Trades:     []api.CostsTrade{{TradeId: sampleTradeID, Lines: sampleCostLines(), Total: 312}},
-		NextBefore: nil,
-	})
+	items, next := page(history(time.Now()), before, limit)
+	trades := make([]api.CostsTrade, 0, len(items))
+	for _, it := range items {
+		trades = append(trades, it.costs)
+	}
+	httpx.WriteJSON(w, http.StatusOK, api.CostsPage{Trades: trades, NextBefore: next})
 }
 
 func (h *handler) costsSummary(w http.ResponseWriter, r *http.Request) {
 	if !costsCountry(w, r) {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, api.CostsSummary{TradeCount: 1, Lines: sampleCostLines(), Total: 312})
+	httpx.WriteJSON(w, http.StatusOK, costsSummary(history(time.Now())))
 }
 
 // ---------------------------------------------------------------- placeholder data
-
-const sampleTradeID = "t-0001"
 
 func ptr[T any](v T) *T { return &v }
 
@@ -366,16 +362,12 @@ func sampleOrders(accountID string) []api.OpenOrder {
 	}}
 }
 
-func sampleTrades() []api.Trade {
-	exit := time.Now().UTC().Truncate(time.Second).Add(-10 * time.Minute)
-	return []api.Trade{{
-		TradeId: sampleTradeID, Instrument: "ACME", Direction: api.Long, Quantity: 10,
-		EntryPrice: 10050, ExitPrice: 10500,
-		EntryAt: exit.Add(-25 * time.Minute), ExitAt: exit,
-		GrossPnl: 4500, TotalCosts: 312, NetPnl: 4188, PnlPct: 4.48, ExitReason: "manual",
-	}}
-}
-
-func sampleCostLines() []api.CostLine {
-	return []api.CostLine{{Name: "stt", Amount: 112}, {Name: "exchange", Amount: 200}}
+// recentTrades is observation's strip: up to 20, newest first, from the same history.
+func recentTrades() []api.Trade {
+	items, _ := page(history(time.Now()), nil, 20)
+	out := make([]api.Trade, 0, len(items))
+	for _, it := range items {
+		out = append(out, it.trade)
+	}
+	return out
 }

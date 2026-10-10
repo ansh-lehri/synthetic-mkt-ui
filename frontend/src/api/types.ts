@@ -8,3 +8,14 @@ export type Market = Schemas['Market']
 export type MarketsResponse = Schemas['MarketsResponse']
 export type Instrument = Schemas['Instrument']
 export type InstrumentsResponse = Schemas['InstrumentsResponse']
+
+// ---- account axis (durable reads used by the Record screen)
+export type Trade = Schemas['Trade']
+export type TradesPage = Schemas['TradesPage']
+export type PnlSummary = Schemas['PnlSummary']
+export type CostLine = Schemas['CostLine']
+export type CostsTrade = Schemas['CostsTrade']
+export type CostsPage = Schemas['CostsPage']
+export type CostsSummary = Schemas['CostsSummary']
+/** `country` query param on /costs*: case-sensitive, IN is implemented, US is a 501. */
+export type Country = 'IN' | 'US'
