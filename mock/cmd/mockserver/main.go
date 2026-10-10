@@ -47,10 +47,14 @@ func newHandler() http.Handler {
 
 // newHandlerWith builds the mock around a given clock (tests inject a fake one): all three
 // route packages on one mux, CORS-open.
-func newHandlerWith(clock *market.Clock) http.Handler {
+func newHandlerWith(clock *market.Clock, brokerCfg ...broker.Config) http.Handler {
+	cfg := broker.DefaultConfig()
+	if len(brokerCfg) > 0 {
+		cfg = brokerCfg[0] // tests inject a fake wall clock and fill delays
+	}
 	sessions := store.NewSessions() // the only mutable state besides the clock: which session each account is in
 	mux := http.NewServeMux()
-	broker.Register(mux, sessions)
+	broker.Register(mux, sessions, cfg)
 	marketdata.Register(mux, clock)
 	session.Register(mux, sessions, clock)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {

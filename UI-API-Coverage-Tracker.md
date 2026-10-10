@@ -199,10 +199,11 @@ named schemas in `contract/openapi.yaml` so the Go mock and TS client share one 
 | Codegen (`make generate` → Go + TS; WS types hand-authored in `generated/{go,ts}`) | ✅ done, no-diff verified |
 | Mock skeleton — all 19 REST routes + `/ws` (connected, subscribe/unsubscribe acks, seed snapshot), session gate + "no session" 409s, both error envelopes, contract-checked tests | ✅ Phase 1b (placeholder data, no realism) |
 | Mock market realism: session clock + phases, moving book, Model-A candles, live snapshots, history/WS consistency | ✅ Phase 3a |
-| Mock realism: stateful orders/balances/fills | ⬜ 3b |
+| Mock realism: stateful orders/balances/fills (in-memory ledger: working → partial → filled, cancel in flight, modify, trades on close) | ✅ Phase 3b |
 | Tick formatter (`frontend/src/lib/ticks.ts`) + tests | ✅ |
 | Tokens wired to Tailwind + Night/Lab toggle | ✅ |
 | Terminal market-data half (`/terminal`): WS client -> Zustand, KLineCharts history + live (Model A), instrument list, depth, reconnect rehydrate | ✅ Phase 3a (rows 11-13) |
+| Terminal account half (`/terminal`): `observation` poll (1s), order window (limit; Market gated), cancel/modify, Orders / Positions / Trades / P&L tabs, account strip, `trades_degraded`, 504 reconcile (rows 16-24) | ✅ Phase 3b — session bar / exit (row 25) is 3c |
 | Record screen (`/record`): trades (paged, `next_before` walk), P&L summary, IN cost/tax breakdown, US 501 | ✅ Phase 2 — against mock history |
 | Row 4 (market dropdown) smoke — `GET /v1/markets` rendered from the mock | ✅ smoke only, not the real TopBar |
 

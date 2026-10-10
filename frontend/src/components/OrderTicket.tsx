@@ -24,6 +24,8 @@ export interface OrderDraft {
 export interface TicketFeedback {
   kind: 'accepted' | 'partial' | 'rejected' | 'error'
   message: string
+  /** Replaces the default heading for the kind (e.g. "Not confirmed"). */
+  title?: string
 }
 
 export interface OrderTicketProps {
@@ -38,6 +40,10 @@ export interface OrderTicketProps {
   /** POST in flight — the CTA shows a spinner and ignores clicks. */
   submitting?: boolean
   feedback?: TicketFeedback
+  /** Side the ticket opens on (the board opens it from a Buy or a Sell button). Default buy. */
+  initialSide?: Side
+  /** Why ordering is unavailable right now (e.g. no live session). Disables the CTA and says why. */
+  blocked?: string
   onSubmit: (draft: OrderDraft) => void
   className?: string
 }
@@ -128,10 +134,12 @@ export function OrderTicket({
   hasLast = false,
   submitting = false,
   feedback,
+  initialSide = 'buy',
+  blocked,
   onSubmit,
   className,
 }: OrderTicketProps) {
-  const [side, setSide] = useState<Side>('buy')
+  const [side, setSide] = useState<Side>(initialSide)
   const [type, setType] = useState<OrderType>('limit')
   const [qtyText, setQtyText] = useState(String(instrument.lot_size))
   const [priceText, setPriceText] = useState(() => {
@@ -160,7 +168,7 @@ export function OrderTicket({
   }
 
   const submit = () => {
-    if (!check.ok || check.qty === null || submitting) return
+    if (!check.ok || check.qty === null || submitting || blocked) return
     onSubmit({
       instrument: instrument.symbol,
       side,
@@ -247,7 +255,9 @@ export function OrderTicket({
           <Banner tone="warn">Estimated cost is above your buying power; the exchange may reject this order.</Banner>
         )}
 
-        <Button type="submit" variant={side === 'buy' ? 'buy' : 'sell'} fullWidth loading={submitting} disabled={!check.ok}>
+        {blocked && <Banner tone="warn">{blocked}</Banner>}
+
+        <Button type="submit" variant={side === 'buy' ? 'buy' : 'sell'} fullWidth loading={submitting} disabled={!check.ok || !!blocked}>
           {side === 'buy' ? 'Buy' : 'Sell'} {instrument.symbol}
         </Button>
 
@@ -255,13 +265,14 @@ export function OrderTicket({
           <Banner
             tone={feedback.kind === 'accepted' ? 'info' : feedback.kind === 'partial' ? 'warn' : 'error'}
             title={
-              feedback.kind === 'accepted'
+              feedback.title ??
+              (feedback.kind === 'accepted'
                 ? 'Order accepted'
                 : feedback.kind === 'partial'
                   ? 'Order partly filled'
                   : feedback.kind === 'rejected'
                     ? 'Order rejected'
-                    : 'Something went wrong'
+                    : 'Something went wrong')
             }
           >
             {feedback.message}
