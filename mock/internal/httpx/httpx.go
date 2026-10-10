@@ -5,7 +5,9 @@ package httpx
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	api "github.com/ansh-2505-lehri/synthetic-mkt-ui/contract/generated/go"
 )
@@ -76,4 +78,34 @@ func CORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// OptionalLimit reads an optional positive-integer `limit` query parameter. Absent means
+// def. A malformed or < 1 value writes a 400 and returns false.
+func OptionalLimit(w http.ResponseWriter, r *http.Request, def int) (int, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get("limit"))
+	if raw == "" {
+		return def, true
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 {
+		WriteError(w, http.StatusBadRequest, "limit must be an integer >= 1")
+		return 0, false
+	}
+	return n, true
+}
+
+// OptionalRFC3339 reads an optional RFC3339 query parameter (e.g. `before`). Absent returns
+// nil. A malformed value writes a 400 and returns false.
+func OptionalRFC3339(w http.ResponseWriter, r *http.Request, name string) (*time.Time, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get(name))
+	if raw == "" {
+		return nil, true
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, name+" must be an RFC3339 timestamp")
+		return nil, false
+	}
+	return &t, true
 }

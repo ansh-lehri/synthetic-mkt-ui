@@ -2,7 +2,8 @@
 // /v1/markets, /v1/instruments, /v1/session, /v1/session/live/join,
 // /v1/session/practice/start, /v1/session/exit.
 //
-// Phase 0: valid, correctly-shaped placeholder responses only. No session state is kept.
+// Reference data is static; session state lives in store.Sessions and enforces the
+// one-session gate (a second join/start is a 409 until the account exits).
 package session
 
 import (
@@ -10,73 +11,32 @@ import (
 	"time"
 
 	api "github.com/ansh-2505-lehri/synthetic-mkt-ui/contract/generated/go"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/httpx"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/store"
 )
 
-// naiveLayout is the naive-local ISO-8601 layout: no offset, no "Z". The tz is carried
-// separately in a `timezone` field.
-const naiveLayout = "2006-01-02T15:04:05"
-
-type marketDef struct {
-	code, name, tz string
-	openH, openM   int
-	closeH, closeM int
-}
-
-var markets = []marketDef{
-	{code: "IN", name: "India", tz: "Asia/Kolkata", openH: 9, openM: 15, closeH: 15, closeM: 30},
-	{code: "US", name: "United States", tz: "America/New_York", openH: 9, openM: 30, closeH: 16, closeM: 0},
-}
-
-// Timezone returns the IANA timezone of a market code, or "" if the market is unknown.
-func Timezone(code string) string {
-	for _, m := range markets {
-		if m.code == code {
-			return m.tz
-		}
-	}
-	return ""
-}
-
-func findMarket(code string) (marketDef, bool) {
-	for _, m := range markets {
-		if m.code == code {
-			return m, true
-		}
-	}
-	return marketDef{}, false
-}
-
-// sessionTimes returns today's open/close for a market as naive-local ISO strings.
-func sessionTimes(m marketDef) (opens, closes string) {
-	loc, err := time.LoadLocation(m.tz)
-	if err != nil {
-		loc = time.UTC
-	}
-	now := time.Now().In(loc)
-	o := time.Date(now.Year(), now.Month(), now.Day(), m.openH, m.openM, 0, 0, loc)
-	c := time.Date(now.Year(), now.Month(), now.Day(), m.closeH, m.closeM, 0, 0, loc)
-	return o.Format(naiveLayout), c.Format(naiveLayout)
-}
+type handler struct{ sessions *store.Sessions }
 
 // Register mounts the session/reference routes on mux.
-func Register(mux *http.ServeMux) {
-	mux.HandleFunc("/v1/markets", httpx.Method(http.MethodGet, handleMarkets))
-	mux.HandleFunc("/v1/instruments", httpx.Method(http.MethodGet, handleInstruments))
-	mux.HandleFunc("/v1/session", httpx.Method(http.MethodGet, handleSession))
-	mux.HandleFunc("/v1/session/live/join", httpx.Method(http.MethodPost, handleJoinLive))
-	mux.HandleFunc("/v1/session/practice/start", httpx.Method(http.MethodPost, handleStartPractice))
-	mux.HandleFunc("/v1/session/exit", httpx.Method(http.MethodPost, handleExit))
+func Register(mux *http.ServeMux, sessions *store.Sessions) {
+	h := &handler{sessions: sessions}
+	mux.HandleFunc("/v1/markets", httpx.Method(http.MethodGet, h.markets))
+	mux.HandleFunc("/v1/instruments", httpx.Method(http.MethodGet, h.instruments))
+	mux.HandleFunc("/v1/session", httpx.Method(http.MethodGet, h.state))
+	mux.HandleFunc("/v1/session/live/join", httpx.Method(http.MethodPost, h.joinLive))
+	mux.HandleFunc("/v1/session/practice/start", httpx.Method(http.MethodPost, h.startPractice))
+	mux.HandleFunc("/v1/session/exit", httpx.Method(http.MethodPost, h.exit))
 }
 
-func handleMarkets(w http.ResponseWriter, _ *http.Request) {
-	out := api.MarketsResponse{Markets: make([]api.Market, 0, len(markets))}
-	for _, m := range markets {
-		opens, closes := sessionTimes(m)
+func (h *handler) markets(w http.ResponseWriter, _ *http.Request) {
+	out := api.MarketsResponse{Markets: make([]api.Market, 0, len(catalog.Markets()))}
+	for _, m := range catalog.Markets() {
+		opens, closes := m.Today()
 		out.Markets = append(out.Markets, api.Market{
-			Code:     m.code,
-			Name:     m.name,
-			Timezone: m.tz,
+			Code:     m.Code,
+			Name:     m.Name,
+			Timezone: m.Timezone,
 			LiveSession: api.LiveSessionInfo{
 				Phase:    api.LiveSessionInfoPhaseOpen,
 				OpensAt:  opens,
@@ -87,36 +47,37 @@ func handleMarkets(w http.ResponseWriter, _ *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
-func handleInstruments(w http.ResponseWriter, r *http.Request) {
+func (h *handler) instruments(w http.ResponseWriter, r *http.Request) {
 	code, ok := httpx.RequireQuery(w, r, "market")
 	if !ok {
 		return
 	}
-	if _, found := findMarket(code); !found {
+	if _, found := catalog.FindMarket(code); !found {
 		httpx.WriteError(w, http.StatusBadRequest, "unknown market: "+code)
 		return
 	}
-	// Invented instruments only. Prices are bare int64 raw units; tick_size is the smallest
-	// price increment in those raw units and price_decimals is how many decimals to show.
-	httpx.WriteJSON(w, http.StatusOK, api.InstrumentsResponse{
-		Market: code,
-		Instruments: []api.Instrument{
-			{Instrument: "ACME", Name: "Acme Industries", TickSize: 5, LotSize: 1, PriceDecimals: 2},
-			{Instrument: "BETA", Name: "Beta Holdings", TickSize: 5, LotSize: 1, PriceDecimals: 2},
-			{Instrument: "GAMA", Name: "Gama Works", TickSize: 1, LotSize: 10, PriceDecimals: 2},
-		},
-	})
+	list := catalog.InstrumentsFor(code)
+	out := api.InstrumentsResponse{Market: code, Instruments: make([]api.Instrument, 0, len(list))}
+	for _, in := range list {
+		out.Instruments = append(out.Instruments, in.API())
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
-func handleSession(w http.ResponseWriter, r *http.Request) {
-	if _, ok := httpx.RequireQuery(w, r, "account_id"); !ok {
+// state: active is null until the account joins or starts a session.
+func (h *handler) state(w http.ResponseWriter, r *http.Request) {
+	acct, ok := httpx.RequireQuery(w, r, "account_id")
+	if !ok {
 		return
 	}
-	// Placeholder: the account is in no session.
-	httpx.WriteJSON(w, http.StatusOK, api.SessionState{Active: nil})
+	var active *api.ActiveSession
+	if s, in := h.sessions.Get(acct); in {
+		active = &s
+	}
+	httpx.WriteJSON(w, http.StatusOK, api.SessionState{Active: active})
 }
 
-func handleJoinLive(w http.ResponseWriter, r *http.Request) {
+func (h *handler) joinLive(w http.ResponseWriter, r *http.Request) {
 	var req api.JoinLiveRequest
 	if !httpx.DecodeJSON(w, r, &req) {
 		return
@@ -125,21 +86,26 @@ func handleJoinLive(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "account_id and market are required")
 		return
 	}
-	m, ok := findMarket(req.Market)
+	m, ok := catalog.FindMarket(req.Market)
 	if !ok {
 		httpx.WriteError(w, http.StatusBadRequest, "unknown market: "+req.Market)
 		return
 	}
-	_, closes := sessionTimes(m)
-	httpx.WriteJSON(w, http.StatusOK, api.ActiveSession{
+	_, closes := m.Today()
+	sess := api.ActiveSession{
 		Type:     api.Live,
-		Market:   m.code,
+		Market:   m.Code,
 		Phase:    api.ActiveSessionPhaseOpen,
 		ClosesAt: &closes,
-	})
+	}
+	if !h.sessions.StartIfFree(req.AccountId, sess) {
+		httpx.WriteReason(w, http.StatusConflict, "already_in_session")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, sess)
 }
 
-func handleStartPractice(w http.ResponseWriter, r *http.Request) {
+func (h *handler) startPractice(w http.ResponseWriter, r *http.Request) {
 	var req api.StartPracticeRequest
 	if !httpx.DecodeJSON(w, r, &req) {
 		return
@@ -148,7 +114,8 @@ func handleStartPractice(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "account_id and market are required")
 		return
 	}
-	if _, ok := findMarket(req.Market); !ok {
+	m, ok := catalog.FindMarket(req.Market)
+	if !ok {
 		httpx.WriteError(w, http.StatusBadRequest, "unknown market: "+req.Market)
 		return
 	}
@@ -164,22 +131,23 @@ func handleStartPractice(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "length_minutes must be one of 60, 75, 90, 105")
 		return
 	}
-	loc, err := time.LoadLocation(Timezone(req.Market))
-	if err != nil {
-		loc = time.UTC
-	}
-	ends := time.Now().In(loc).Add(time.Duration(req.LengthMinutes) * time.Minute).Format(naiveLayout)
+	ends := time.Now().In(m.Location()).Add(time.Duration(req.LengthMinutes) * time.Minute).Format(catalog.NaiveLayout)
 	cond := req.Condition
-	httpx.WriteJSON(w, http.StatusOK, api.ActiveSession{
+	sess := api.ActiveSession{
 		Type:      api.Practice,
-		Market:    req.Market,
+		Market:    m.Code,
 		Phase:     api.ActiveSessionPhaseOpen,
 		ClosesAt:  &ends,
 		Condition: &cond,
-	})
+	}
+	if !h.sessions.StartIfFree(req.AccountId, sess) {
+		httpx.WriteReason(w, http.StatusConflict, "already_in_session")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, sess)
 }
 
-func handleExit(w http.ResponseWriter, r *http.Request) {
+func (h *handler) exit(w http.ResponseWriter, r *http.Request) {
 	var req api.ExitSessionRequest
 	if !httpx.DecodeJSON(w, r, &req) {
 		return
@@ -188,6 +156,7 @@ func handleExit(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "account_id is required")
 		return
 	}
+	h.sessions.Clear(req.AccountId) // idempotent: exiting with no session is still ok
 	ok := true
 	httpx.WriteJSON(w, http.StatusOK, api.ExitSessionResponse{Ok: &ok})
 }
