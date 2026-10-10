@@ -165,10 +165,7 @@ change run `make generate` and commit the result; `make check` fails if it drift
 - **Go layout.** `contract/generated/go` is its own module; `mock/go.mod` uses a `replace`
   directive to it. Mock-only HTTP helpers live in `mock/internal/httpx`. Codegen tools are
   pinned in the Makefile (`oapi-codegen v2.5.1`); `openapi-typescript` is a frontend devDependency.
-- **Mock Phase 0 behaviour.** Stateless placeholders. Market orders already reject `422
-  no_market_price` (matches the real backend). `/v1/account/costs*` with `country=US` → `501`.
-  `/ws` sends `connected` then only drains frames (no ack/snapshot/candle yet — Phase 3).
-  Mock markets: `IN` (Asia/Kolkata) and `US` (America/New_York); instruments ACME/BETA/GAMA.
+- **Mock behaviour:** see "Phase 1b decisions" below (supersedes the Phase 0 placeholder rules).
 - **`docs/` is missing from the repo.** REPO-SETUP lists it, but the folder was never added;
   the contract files are enough for Phase 0. Drop the broker + market-data design docs in
   `docs/` when available.
@@ -212,6 +209,39 @@ browser at 1600px and 375px (no console errors, no horizontal scroll, all target
   power warns but does not block; the exchange is the authority.
 - **Component tests:** the vitest env is `node` (no DOM), so only pure logic is unit-tested;
   components are verified in the browser via `/kit`. Add jsdom + Testing Library if/when needed.
+
+## Phase 1b decisions (mock skeleton)
+
+`make mock` serves every contract endpoint (all 19 REST routes + `/ws`) with valid,
+correctly-shaped data. No market realism. `go test ./...` in `mock/` decodes every response
+into the generated structs with unknown fields rejected, so the mock can't drift from the contract.
+
+- **Only mutable state: which session an account is in** (`internal/store`). Everything else
+  is static placeholder data (`internal/catalog` = reference data, shared by all routes).
+- **Reference data:** one market, `IN` (Asia/Kolkata, 09:15–15:30), two invented instruments:
+  `ACME` (tick 5, lot 1, 2 decimals, ref 10090) and `BETA` (tick 5, lot 10, 2 decimals, ref 4995).
+- **Session gate.** `GET /v1/session` is `{active:null}` until the account joins/starts.
+  A second join/start is `409 {reason:"already_in_session"}` until `POST /v1/session/exit`
+  (idempotent). Practice has no min-balance check yet.
+- **No session -> 409.** Live reads (`/balance /positions /orders /observation`) answer
+  `409 {"error":…}` (error envelope); order POSTs answer `409 {"reason":"no_session"}`
+  (reason envelope); a modify answers `409` with a `ModifyResponse` (`rejected`).
+  Durable reads (`/trades /pnl /costs* /candles`) are 200 incl. empty and never need a session.
+- **Order checks run in contract order:** 400 malformed (error envelope) -> 409 no session ->
+  422 business reject (reason envelope: `unknown_instrument, bad_side, bad_qty, no_market_price,
+  bad_type, bad_price, insufficient_funds`). Market orders always reject `no_market_price`
+  (matches the real backend today). A valid limit order is `202 {order_id:"<acct>:<seq>"}`,
+  but nothing is simulated: it never shows up in `/account/orders` or fills.
+- **Positions:** `mark_available:false`, `ltp:0`, `gross_unrealized:0`. `costs*` with
+  `country=US` -> `501`; a non-`IN`/`US` country -> `400`.
+- **`/v1/candles`:** deterministic series on the tick grid (not a market model), real cursor
+  paging (`limit` default 100, clamped to 500; `next_cursor` null on the last page), 400 for
+  bad market/instrument/timeframe/time/cursor, `[]` when from == to.
+- **`/ws`:** sends `connected`; `subscribe`/`unsubscribe` get one `ack` with a result per sub
+  (`unknown instrument`, `bad timeframe`, `bad stream`); each accepted *snapshot* subscribe is
+  followed by a STATIC seed snapshot (open phase, one-tick spread, 5 levels per side). No
+  candle pushes and no moving price yet (Model A realism comes later). Junk or unknown frames
+  are ignored (the contract has no error frame).
 
 ## Still-open product decisions (don't block; flag if you hit them)
 

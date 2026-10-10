@@ -17,6 +17,7 @@ import (
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/httpx"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/marketdata"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/session"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/store"
 )
 
 func main() {
@@ -38,10 +39,11 @@ func main() {
 
 // newHandler builds the full mock: all three route packages on one mux, CORS-open.
 func newHandler() http.Handler {
+	sessions := store.NewSessions() // the only mutable state: which session each account is in
 	mux := http.NewServeMux()
-	broker.Register(mux)
+	broker.Register(mux, sessions)
 	marketdata.Register(mux)
-	session.Register(mux)
+	session.Register(mux, sessions)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "not found")
 	})
