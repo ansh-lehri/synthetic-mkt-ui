@@ -14,7 +14,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg text-ink">
-      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3">
+      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-panel px-4 py-3">
         <span className="font-semibold">Market Simulator</span>
         <span className="rounded-pill border border-line px-2 py-0.5 text-xs text-muted">Simulation</span>
 
@@ -24,14 +24,14 @@ export default function App() {
             {markets.isPending ? (
               <span role="status">Loading markets…</span>
             ) : markets.isError ? (
-              <span role="alert" className="text-sell">
+              <span role="alert" className="text-loss">
                 Could not load markets: {markets.error.message}
               </span>
             ) : (
               <select
                 value={value}
                 onChange={(e) => setSelected(e.target.value)}
-                className="min-h-[44px] rounded-sm border border-line bg-surface-raised px-3 text-ink"
+                className="min-h-[44px] rounded-sm border border-line bg-raised px-3 text-ink"
               >
                 {list.map((m) => (
                   <option key={m.code} value={m.code}>

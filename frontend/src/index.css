@@ -2,13 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  /* Tabular numerals — IBM Plex Sans only, no mono face. Used on every numeric cell. */
+  .tnum {
+    font-feature-settings: 'tnum';
+  }
+}
+
 @layer base {
-  html {
-    color-scheme: dark;
-  }
-  html[data-theme='lab'] {
-    color-scheme: light;
-  }
   body {
     @apply bg-bg font-sans text-ink antialiased;
     font-size: var(--fs-md);
@@ -18,4 +19,9 @@
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
+}
+
+/* Modal backdrop for <dialog> (ConfirmDialog): the --scrim token, so it follows the theme. */
+dialog::backdrop {
+  background: var(--scrim);
 }

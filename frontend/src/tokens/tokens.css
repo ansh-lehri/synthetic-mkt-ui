@@ -11,12 +11,14 @@
    - Variable names match the app board's own names (--accent, --btnBg, --buy …)
      so App.dc.html ports to React 1:1.
    - Night is default (dark). [data-theme="lab"] on <html> switches to light.
+   - The theme selectors are NOT limited to :root, so any element can pin a theme for its
+     subtree (<div data-theme="lab">) — the /kit gallery shows both themes side by side.
    - Font: IBM Plex Sans ONLY, with tabular numerals (no Condensed, no Mono,
      no dot-matrix — the app uses font-feature-settings:'tnum').
    ============================================================================ */
 
    :root,
-   :root[data-theme="night"] {
+   [data-theme="night"] {
      color-scheme: dark;
    
      /* ---- Night (dark) — the real app palette ---- */
@@ -62,7 +64,7 @@
      --fw-reg: 400; --fw-med: 500; --fw-semi: 600;
    }
    
-   :root[data-theme="lab"] {
+   [data-theme="lab"] {
      color-scheme: light;
    
      /* ---- Lab (light) — the real app palette ---- */

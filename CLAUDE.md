@@ -116,16 +116,102 @@ The Terminal runs **two transports at once**. Do not collapse them:
 |---|---|
 | `contract/openapi.yaml` | REST contract (broker + candle history + session/ref) — source of truth |
 | `contract/ws-schemas.md` | WebSocket message shapes (connected/subscribe/ack/candle/snapshot) |
-| `contract/generated/` | Committed codegen output (Go structs + TS types) |
+| `contract/generated/` | Committed codegen output: `go/types.gen.go` + `ts/api.d.ts` (generated), `go/ws.go` + `ts/ws.ts` (hand-authored from `ws-schemas.md`) |
 | `mock/` | Go mock server (HTTP + WS), serves the contract |
 | `frontend/src/tokens/` | Night + Lab design tokens (blue; from App.dc.html) |
 | `docs/design/App.dc.html` | The real app board — every screen; the visual source of truth |
 | `frontend/src/lib/ticks.ts` | The tick formatter — all numeric display goes through it |
+| `frontend/src/lib/theme.ts` | Night/Lab theme state (`data-theme` on `<html>`, persisted) |
+| `frontend/.env.example` | `VITE_API_BASE` / `VITE_WS_BASE` — the only place base URLs live |
+| `Makefile` | `make generate` (regen Go+TS from the contract), `make check` (fail on drift), `make mock`, `make frontend` |
 | `frontend/src/api/` | Generated TS types + the base-URL-swappable client |
 | `frontend/src/features/` | One folder per screen |
 | `docs/` | The broker + market-data design docs (contract sources) |
 | `UI-API-Coverage-Tracker.md` | Living map of UI function → API → status |
 | `DEVELOPMENT-PLAN.md` | The phased plan |
+
+## Phase 0 decisions (made by the scaffold task — flag if wrong, don't silently redo)
+
+Run the project: `make mock` (Go mock on :8080) + `make frontend` (Vite). Tests:
+`cd frontend && npm test`, `cd mock && go test ./...`. After any `contract/openapi.yaml`
+change run `make generate` and commit the result; `make check` fails if it drifts.
+
+- **Tick formatter semantics (CONFIRM with the backend owner).** REPO-SETUP §6 said price =
+  "value scaled by `tick_size`". The contract's own examples (all prices are multiples of 5;
+  `tick_size` = "smallest price increment") say `tick_size` is a *grid*, not a multiplier. So:
+  display = `raw / 10^price_decimals` (10050 → `100.50`); `tick_size` drives
+  `isTickAligned` / `snapToTick` / `stepPrice` for the order ticket. If the real backend means
+  otherwise, the fix is confined to `ticks.ts` + its tests.
+- **Money decimals.** No field carries them, so money/P&L divides by `MONEY_DECIMALS = 2`
+  (raw minor units), en-IN grouping, plain "units" label. One constant in `ticks.ts`.
+- **Minus sign** is U+2212 (`−`), plus is `+`; zero carries no sign and is `flat`.
+  Percent direction follows the *rounded* value (never "▲ 0.00%").
+- **Theme.** `data-theme` is always set explicitly (`night`|`lab`) — never removed — because
+  `tokens.css` falls back to the OS preference when the attribute is absent, which would
+  override a user who toggled to Night. First visit: saved choice → OS preference → Night.
+  An inline script in `index.html` applies it before first paint (keep in sync with `theme.ts`).
+- **Tailwind v3** (not v4): `tailwind.tokens.md` is a v3 `tailwind.config.js`. `npm audit`
+  flags transitive build-time deps of Tailwind 3 (braces/postcss-selector-parser); they never
+  ship to the browser. Revisit when migrating to v4.
+- **TypeScript is pinned to 5.9** (the Vite template ships 6.0) because `openapi-typescript`
+  7.x peers on `typescript@^5`.
+- **Contract refactor (no wire change).** Inline bodies were hoisted into named schemas so the
+  mock and frontend share types: `MarketsResponse`, `InstrumentsResponse`, `PositionsResponse`,
+  `OrdersResponse`, `JoinLiveRequest`, `StartPracticeRequest`, `ExitSessionRequest`,
+  `ExitSessionResponse`, `PracticeCondition` (enum, reused by `ActiveSession.condition`).
+  Never overwrite `contract/openapi.yaml` from an older copy — edit it in place, then run
+  `make check` (it fails if the contract, generated files and mock disagree). A wholesale
+  overwrite once dropped these schemas and would have broken the mock on the next regenerate.
+- **Go layout.** `contract/generated/go` is its own module; `mock/go.mod` uses a `replace`
+  directive to it. Mock-only HTTP helpers live in `mock/internal/httpx`. Codegen tools are
+  pinned in the Makefile (`oapi-codegen v2.5.1`); `openapi-typescript` is a frontend devDependency.
+- **Mock Phase 0 behaviour.** Stateless placeholders. Market orders already reject `422
+  no_market_price` (matches the real backend). `/v1/account/costs*` with `country=US` → `501`.
+  `/ws` sends `connected` then only drains frames (no ack/snapshot/candle yet — Phase 3).
+  Mock markets: `IN` (Asia/Kolkata) and `US` (America/New_York); instruments ACME/BETA/GAMA.
+- **`docs/` is missing from the repo.** REPO-SETUP lists it, but the folder was never added;
+  the contract files are enough for Phase 0. Drop the broker + market-data design docs in
+  `docs/` when available.
+- **`App.tsx` is a smoke harness, not a screen.** It is replaced by the real TopBar/router in Phase 1.
+
+## Phase 1a decisions (component kit)
+
+All shared components live in `frontend/src/components/` (barrel: `index.ts`). `/kit` renders
+every one in Night and Lab side by side with static props (no API calls). Verified in a real
+browser at 1600px and 375px (no console errors, no horizontal scroll, all targets >= 44px).
+
+- **`/kit` routing** is a pathname check in `main.tsx` (no router dependency yet). Replace it
+  when the real router lands.
+- **Per-subtree themes.** `tokens.css` theme selectors are no longer `:root`-only
+  (`[data-theme="lab"]`, `:root, [data-theme="night"]`), so any element can pin a theme. This is
+  how `/kit` shows both at once (`color-scheme` is set inside the same theme blocks).
+- **Blue token names everywhere.** Components use only the board's names (`bg-bg`, `panel`,
+  `raised`, `line`, `ink`, `muted`, `accent`, `soft`, `btnBg`/`btnFg`, `gain`/`loss`,
+  `gainBg`/`lossBg`, `buy`/`onBuy`, `sell`/`onSell`, `warnBg`/`warnLine`, `ma`, `focus`) plus
+  `shadow-card` and `var(--scrim)`. Old amber-era names (`surface`, `signal`, `*-soft`, `*-ink`,
+  `warn`, `neutral`) must not come back. Up/down *numbers and status* use `gain`/`loss`;
+  Buy/Sell *action buttons* use `buy`/`sell`; Exit is outlined `loss` (as on the board);
+  the primary button is `btnBg`/`btnFg`; selected chips are `soft` fill + `accent` border.
+- **Numerals:** IBM Plex Sans only. Use the `tnum` utility (`font-feature-settings:'tnum'`,
+  in `index.css`) on numeric text. No `font-mono` / Condensed anywhere.
+- **`Num` is the only thing that shows a number.** Kinds: `price`, `price-change`, `money`,
+  `signed-money`, `percent`, `qty`. `available={false}` renders "—" (use it for every `has_*` /
+  `mark_available` gate). Signed kinds always show ▲/▼/• plus +/−, and a screen-reader word.
+- **Capability-gated controls stay focusable.** `Button capability={{enabled,reason}}` uses
+  `aria-disabled` (not `disabled`) so keyboard users can reach the reason tooltip. The
+  Market order-type radio is natively disabled with the reason printed beneath it.
+- **Exit is outlined red; Sell is filled red.** Both are red, but Exit must not read as a
+  second Sell. The Session bar's Exit always goes through `ConfirmDialog`.
+- **`ConfirmDialog`** uses the native `<dialog>` (focus trap, Esc). Its auto margins are
+  `!important` because an ancestor `space-y-*` rule otherwise overrides them and the dialog
+  sticks to the top. Focus starts on Cancel.
+- **`OrderTicket`** defaults to Limit, emits an `OrderDraft` (maps onto `PlaceOrderRequest`
+  minus `account_id`) and never claims success: feedback `accepted` says "accepted is not
+  filled". Validation (lot size, tick grid, no silent rounding) is pure and unit-tested in
+  `lib/orderTicket.ts`. Est. cost = qty x limit price in raw units. An estimate above buying
+  power warns but does not block; the exchange is the authority.
+- **Component tests:** the vitest env is `node` (no DOM), so only pure logic is unit-tested;
+  components are verified in the browser via `/kit`. Add jsdom + Testing Library if/when needed.
 
 ## Still-open product decisions (don't block; flag if you hit them)
 
@@ -133,3 +219,13 @@ The Terminal runs **two transports at once**. Do not collapse them:
 - Practice condition enum strings: `normal_day, calm_range, trending_day, whipsaw,
   unstable_day, thin_liquidity` (confirm).
 - Auth + account-creation + refill-mechanic: no contract yet — mock ad-hoc, keep isolated.
+
+## Git rules
+
+- Do NOT add `Co-Authored-By: Claude` or `Generated with Claude Code` trailers to commits
+  or PR descriptions.
+- Commit under the repo's configured git user (the owner), not a bot identity.
+- Use the branch name given in the task prompt. Never auto-generate a branch name.
+- Before pushing any task: run the dev server / mock and confirm it starts clean (no
+  console or PostCSS errors) — don't hand back work that doesn't run.
+- Tailwind is pinned to v3. Do not upgrade it or switch the PostCSS config to v4.
