@@ -175,7 +175,13 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/PositionsResponse' }
+              schema:
+                type: object
+                required: [positions]
+                properties:
+                  positions:
+                    type: array
+                    items: { $ref: '#/components/schemas/Position' }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
         '405': { $ref: '#/components/responses/ErrorEnvelope' }
         '409': { $ref: '#/components/responses/ErrorEnvelope' }
@@ -193,7 +199,13 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/OrdersResponse' }
+              schema:
+                type: object
+                required: [orders]
+                properties:
+                  orders:
+                    type: array
+                    items: { $ref: '#/components/schemas/OpenOrder' }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
         '405': { $ref: '#/components/responses/ErrorEnvelope' }
         '409': { $ref: '#/components/responses/ErrorEnvelope' }
@@ -371,7 +383,13 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/MarketsResponse' }
+              schema:
+                type: object
+                required: [markets]
+                properties:
+                  markets:
+                    type: array
+                    items: { $ref: '#/components/schemas/Market' }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
         '503': { $ref: '#/components/responses/ErrorEnvelope' }
 
@@ -390,7 +408,14 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/InstrumentsResponse' }
+              schema:
+                type: object
+                required: [market, instruments]
+                properties:
+                  market: { type: string }
+                  instruments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Instrument' }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
         '503': { $ref: '#/components/responses/ErrorEnvelope' }
 
@@ -417,7 +442,12 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/JoinLiveRequest' }
+            schema:
+              type: object
+              required: [account_id, market]
+              properties:
+                account_id: { type: string }
+                market: { type: string }
       responses:
         '200':
           description: Session binding.
@@ -440,7 +470,18 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/StartPracticeRequest' }
+            schema:
+              type: object
+              required: [account_id, market, condition, length_minutes]
+              properties:
+                account_id: { type: string }
+                market: { type: string }
+                condition:
+                  type: string
+                  enum: [normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity]
+                length_minutes:
+                  type: integer
+                  enum: [60, 75, 90, 105]
       responses:
         '200':
           description: Session binding.
@@ -463,13 +504,20 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/ExitSessionRequest' }
+            schema:
+              type: object
+              required: [account_id]
+              properties:
+                account_id: { type: string }
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ExitSessionResponse' }
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
         '503': { $ref: '#/components/responses/ErrorEnvelope' }
 
@@ -587,20 +635,6 @@ components:
         bank: { type: integer, format: int64 }
 
     # ---- live reads ----
-    PositionsResponse:
-      type: object
-      required: [positions]
-      properties:
-        positions:
-          type: array
-          items: { $ref: '#/components/schemas/Position' }
-    OrdersResponse:
-      type: object
-      required: [orders]
-      properties:
-        orders:
-          type: array
-          items: { $ref: '#/components/schemas/OpenOrder' }
     Balance:
       type: object
       required: [available, reserved, settled, bank]
@@ -766,49 +800,6 @@ components:
           description: null = last page
 
     # ---- session / reference (provisional) ----
-    MarketsResponse:
-      type: object
-      required: [markets]
-      properties:
-        markets:
-          type: array
-          items: { $ref: '#/components/schemas/Market' }
-    InstrumentsResponse:
-      type: object
-      required: [market, instruments]
-      properties:
-        market: { type: string }
-        instruments:
-          type: array
-          items: { $ref: '#/components/schemas/Instrument' }
-    JoinLiveRequest:
-      type: object
-      required: [account_id, market]
-      properties:
-        account_id: { type: string }
-        market: { type: string }
-    StartPracticeRequest:
-      type: object
-      required: [account_id, market, condition, length_minutes]
-      properties:
-        account_id: { type: string }
-        market: { type: string }
-        condition: { $ref: '#/components/schemas/PracticeCondition' }
-        length_minutes:
-          type: integer
-          enum: [60, 75, 90, 105]
-    ExitSessionRequest:
-      type: object
-      required: [account_id]
-      properties:
-        account_id: { type: string }
-    ExitSessionResponse:
-      type: object
-      properties:
-        ok: { type: boolean }
-    PracticeCondition:
-      type: string
-      enum: [normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity]
     LiveSessionInfo:
       type: object
       required: [phase, opens_at, closes_at]
@@ -843,8 +834,9 @@ components:
         phase: { type: string, enum: [preopen, open, closing, closed] }
         closes_at: { type: string, nullable: true, description: naive-local ISO; practice may carry ends_at instead }
         condition:
+          type: string
           nullable: true
-          allOf: [{ $ref: '#/components/schemas/PracticeCondition' }]
+          enum: [normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity]
     SessionState:
       type: object
       required: [active]
