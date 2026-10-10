@@ -159,6 +159,9 @@ change run `make generate` and commit the result; `make check` fails if it drift
   mock and frontend share types: `MarketsResponse`, `InstrumentsResponse`, `PositionsResponse`,
   `OrdersResponse`, `JoinLiveRequest`, `StartPracticeRequest`, `ExitSessionRequest`,
   `ExitSessionResponse`, `PracticeCondition` (enum, reused by `ActiveSession.condition`).
+  Never overwrite `contract/openapi.yaml` from an older copy — edit it in place, then run
+  `make check` (it fails if the contract, generated files and mock disagree). A wholesale
+  overwrite once dropped these schemas and would have broken the mock on the next regenerate.
 - **Go layout.** `contract/generated/go` is its own module; `mock/go.mod` uses a `replace`
   directive to it. Mock-only HTTP helpers live in `mock/internal/httpx`. Codegen tools are
   pinned in the Makefile (`oapi-codegen v2.5.1`); `openapi-typescript` is a frontend devDependency.
