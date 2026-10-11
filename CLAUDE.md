@@ -479,8 +479,7 @@ The top bar's Home / Terminal / Record account-menu items link the three screens
   Join is disabled; the Terminal's enter panel can still join (it is not gated on the clock). The
   Terminal's market state still follows `snapshot.phase` (the 3c spec), not the clock.
 - **Join live** -> `useSessionFlow.enter` (moved to `features/session/`) -> on success route to
-  `/terminal`. **Start practice** = the same entry with defaults (`normal_day`, 90 min) until the 4b
-  setup screen. The one-session rule is the 3c flow: in a session -> "Leave X to join Y?" confirm ->
+  `/terminal`. **Start practice** opens the 4b setup screen (`/practice`). The one-session rule is the 3c flow: in a session -> "Leave X to join Y?" confirm ->
   exit -> enter; a `409 already_in_session` from another tab asks the same.
 - **Balances need a session (CONTRACT GAP — raise with the backend owner).** `balance`/`observation`
   answer 409 outside a session, so Home can show Trading/Bank balance only while in one (from
@@ -525,6 +524,43 @@ The top bar's Home / Terminal / Record account-menu items link the three screens
     Tables with fixed columns use `table-fixed` + `<colgroup>` so headers line up even with no rows.
 - **Gotchas found:** Playwright can't `.check()` the kit's sr-only radios (click the label text);
   `getByLabel('Market')` matches only the top-bar select.
+
+## Phase 4b decisions (Practice setup)
+
+`/practice` (`features/practice/PracticePage.tsx`), reached from Home's "Start practice" (and the
+Terminal bar's "Start practice" when in a live session). Same shell as Home: 1240px-equivalent cap in
+rem, the board's layout — "← Home", title, conditions (radio cards), length (radio chips), and the
+"Your practice" summary card on the right.
+
+- **Conditions** are named by what the market does (`lib/session.ts` `PRACTICE_CONDITIONS`, descriptions
+  from the board; `normal_day` default, "a typical mix of trading"), **length** 60 / 75 / 90 / 105 (90
+  default). Native radios (sr-only input + styled label) so keyboard and screen readers work.
+- **Market** is the global top-bar dropdown: shown in the summary, not chosen here.
+- **Stake / trading balance shows "—" before start** and says why: balances can only be read inside a
+  session (see the 4a CONTRACT GAP), so the stake (a copy of the trading balance) cannot be read
+  before practice starts. After a Transfer on this page it shows that balance. The brief assumed
+  `observation` is readable here; it answers 409 outside a session.
+- **Start** -> `useSessionFlow.enter({kind:'practice', condition, length})` -> a full-page "Starting your
+  practice session…" (one spinner + "India, Whipsaw, 75 min"; no made-up steps; **no Cancel**, because a
+  POST in flight cannot be aborted honestly) -> on success route to `/terminal` (practice treatment).
+- **Below the minimum balance** (learned from the `409`, reason tag `below_minimum_balance`, mock
+  minimum 1,000.00 units): warning "Your trading balance is below the minimum for practice", Start is
+  replaced by **Transfer money** (the Home `TransferDialog`); after a successful transfer "Funds added"
+  and Start returns. **Failed** (e.g. 503): the error and the button reads **Try again**. No answer
+  (504 / dropped): the 3c rule (re-read the session, say what is true, never retry for you).
+- **One-session rule:** in a session, Start asks "Leave X to start practice?" (shared
+  `features/session/SwitchConfirm.tsx`, also used by Home) -> exit -> start. A banner on the page says
+  you are in a session and offers Return to session.
+- **Mock: practice has its own ledger** (`mock/internal/broker/broker.go`): the first time a practice
+  session needs it (and fresh for every new practice session, tied to `store.Sessions.Seq`) it is a COPY
+  of the real trading balance with no positions or history. In a practice session orders, `observation`
+  and the live reads use that copy; **nothing flows back** to the real ledger and nothing is recorded
+  (`/trades`, `/pnl`, `/costs*` and the real `observation` strip are untouched). Transfers and the
+  minimum-balance check always use the real account. After exit the real account is as it was.
+- **Exit ends practice for good** (3c copy); the enter panel offers Join live / Start practice, never a
+  "return".
+- **Gotchas found:** a screenshot taken right after toggling the theme catches the buttons mid
+  `transition-colors` (looks disabled); wait ~500ms.
 
 ## Still-open product decisions (don't block; flag if you hit them)
 

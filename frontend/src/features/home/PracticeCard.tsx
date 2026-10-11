@@ -1,16 +1,11 @@
 import { Button, Card } from '../../components'
 
-/**
- * The practice card. The condition / length picker is Phase 4b; until then "Start practice" starts
- * a Normal day for 90 minutes, through the same entry point (and the same one-session rule).
- */
+/** The practice card. "Start practice" opens the setup screen (`/practice`): conditions, length, start. */
 export function PracticeCard({
-  marketName, inPractice, note, busy, onStart, onReturn,
+  marketName, inPractice, onStart, onReturn,
 }: {
   marketName: string
   inPractice: boolean
-  note?: string
-  busy: boolean
   onStart: () => void
   onReturn: () => void
 }) {
@@ -28,9 +23,9 @@ export function PracticeCard({
         {inPractice ? (
           <Button variant="ghost" onClick={onReturn}>Return to session</Button>
         ) : (
-          <Button variant="ghost" loading={busy} onClick={onStart}>Start practice</Button>
+          <Button variant="ghost" onClick={onStart}>Start practice</Button>
         )}
-        <span className="text-sm text-muted">{inPractice ? 'Practice is in progress.' : note}</span>
+        <span className="text-sm text-muted">{inPractice ? 'Practice is in progress.' : ''}</span>
       </div>
     </Card>
   )
