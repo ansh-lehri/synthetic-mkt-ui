@@ -63,7 +63,7 @@ func (h *handler) nextOrderID(accountID string) string {
 }
 
 // Register mounts the broker routes on mux.
-func Register(mux *http.ServeMux, sessions *store.Sessions, cfg Config) {
+func Register(mux *http.ServeMux, sessions *store.Sessions, cfg Config) *Accounts {
 	h := &handler{sessions: sessions, cfg: cfg, ledgers: map[string]*ledger{}}
 	// orders
 	mux.HandleFunc("/v1/orders", httpx.Method(http.MethodPost, h.place))
@@ -81,6 +81,17 @@ func Register(mux *http.ServeMux, sessions *store.Sessions, cfg Config) {
 	mux.HandleFunc("/v1/account/pnl", httpx.Method(http.MethodGet, h.pnl))
 	mux.HandleFunc("/v1/account/costs", httpx.Method(http.MethodGet, h.costs))
 	mux.HandleFunc("/v1/account/costs/summary", httpx.Method(http.MethodGet, h.costsSummary))
+	return &Accounts{h: h}
+}
+
+// Accounts lets other route packages read account state (e.g. practice's minimum-balance check).
+type Accounts struct{ h *handler }
+
+// Available is the account's trading balance (raw units).
+func (a *Accounts) Available(accountID string) int64 {
+	a.h.mu.Lock()
+	defer a.h.mu.Unlock()
+	return a.h.ledgerNow(accountID).available
 }
 
 // liveAccount validates account_id and requires an active session. Live reads answer 409
@@ -247,7 +258,8 @@ func (h *handler) modify(w http.ResponseWriter, r *http.Request) {
 
 // ---------------------------------------------------------------- money
 
-// transfer never emits 409. Balances are computed from the placeholder balance but not persisted.
+// transfer never emits 409 and needs no session. It moves money on the account's ledger, so the
+// balances every other read shows follow it.
 func (h *handler) transfer(w http.ResponseWriter, r *http.Request) {
 	var req api.TransferRequest
 	if !httpx.DecodeJSON(w, r, &req) {
@@ -261,27 +273,18 @@ func (h *handler) transfer(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "amount must be > 0")
 		return
 	}
-	b := sampleBalance()
-	switch req.Direction {
-	case api.ToBank:
-		if req.Amount > b.Available {
-			httpx.WriteError(w, http.StatusUnprocessableEntity, "insufficient trading balance")
-			return
-		}
-		b.Available -= req.Amount
-		b.Bank += req.Amount
-	case api.ToTrading:
-		if req.Amount > b.Bank {
-			httpx.WriteError(w, http.StatusUnprocessableEntity, "insufficient bank balance")
-			return
-		}
-		b.Available += req.Amount
-		b.Bank -= req.Amount
-	default:
+	if req.Direction != api.ToBank && req.Direction != api.ToTrading {
 		httpx.WriteError(w, http.StatusBadRequest, "direction must be to_bank or to_trading")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, api.TransferResponse{Available: b.Available, Bank: b.Bank})
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l := h.ledgerNow(req.AccountId)
+	if reason := l.transfer(req.Direction == api.ToBank, req.Amount); reason != "" {
+		httpx.WriteError(w, http.StatusUnprocessableEntity, reason)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, api.TransferResponse{Available: l.available, Bank: l.bank})
 }
 
 // ---------------------------------------------------------------- live reads (409 without a session)

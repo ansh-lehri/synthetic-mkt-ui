@@ -18,7 +18,7 @@ import { ModifyDialog } from './ModifyDialog'
 import { OrderDrawer, type OrderDrawerState } from './OrderDrawer'
 import { useOrderActions } from './useOrderActions'
 import { useOrderEntry } from './useOrderEntry'
-import { useSessionFlow } from './useSessionFlow'
+import { useSessionFlow } from '../session/useSessionFlow'
 
 type Tab = 'market' | 'chart' | 'orders' | 'positions' | 'trades' | 'pnl'
 
@@ -116,6 +116,7 @@ export default function TerminalPage() {
         marketsLoading={m.isPending}
         accountLabel={getAccountId()}
         accountItems={[
+          { label: 'Home', onSelect: () => window.location.assign('/') },
           { label: 'Terminal', onSelect: () => {} },
           { label: 'Record', onSelect: () => window.location.assign('/record') },
         ]}

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import App from './App.tsx'
+import HomePage from './features/home/HomePage.tsx'
 import KitPage from './features/kit/KitPage.tsx'
 import RecordPage from './features/record/RecordPage.tsx'
 
@@ -20,6 +20,6 @@ export default function Routes() {
         </Suspense>
       )
     default:
-      return <App />
+      return <HomePage /> // '/' and anything unknown
   }
 }

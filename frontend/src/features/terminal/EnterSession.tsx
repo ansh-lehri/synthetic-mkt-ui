@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { Banner, Button, Card } from '../../components'
 import { DEFAULT_CONDITION, DEFAULT_LENGTH, PRACTICE_CONDITIONS, PRACTICE_LENGTHS } from '../../lib/session'
 import type { PracticeCondition, PracticeLength } from '../../api'
-import type { EnterTarget, SessionNotice } from './useSessionFlow'
+import type { EnterTarget, SessionNotice } from '../session/useSessionFlow'
 
 /**
  * "You are not in a session" — and the two ways in: join the live session, or start a practice

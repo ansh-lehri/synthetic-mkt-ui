@@ -458,6 +458,50 @@ copy in `lib/session.ts` (tested).
   time-left broke practice sessions that end after midnight (the two naive timestamps subtract
   fine across days).
 
+## Phase 4a decisions (Home)
+
+`/` is Home (`features/home/`; the Phase 0 smoke `App.tsx` is gone). The board's layout: the live
+card + practice card on the left, Balances on the right, strips on top; 1240px cap like Record.
+The top bar's Home / Terminal / Record account-menu items link the three screens (no router yet).
+
+- **Selected market** = the top bar's dropdown, remembered in `localStorage` (`lib/selectedMarket.ts`;
+  default the first listed market). Home reads it; switching changes ONLY the live card and the
+  practice label. Balances are global. (The Terminal's socket is bound to one market by the backend,
+  so it still takes the first listed market.)
+- **Live card** (`lib/liveCard.ts`, pure, tested): hours, phase pill, and a countdown from
+  `GET /v1/markets` `live_session` (polled 5s) against the UI's own market clock (`useMarketClock`).
+  Pre-open: "Opens in H:MM:SS", Join disabled ("You can join from 09:15"). Open/closing: "Closes in
+  …", Join enabled. Closed: "Ended / Next session opens at 09:15", Join disabled. In the live
+  session: "You're in this session" + Return to session. **If the clock and the phase disagree**
+  (e.g. phase open but the local clock is past the close) it shows the time ("Closes at 15:30") not
+  a countdown. **Mock caveat:** the mock's day is simulated (60x), so with the default mock the live
+  card usually shows times, not a countdown; a real backend (real hours) gets the countdown. Verified
+  the countdown/state flips by stubbing `/v1/markets` with real-clock-aligned times.
+- **Join live** -> `useSessionFlow.enter` (moved to `features/session/`) -> on success route to
+  `/terminal`. **Start practice** = the same entry with defaults (`normal_day`, 90 min) until the 4b
+  setup screen. The one-session rule is the 3c flow: in a session -> "Leave X to join Y?" confirm ->
+  exit -> enter; a `409 already_in_session` from another tab asks the same.
+- **Balances need a session (CONTRACT GAP — raise with the backend owner).** `balance`/`observation`
+  answer 409 outside a session, so Home can show Trading/Bank balance only while in one (from
+  `observation`); outside one it shows "—" and says why. After a Transfer the response (`available`,
+  `bank`) is shown, labelled "As of your last transfer". Proposal: let a balance read work without a
+  session, or add a session-less balance field.
+- **Transfer** (`TransferDialog`, `lib/transfer.ts`): to_trading / to_bank, amount in units parsed to
+  raw (2 decimals, no rounding), source-balance check only when that balance is known. 422 = plain
+  failure (error shown, "Try again"). **504 / no response = UNKNOWN**: no retry is offered; the
+  dialog says to check balances and the observation is refreshed. Success updates the cached
+  observation balance and shows a banner. Mock: transfers now move the account ledger (so
+  observation follows) and work without a session.
+- **Low balance.** There is no way to know the practice minimum client-side, so it is learned from
+  the contract's `409` on practice start ("below minimum balance"; the contract gives no reason tag —
+  the mock uses `below_minimum_balance`, minimum 1,000.00 units). Home shows a warning strip with a
+  Transfer link and "Paused until your trading balance is above the minimum"; live is unaffected.
+- **Not built (no contract):** the first-visit "Your accounts are open" strip (needs account
+  creation) and the "Next top-up in N min" copy (needs a refill mechanic). Loading = skeleton cards;
+  load failures = error banners with Retry.
+- **Gotchas found:** Playwright can't `.check()` the kit's sr-only radios (click the label text);
+  `getByLabel('Market')` matches only the top-bar select.
+
 ## Still-open product decisions (don't block; flag if you hit them)
 
 - `exchange_id` handshake: leaning **account-only** (UI sends `account_id`; backend binds).

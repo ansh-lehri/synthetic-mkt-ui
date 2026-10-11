@@ -250,6 +250,27 @@ func (l *ledger) cancelNow(id string) (reason string) {
 	return ""
 }
 
+// transfer moves money between the trading balance and the bank. reason is a human message
+// when it refuses (the contract answers 422 {"error"}).
+func (l *ledger) transfer(toBank bool, amount int64) (reason string) {
+	if toBank {
+		if amount > l.available {
+			return "insufficient trading balance"
+		}
+		l.available -= amount
+		l.settled -= amount
+		l.bank += amount
+		return ""
+	}
+	if amount > l.bank {
+		return "insufficient bank balance"
+	}
+	l.available += amount
+	l.settled += amount
+	l.bank -= amount
+	return ""
+}
+
 // ---- contract views
 
 func (l *ledger) balance() api.Balance {
