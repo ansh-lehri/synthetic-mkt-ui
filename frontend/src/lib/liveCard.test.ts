@@ -24,19 +24,26 @@ describe('liveCardView', () => {
     expect(v).toMatchObject({ status: 'Open now', label: 'Closes in', big: '1:30:00', counting: true, canJoin: true, dot: 'solid' })
     expect(v.note).toBe('Open positions close automatically at 15:30.')
   })
-  it('closing is still joinable', () => {
-    expect(liveCardView({ ...base, phase: 'closing', now: '2026-10-12T15:20:00' })).toMatchObject({ status: 'Closing soon', canJoin: true, big: '0:10:00' })
+  it('the last minutes before the close are still open and joinable', () => {
+    expect(liveCardView({ ...base, phase: 'closing', now: '2026-10-12T15:20:00' })).toMatchObject({ status: 'Open now', canJoin: true, big: '0:10:00' })
   })
   it('closed: ended, next open time, Join disabled', () => {
     expect(liveCardView({ ...base, phase: 'closed', now: '2026-10-12T16:00:00' })).toMatchObject({ status: 'Ended', big: '09:15', counting: false, canJoin: false })
   })
-  it('shows times, not a bogus countdown, when the clock and the phase disagree', () => {
-    // backend says open but the local clock is past the close
-    expect(liveCardView({ ...base, phase: 'open', now: '2026-10-12T23:41:00' })).toMatchObject({ label: 'Closes at', big: '15:30', counting: false, canJoin: true })
-    // backend says pre-open but the clock is already past the open
-    expect(liveCardView({ ...base, phase: 'preopen', now: '2026-10-12T10:00:00' })).toMatchObject({ label: 'Opens at', big: '09:15', counting: false })
-    // no clock yet
-    expect(liveCardView({ ...base, now: undefined })).toMatchObject({ big: '09:15', counting: false })
+  it("decides the state from the clock, not the backend's phase", () => {
+    // 17:10 with a 09:15-15:30 market: closed, whatever the backend says
+    const late = { ...base, now: '2026-10-12T17:10:00' }
+    for (const phase of ['preopen', 'open', 'closing', 'closed'] as const) {
+      expect(liveCardView({ ...late, phase })).toMatchObject({ status: 'Ended', canJoin: false, label: 'Next session opens at', big: '09:15' })
+    }
+    // 08:50: pre-open even if the backend says open
+    expect(liveCardView({ ...base, phase: 'open', now: '2026-10-12T08:50:00' })).toMatchObject({ label: 'Opens in', canJoin: false, big: '0:25:00' })
+    // 10:00: open even if the backend says closed
+    expect(liveCardView({ ...base, phase: 'closed', now: '2026-10-12T10:00:00' })).toMatchObject({ status: 'Open now', canJoin: true, label: 'Closes in', big: '5:30:00' })
+  })
+  it('falls back to the backend phase only when there is no clock yet', () => {
+    expect(liveCardView({ ...base, phase: 'open', now: undefined })).toMatchObject({ status: 'Open now', canJoin: true, counting: false, big: '15:30' })
+    expect(liveCardView({ ...base, phase: 'preopen', now: undefined })).toMatchObject({ canJoin: false, big: '09:15' })
   })
   it('in the live session: return to it, with the close countdown', () => {
     expect(liveCardView({ ...base, phase: 'open', now: '2026-10-12T15:00:00', inLive: true })).toMatchObject({

@@ -1,9 +1,10 @@
 // What the Home "live session" card says, from the market's phase and its open/close times
 // (GET /v1/markets.live_session) and the UI's own market clock. Pure; tests in liveCard.test.ts.
 //
-// The phase is the backend's word. The countdown is the UI's clock against opens_at / closes_at.
-// If the two disagree (e.g. phase "open" but the clock is already past the close — a mock that
-// runs a sped-up day) we show the time instead of a countdown that would read 0:00:00 or negative.
+// The UI decides open / closed itself: the backend supplies the market's opens_at / closes_at, the
+// UI's own market clock supplies "now", and the state follows from comparing them (before the open
+// -> pre-open, between -> open, after the close -> ended). The backend's `phase` is used only as a
+// fallback while the UI clock is not known yet.
 import { ordinalMs, timePart } from './naive'
 
 export type Phase = 'preopen' | 'open' | 'closing' | 'closed'
@@ -44,7 +45,16 @@ export function formatCountdown(secs: number): string {
 
 const secsBetween = (from: string, to: string) => (ordinalMs(to) - ordinalMs(from)) / 1000
 
-export function liveCardView(i: LiveCardInput): LiveCardView {
+/** Open / closed from the clock and the backend's times; `fallback` only when there is no clock. */
+export function clockPhase(now: string | undefined, opensAt: string, closesAt: string, fallback: Phase): Phase {
+  if (!now) return fallback
+  if (secsBetween(now, opensAt) > 0) return 'preopen'
+  if (secsBetween(now, closesAt) > 0) return 'open'
+  return 'closed'
+}
+
+export function liveCardView(input: LiveCardInput): LiveCardView {
+  const i = { ...input, phase: clockPhase(input.now, input.opensAt, input.closesAt, input.phase) }
   const open = hhmm(i.opensAt)
   const close = hhmm(i.closesAt)
   const base = 'Humans and agents trade together. Everything you do here is recorded.'

@@ -468,15 +468,16 @@ The top bar's Home / Terminal / Record account-menu items link the three screens
   default the first listed market). Home reads it; switching changes ONLY the live card and the
   practice label. Balances are global. (The Terminal's socket is bound to one market by the backend,
   so it still takes the first listed market.)
-- **Live card** (`lib/liveCard.ts`, pure, tested): hours, phase pill, and a countdown from
-  `GET /v1/markets` `live_session` (polled 5s) against the UI's own market clock (`useMarketClock`).
-  Pre-open: "Opens in H:MM:SS", Join disabled ("You can join from 09:15"). Open/closing: "Closes in
-  …", Join enabled. Closed: "Ended / Next session opens at 09:15", Join disabled. In the live
-  session: "You're in this session" + Return to session. **If the clock and the phase disagree**
-  (e.g. phase open but the local clock is past the close) it shows the time ("Closes at 15:30") not
-  a countdown. **Mock caveat:** the mock's day is simulated (60x), so with the default mock the live
-  card usually shows times, not a countdown; a real backend (real hours) gets the countdown. Verified
-  the countdown/state flips by stubbing `/v1/markets` with real-clock-aligned times.
+- **Live card** (`lib/liveCard.ts`, pure, tested): hours, status pill and a countdown. **The UI decides
+  open/closed itself** (owner's rule): `GET /v1/markets` `live_session` supplies only `opens_at` /
+  `closes_at` (polled 5s) and the UI's own market clock (`useMarketClock`) supplies "now"; before the
+  open -> "Opens in H:MM:SS" (Join disabled, "You can join from 09:15"), between -> "Open now / Closes
+  in …" (Join enabled), after the close -> "Ended / Next session opens at 09:15" (Join disabled). The
+  backend's `live_session.phase` is only a fallback until the clock is known. In the live session:
+  "You're in this session" + Return to session. **Mock consequence:** the mock reports the real
+  09:15-15:30 hours, so outside those hours (in the market's timezone) Home correctly shows "Ended" and
+  Join is disabled; the Terminal's enter panel can still join (it is not gated on the clock). The
+  Terminal's market state still follows `snapshot.phase` (the 3c spec), not the clock.
 - **Join live** -> `useSessionFlow.enter` (moved to `features/session/`) -> on success route to
   `/terminal`. **Start practice** = the same entry with defaults (`normal_day`, 90 min) until the 4b
   setup screen. The one-session rule is the 3c flow: in a session -> "Leave X to join Y?" confirm ->
