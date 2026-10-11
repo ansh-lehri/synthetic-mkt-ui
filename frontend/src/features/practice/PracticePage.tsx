@@ -105,7 +105,7 @@ export default function PracticePage() {
               <legend className="mb-3 text-base font-semibold">Market conditions</legend>
               <div role="radiogroup" aria-label="Market conditions" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {PRACTICE_CONDITIONS.map((c) => (
-                  <label key={c.value} className="relative block">
+                  <label key={c.value} className="relative flex">
                     <input type="radio" name="condition" value={c.value} checked={condition === c.value} onChange={() => setCondition(c.value)} className="peer sr-only" />
                     <span className={`${radioCard} ${condition === c.value ? 'border-accent bg-soft' : 'border-line bg-panel hover:bg-raised'}`}>
                       <span className="flex items-center gap-2 font-semibold">
