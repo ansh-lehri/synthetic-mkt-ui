@@ -54,9 +54,9 @@ func newHandlerWith(clock *market.Clock, brokerCfg ...broker.Config) http.Handle
 	}
 	sessions := store.NewSessions() // the only mutable state besides the clock: which session each account is in
 	mux := http.NewServeMux()
-	broker.Register(mux, sessions, cfg)
+	accounts := broker.Register(mux, sessions, cfg)
 	marketdata.Register(mux, clock)
-	session.Register(mux, sessions, clock)
+	session.Register(mux, sessions, clock, accounts.Available)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "not found")
 	})

@@ -55,13 +55,14 @@ export default function RecordPage() {
         marketsLoading={markets.isPending}
         accountLabel={accountId}
         accountItems={[
+          { label: 'Home', onSelect: () => window.location.assign('/') },
           { label: 'Terminal', onSelect: () => window.location.assign('/terminal') },
           { label: 'Record', onSelect: () => {} },
         ]}
       />
-      <main className="mx-auto flex max-w-[1240px] flex-col gap-5 px-4 pb-16 pt-6 sm:px-6">
+      <main className="mx-auto flex max-w-[77.5rem] flex-col gap-5 px-4 pb-16 pt-6 sm:px-6">
         <div className="flex flex-col gap-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">Record</h1>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-[1.75rem]">Record</h1>
           <p className="text-muted">Live sessions only. Practice is never recorded.</p>
         </div>
 

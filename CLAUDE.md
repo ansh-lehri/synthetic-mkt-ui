@@ -426,7 +426,7 @@ copy in `lib/session.ts` (tested).
   chart bars or order data, and the PHASE still comes from the backend (`snapshot.phase`), never
   from this clock. It is the one place the client reads the real clock (rendered via Intl, not
   UTC maths). If the local clock is past the close while the backend says trading, "Time left" is
-  hidden and "Closes HH:MM" shown. **Mock caveat:** the mock's live day is simulated (60x), so the
+  hidden and "Closes HH:MM" shown. **Old mock caveat (now fixed, see 4a follow-ups):** the mock's live day is simulated (60x), so the
   live "time left" does not match its phase (it usually falls back to "Closes 15:30"); practice
   `closes_at` is real-time, so its countdown is right.
 - **Session bar** (above the tabs, as on the board): Live (solid) / Practice (dashed, "not
@@ -457,6 +457,74 @@ copy in `lib/session.ts` (tested).
   re-read after a 409 (flip the stub off once the POST has been sent); a naive "same day" guard on
   time-left broke practice sessions that end after midnight (the two naive timestamps subtract
   fine across days).
+
+## Phase 4a decisions (Home)
+
+`/` is Home (`features/home/`; the Phase 0 smoke `App.tsx` is gone). The board's layout: the live
+card + practice card on the left, Balances on the right, strips on top; 1240px cap like Record.
+The top bar's Home / Terminal / Record account-menu items link the three screens (no router yet).
+
+- **Selected market** = the top bar's dropdown, remembered in `localStorage` (`lib/selectedMarket.ts`;
+  default the first listed market). Home reads it; switching changes ONLY the live card and the
+  practice label. Balances are global. (The Terminal's socket is bound to one market by the backend,
+  so it still takes the first listed market.)
+- **Live card** (`lib/liveCard.ts`, pure, tested): hours, status pill and a countdown. **The UI decides
+  open/closed itself** (owner's rule): `GET /v1/markets` `live_session` supplies only `opens_at` /
+  `closes_at` (polled 5s) and the UI's own market clock (`useMarketClock`) supplies "now"; before the
+  open -> "Opens in H:MM:SS" (Join disabled, "You can join from 09:15"), between -> "Open now / Closes
+  in …" (Join enabled), after the close -> "Ended / Next session opens at 09:15" (Join disabled). The
+  backend's `live_session.phase` is only a fallback until the clock is known. In the live session:
+  "You're in this session" + Return to session. **Mock consequence:** the mock reports the real
+  09:15-15:30 hours, so outside those hours (in the market's timezone) Home correctly shows "Ended" and
+  Join is disabled; the Terminal's enter panel can still join (it is not gated on the clock). The
+  Terminal's market state still follows `snapshot.phase` (the 3c spec), not the clock.
+- **Join live** -> `useSessionFlow.enter` (moved to `features/session/`) -> on success route to
+  `/terminal`. **Start practice** = the same entry with defaults (`normal_day`, 90 min) until the 4b
+  setup screen. The one-session rule is the 3c flow: in a session -> "Leave X to join Y?" confirm ->
+  exit -> enter; a `409 already_in_session` from another tab asks the same.
+- **Balances need a session (CONTRACT GAP — raise with the backend owner).** `balance`/`observation`
+  answer 409 outside a session, so Home can show Trading/Bank balance only while in one (from
+  `observation`); outside one it shows "—" and says why. After a Transfer the response (`available`,
+  `bank`) is shown, labelled "As of your last transfer". Proposal: let a balance read work without a
+  session, or add a session-less balance field.
+- **Transfer** (`TransferDialog`, `lib/transfer.ts`): to_trading / to_bank, amount in units parsed to
+  raw (2 decimals, no rounding), source-balance check only when that balance is known. 422 = plain
+  failure (error shown, "Try again"). **504 / no response = UNKNOWN**: no retry is offered; the
+  dialog says to check balances and the observation is refreshed. Success updates the cached
+  observation balance and shows a banner. Mock: transfers now move the account ledger (so
+  observation follows) and work without a session.
+- **Low balance.** There is no way to know the practice minimum client-side, so it is learned from
+  the contract's `409` on practice start ("below minimum balance"; the contract gives no reason tag —
+  the mock uses `below_minimum_balance`, minimum 1,000.00 units). Home shows a warning strip with a
+  Transfer link and "Paused until your trading balance is above the minimum"; live is unaffected.
+- **Not built (no contract):** the first-visit "Your accounts are open" strip (needs account
+  creation) and the "Next top-up in N min" copy (needs a refill mechanic). Loading = skeleton cards;
+  load failures = error banners with Retry.
+- **Follow-ups after review (supersede the 3a/3c/4a bullets they touch):**
+  - **The Terminal decides market state from the clock too** (`clockPhase` in `lib/liveCard.ts`):
+    pre-open before `opens_at` (live only), open until the last 5 minutes (`CLOSING_SECS`, the
+    board's "Closing soon"), then closing, then closed at `closes_at` (the session's, falling back to
+    the market's). A practice session has no opening time. The backend phase (`snapshot.phase` etc.)
+    is only the fallback until the clock is known; the chart's data path still uses `snapshot.phase`.
+    Home and the Terminal now always agree.
+  - **The mock runs in REAL TIME by default** (`mock/internal/market/market.go`): market time = the
+    real wall clock in the market's zone, so the UI clock, the phases, `opens_at`/`closes_at`, bars
+    and snapshots agree. The schedule is shifted so the market opens `MOCK_OPEN_IN` (default 30s)
+    after the mock starts, runs the usual 6.5-hour day (open, closing, closed) and then stays closed;
+    restart the mock for a fresh day. Setting `MOCK_SPEED` (e.g. 60) restores the old sped-up repeating
+    day for watching phases cycle (its times are not real, so the UI clock will not match it).
+    This removes the "mock caveat" bullets above.
+  - **Fluid type and width.** The UI is rem-based and the root font size is fluid
+    (`clamp(16px, 8.2px + 0.54vw, 24px)` in `index.css`: 16px up to ~1440px wide, ~19px at 2000px,
+    ~22px at 2560px), so text, spacing and the page cap grow on big screens. Home/Record caps are now
+    `77.5rem` (1240px at 16px) instead of fixed pixels (a deliberate deviation from the board's px
+    sizes). New UI must use rem-based Tailwind classes, not fixed `px` text sizes or widths.
+  - **Card spacing gotcha.** A `space-y-*` / `gap-*` on `<Card className>` lands on the card's OUTER
+    element, not its content (the title bar and the padded body are its only children), so the
+    contents sat tight together. Use `bodyClassName` on `Card` for spacing between its children.
+    Tables with fixed columns use `table-fixed` + `<colgroup>` so headers line up even with no rows.
+- **Gotchas found:** Playwright can't `.check()` the kit's sr-only radios (click the label text);
+  `getByLabel('Market')` matches only the top-bar select.
 
 ## Still-open product decisions (don't block; flag if you hit them)
 

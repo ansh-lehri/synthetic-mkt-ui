@@ -13,6 +13,8 @@ export interface SessionNotice {
   tone: BannerTone
   title: string
   body?: string
+  /** Set when practice was refused for a low trading balance (the Home strip keys off it). */
+  code?: 'low_balance'
 }
 
 export interface SwitchPrompt {
@@ -31,7 +33,7 @@ const modeOf = (t: EnterTarget): SessionMode => t.kind
  *    `GET /v1/session` and say what is true.
  *  - Leaving then failing to enter says exactly that ("you left X, but could not enter Y").
  */
-export function useSessionFlow(accountId: string, market: string | undefined) {
+export function useSessionFlow(accountId: string, market: string | undefined, opts: { onEntered?: (s: ActiveSession) => void } = {}) {
   const qc = useQueryClient()
   const q = useSession(accountId)
   const active = q.data?.active ?? null
@@ -89,9 +91,18 @@ export function useSessionFlow(accountId: string, market: string | undefined) {
       setBusy('enter')
       setNotice(undefined)
       try {
-        setActive(await call(target))
+        const entered = await call(target)
+        setActive(entered)
+        opts.onEntered?.(entered)
       } catch (err) {
-        if (isAlreadyInSession(err)) {
+        if (err instanceof ApiError && err.status === 409 && err.reason === 'below_minimum_balance') {
+          setNotice({
+            tone: 'warn',
+            code: 'low_balance',
+            title: 'Your trading balance is below the minimum for practice',
+            body: 'Practice is paused. Transfer from your bank balance to start it.',
+          })
+        } else if (isAlreadyInSession(err)) {
           // Another tab/device has a session we did not know about. Find out which, then ask.
           const now = await reread()
           if (now) setPrompt({ target, from: now })
@@ -103,7 +114,7 @@ export function useSessionFlow(accountId: string, market: string | undefined) {
         setBusy(null)
       }
     },
-    [active, call, failure, reread, setActive],
+    [active, call, failure, reread, setActive, opts],
   )
 
   const exit = useCallback(async (): Promise<boolean> => {
@@ -128,7 +139,9 @@ export function useSessionFlow(accountId: string, market: string | undefined) {
     if (!(await exit())) return
     setBusy('enter')
     try {
-      setActive(await call(target))
+      const entered = await call(target)
+      setActive(entered)
+      opts.onEntered?.(entered)
     } catch (err) {
       const msg = err instanceof ApiError || err instanceof Error ? err.message : 'Something went wrong.'
       setNotice({
@@ -139,7 +152,7 @@ export function useSessionFlow(accountId: string, market: string | undefined) {
     } finally {
       setBusy(null)
     }
-  }, [prompt, exit, call, setActive])
+  }, [prompt, exit, call, setActive, opts])
 
   return {
     active,

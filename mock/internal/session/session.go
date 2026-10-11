@@ -17,14 +17,18 @@ import (
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/store"
 )
 
+// MinPracticeBalance is the trading balance (raw units) below which practice will not start.
+const MinPracticeBalance int64 = 100_000 // 1,000.00 units
+
 type handler struct {
-	sessions *store.Sessions
-	clock    *market.Clock // the session clock: drives every live phase and the day's window
+	sessions  *store.Sessions
+	clock     *market.Clock // the session clock: drives every live phase and the day's window
+	available func(accountID string) int64
 }
 
 // Register mounts the session/reference routes on mux.
-func Register(mux *http.ServeMux, sessions *store.Sessions, clock *market.Clock) {
-	h := &handler{sessions: sessions, clock: clock}
+func Register(mux *http.ServeMux, sessions *store.Sessions, clock *market.Clock, available func(accountID string) int64) {
+	h := &handler{sessions: sessions, clock: clock, available: available}
 	mux.HandleFunc("/v1/markets", httpx.Method(http.MethodGet, h.markets))
 	mux.HandleFunc("/v1/instruments", httpx.Method(http.MethodGet, h.instruments))
 	mux.HandleFunc("/v1/session", httpx.Method(http.MethodGet, h.state))
@@ -141,6 +145,12 @@ func (h *handler) startPractice(w http.ResponseWriter, r *http.Request) {
 	case 60, 75, 90, 105:
 	default:
 		httpx.WriteError(w, http.StatusBadRequest, "length_minutes must be one of 60, 75, 90, 105")
+		return
+	}
+	if h.available != nil && h.available(req.AccountId) < MinPracticeBalance {
+		// The contract: 409 "already in another session, or below minimum balance". The reason tag
+		// for the second case is not specified; this mock uses below_minimum_balance.
+		httpx.WriteReason(w, http.StatusConflict, "below_minimum_balance")
 		return
 	}
 	ends := time.Now().In(m.Location()).Add(time.Duration(req.LengthMinutes) * time.Minute).Format(catalog.NaiveLayout)

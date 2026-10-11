@@ -30,7 +30,7 @@ export function Banner({ tone = 'info', title, children, action, onDismiss, clas
   return (
     <div
       role={tone === 'error' || tone === 'warn' ? 'alert' : 'status'}
-      className={cx('flex flex-wrap items-start gap-3 rounded-md border px-4 py-3 text-sm text-ink', t.box, className)}
+      className={cx('flex flex-wrap gap-3 rounded-md border px-4 py-3 text-sm text-ink', action && !children ? 'items-center' : 'items-start', t.box, className)}
     >
       <span aria-hidden="true" className={cx('mt-0.5 font-bold', t.icon)}>
         {t.glyph}
