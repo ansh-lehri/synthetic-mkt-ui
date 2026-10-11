@@ -391,8 +391,7 @@ separately. Market data stays on the WebSocket. Verified in a real browser again
   trades" (up to 20), not a true session total. A buy that only opens a position creates no trade.
 - **`trades_degraded: true`** -> the Trades tab is greyed with a banner and a "!" on the tab, the
   realised figures show "—"; balance/positions/orders stay live. A `409` on the poll = no live
-  session -> a warning banner, ordering disabled (joining a session is 3c / Home, not here; for
-  dev: `POST /v1/session/live/join {"account_id":"demo-account","market":"IN"}`).
+  session -> ordering disabled (the way in is the 3c enter-session panel, see "Phase 3c decisions").
 - **Mock ledger** (`mock/internal/broker/ledger.go`, in-memory per account, lazy time — no
   goroutines; `broker.Config` injects the clock and delays in tests). Seeded: 95,000.00 units
   available, 250,000.00 bank, ACME 10 @ 100.50. A limit order rests as `working` and reserves cash
@@ -409,6 +408,55 @@ separately. Market data stays on the WebSocket. Verified in a real browser again
 - **Gotchas found:** the `dialog` backdrop uses `backdrop:bg-[var(--scrim)]`; Playwright's
   `getByText('Filled')` also matches "Accepted is not filled" (match the `· Filled` title);
   `getByLabel('Limit price')` also matches the ± buttons' aria-labels (use the textbox role).
+
+## Phase 3c decisions (Terminal, session bar + join/exit)
+
+The session is real: `GET /v1/session` (`api/session.ts`, `useSession`, polled every
+`SESSION_POLL_MS` = 1s) says `active: null | {type, market, phase, closes_at, now, condition}`;
+everything account-side is enabled only inside one (`useObservation(account, !!active)`; leaving
+removes the cached observation so a stale account never shows). Code: `features/terminal/`
+`useSessionFlow.ts` (join / start / exit), `EnterSession.tsx`, kit `SessionBar`; pure helpers and
+copy in `lib/session.ts` (tested).
+
+- **The UI runs the market clock itself** (`lib/marketClock.ts`, owner's rule). The backend gives
+  the market's timezone (`/v1/markets`) and open/close times (naive-local `closes_at`); the UI ticks
+  every second from the browser's real time rendered in the market's IANA zone ("Market time"),
+  and "Time left" = `closes_at − that` (two naive timestamps). There is NO `now` in the contract
+  (an optional one was added and removed in 3c). This is display-only: it is never compared with
+  chart bars or order data, and the PHASE still comes from the backend (`snapshot.phase`), never
+  from this clock. It is the one place the client reads the real clock (rendered via Intl, not
+  UTC maths). If the local clock is past the close while the backend says trading, "Time left" is
+  hidden and "Closes HH:MM" shown. **Mock caveat:** the mock's live day is simulated (60x), so the
+  live "time left" does not match its phase (it usually falls back to "Closes 15:30"); practice
+  `closes_at` is real-time, so its countdown is right.
+- **Session bar** (above the tabs, as on the board): Live (solid) / Practice (dashed, "not
+  recorded") marker, market, phase (○ Pre-open ● Open ◆ Closing ■ Closed — glyph + word), market
+  time, time left, "P&L · latest trades", open positions, a switch button, and Exit (outlined
+  red, always visible). The tab row's old phase chip is gone; its connection dot now reads
+  "Prices live" so it is not confused with the Live session.
+- **Phase source.** Live: `snapshot.phase` over the WebSocket, falling back to the session then
+  `/v1/markets`. Practice: the session's own phase (it has its own clock).
+- **Closing / closed.** `closing` -> "Closing soon… closes in H:MM:SS" strip. `closed` -> "Market
+  closed" strip, "Time left" 0:00:00, the strip's Buy/Sell and the Market tab's Buy/Sell are
+  disabled, and an open order window shows the reason and disables its CTA (`orderBlockReason`).
+  Pre-open still allows orders. The contract has no separate "halt" phase, so none is shown.
+- **Not in a session** -> the enter panel (also on the account tabs): "Join live session" and
+  "Start practice" (scenario + length, defaults `normal_day` / 90 min; the six contract
+  conditions, lengths 60/75/90/105). Market data stays live underneath.
+- **Exit** always confirms. Live: "open positions are closed automatically at the market close
+  (HH:MM); you can rejoin until then". Practice: "ends for good, cannot rejoin, nothing recorded".
+- **One-session rule.** Entering while in a session — known from the poll, or learned from a
+  `409 already_in_session` (another tab/device) — never fails silently and never switches
+  silently: it asks "Leave X to join/start Y?", then exits, then enters. If the exit works but
+  the entry fails the notice says exactly that. The bar's switch button ("Start practice" / "Join
+  live") goes through the same prompt.
+- **No answer = unknown** (`isNoAnswer`: no response, 504, other 5xx except 503). A join/start/
+  exit that gets none is never retried: the UI re-reads `GET /v1/session` and says what is
+  true. 503 ("service unavailable") is a definite refusal and shown as an error.
+- **Gotchas found:** Playwright intercepting `GET /v1/session` also intercepts the app's own
+  re-read after a 409 (flip the stub off once the POST has been sent); a naive "same day" guard on
+  time-left broke practice sessions that end after midnight (the two naive timestamps subtract
+  fine across days).
 
 ## Still-open product decisions (don't block; flag if you hit them)
 

@@ -46,7 +46,7 @@ export function OrderDrawer({
   state,
   instruments,
   obs,
-  noSession,
+  blockedReason,
   entry,
   onSymbol,
   onClose,
@@ -54,7 +54,8 @@ export function OrderDrawer({
   state: OrderDrawerState | null
   instruments: Instrument[]
   obs: Observation | undefined
-  noSession: boolean
+  /** Why ordering is off right now (no session, market closed), or undefined. */
+  blockedReason: string | undefined
   entry: OrderEntry
   onSymbol: (symbol: string) => void
   onClose: () => void
@@ -133,7 +134,7 @@ export function OrderDrawer({
               lastPrice={snap?.last_price}
               hasLast={!!snap?.has_last}
               initialSide={state.side}
-              blocked={noSession ? 'You are not in a live session, so orders are off.' : undefined}
+              blocked={blockedReason}
               submitting={entry.submitting}
               feedback={entry.feedback}
               onSubmit={entry.submit}

@@ -156,7 +156,7 @@ func (h *handler) startPractice(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteReason(w, http.StatusConflict, "already_in_session")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, sess)
+	httpx.WriteJSON(w, http.StatusOK, h.withLivePhase(sess))
 }
 
 func (h *handler) exit(w http.ResponseWriter, r *http.Request) {

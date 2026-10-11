@@ -199,6 +199,7 @@ named schemas in `contract/openapi.yaml` so the Go mock and TS client share one 
 | Codegen (`make generate` → Go + TS; WS types hand-authored in `generated/{go,ts}`) | ✅ done, no-diff verified |
 | Mock skeleton — all 19 REST routes + `/ws` (connected, subscribe/unsubscribe acks, seed snapshot), session gate + "no session" 409s, both error envelopes, contract-checked tests | ✅ Phase 1b (placeholder data, no realism) |
 | Mock market realism: session clock + phases, moving book, Model-A candles, live snapshots, history/WS consistency | ✅ Phase 3a |
+| Session bar + join/live, start practice, exit (one-session confirm), phase from `snapshot.phase`, enter-session panel (row 25); the market clock runs in the UI from the market's tz + `closes_at` (no contract change) | ✅ Phase 3c |
 | Mock realism: stateful orders/balances/fills (in-memory ledger: working → partial → filled, cancel in flight, modify, trades on close) | ✅ Phase 3b |
 | Tick formatter (`frontend/src/lib/ticks.ts`) + tests | ✅ |
 | Tokens wired to Tailwind + Night/Lab toggle | ✅ |
