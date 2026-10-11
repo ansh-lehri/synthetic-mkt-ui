@@ -15,7 +15,7 @@ export function PracticeCard({
   onReturn: () => void
 }) {
   return (
-    <Card as="section" aria-labelledby="pr-h" className="space-y-4 border-dashed !border-muted">
+    <Card as="section" aria-labelledby="pr-h" bodyClassName="space-y-4 !p-5" className="border-dashed !border-muted">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
           <span aria-hidden="true" className="text-muted">◇</span>Practice

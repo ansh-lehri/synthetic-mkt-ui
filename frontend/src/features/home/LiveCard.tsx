@@ -14,7 +14,7 @@ export function LiveCard({
   onReturn: () => void
 }) {
   return (
-    <Card as="section" aria-labelledby="live-h" className="space-y-5 !p-0">
+    <Card as="section" aria-labelledby="live-h" bodyClassName="!p-0">
       <div className="space-y-5 p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
@@ -28,7 +28,7 @@ export function LiveCard({
           </span>
         </div>
         <div className="flex flex-wrap items-end gap-x-10 gap-y-3">
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-1">
             <span className="text-sm text-muted" data-testid="live-label">{view.label}</span>
             <span
               className="tnum text-5xl font-semibold leading-tight"

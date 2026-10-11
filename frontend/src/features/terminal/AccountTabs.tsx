@@ -86,8 +86,13 @@ export function OrdersTab({
       {notice && <Banner tone={notice.tone} title={notice.title} onDismiss={onDismissNotice}>{notice.body}</Banner>}
       <Card flush className="overflow-hidden">
         <div className="relative overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse text-sm" id="oo-h">
+          <table className="w-full min-w-[51rem] table-fixed border-collapse text-sm" id="oo-h">
             <caption className="sr-only">Open orders. Prices are shown with the instrument&apos;s decimals; amounts in units.</caption>
+            {/* fixed columns so the header lines up with the rows, and with itself when there are no rows */}
+            <colgroup>
+              <col className="w-[11%]" /><col className="w-[16%]" /><col className="w-[15%]" /><col className="w-[10%]" />
+              <col className="w-[13%]" /><col className="w-[14%]" /><col className="w-[21%]" />
+            </colgroup>
             <thead>
               <tr className="text-left">
                 <th scope="col" className={TH}>Side</th>

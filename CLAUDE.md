@@ -519,6 +519,10 @@ The top bar's Home / Terminal / Record account-menu items link the three screens
     ~22px at 2560px), so text, spacing and the page cap grow on big screens. Home/Record caps are now
     `77.5rem` (1240px at 16px) instead of fixed pixels (a deliberate deviation from the board's px
     sizes). New UI must use rem-based Tailwind classes, not fixed `px` text sizes or widths.
+  - **Card spacing gotcha.** A `space-y-*` / `gap-*` on `<Card className>` lands on the card's OUTER
+    element, not its content (the title bar and the padded body are its only children), so the
+    contents sat tight together. Use `bodyClassName` on `Card` for spacing between its children.
+    Tables with fixed columns use `table-fixed` + `<colgroup>` so headers line up even with no rows.
 - **Gotchas found:** Playwright can't `.check()` the kit's sr-only radios (click the label text);
   `getByLabel('Market')` matches only the top-bar select.
 

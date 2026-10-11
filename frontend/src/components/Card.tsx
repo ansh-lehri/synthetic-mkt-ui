@@ -9,11 +9,13 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
   actions?: ReactNode
   /** Remove body padding (tables, ladders that run edge to edge). */
   flush?: boolean
+  /** Classes for the body wrapper (spacing between its children, e.g. `space-y-4`). The root's `className` cannot reach them. */
+  bodyClassName?: string
   children?: ReactNode
 }
 
 /** Base surface panel: `--line` border, `--r-lg` radius. */
-export function Card({ as: Tag = 'div', title, actions, flush = false, className, children, ...rest }: CardProps) {
+export function Card({ as: Tag = 'div', title, actions, flush = false, bodyClassName, className, children, ...rest }: CardProps) {
   return (
     <Tag {...rest} className={cx('rounded-lg border border-line bg-panel text-ink', className)}>
       {(title || actions) && (
@@ -22,7 +24,7 @@ export function Card({ as: Tag = 'div', title, actions, flush = false, className
           {actions && <div className="flex items-center gap-2">{actions}</div>}
         </div>
       )}
-      <div className={flush ? '' : 'p-4'}>{children}</div>
+      <div className={cx(flush ? '' : 'p-4', bodyClassName)}>{children}</div>
     </Tag>
   )
 }
