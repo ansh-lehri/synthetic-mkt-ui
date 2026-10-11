@@ -78,7 +78,7 @@ export default function HomePage() {
           { label: 'Record', onSelect: () => go('/record') },
         ]}
       />
-      <main className="mx-auto flex w-full max-w-[1240px] flex-col gap-4 px-4 pb-10 pt-6 sm:px-6">
+      <main className="mx-auto flex w-full max-w-[77.5rem] flex-col gap-4 px-4 pb-10 pt-6 sm:px-6">
         <h1 className="sr-only">Home</h1>
 
         {sess && (
@@ -107,13 +107,13 @@ export default function HomePage() {
         )}
 
         {loading ? (
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]" role="status">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_21.25rem]" role="status">
             <span className="sr-only">Loading</span>
             <div className="space-y-5"><Card><Skeleton className="h-52 w-full" /></Card><Card><Skeleton className="h-32 w-full" /></Card></div>
             <Card><Skeleton className="h-64 w-full" /></Card>
           </div>
         ) : market && liveView ? (
-          <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_21.25rem]">
             <div className="space-y-5">
               <LiveCard
                 marketName={market.name}

@@ -45,12 +45,20 @@ export function formatCountdown(secs: number): string {
 
 const secsBetween = (from: string, to: string) => (ordinalMs(to) - ordinalMs(from)) / 1000
 
-/** Open / closed from the clock and the backend's times; `fallback` only when there is no clock. */
-export function clockPhase(now: string | undefined, opensAt: string, closesAt: string, fallback: Phase): Phase {
-  if (!now) return fallback
-  if (secsBetween(now, opensAt) > 0) return 'preopen'
-  if (secsBetween(now, closesAt) > 0) return 'open'
-  return 'closed'
+/** The last stretch before the close that the UI calls "closing" (the board warns at 5 minutes). */
+export const CLOSING_SECS = 300
+
+/**
+ * The market state, decided by the UI: its clock against the backend's opens_at / closes_at.
+ * `opensAt` may be omitted (a practice session has no opening time: it is open until it ends).
+ * `fallback` (the backend's phase) is used only when there is no clock yet.
+ */
+export function clockPhase(now: string | undefined, opensAt: string | undefined, closesAt: string | undefined, fallback: Phase): Phase {
+  if (!now || !closesAt) return fallback
+  if (opensAt && secsBetween(now, opensAt) > 0) return 'preopen'
+  const left = secsBetween(now, closesAt)
+  if (left <= 0) return 'closed'
+  return left <= CLOSING_SECS ? 'closing' : 'open'
 }
 
 export function liveCardView(input: LiveCardInput): LiveCardView {

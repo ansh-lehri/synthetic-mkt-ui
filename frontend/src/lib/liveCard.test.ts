@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatCountdown, liveCardView, type LiveCardInput } from './liveCard'
+import { clockPhase, formatCountdown, liveCardView, type LiveCardInput } from './liveCard'
 
 const base: LiveCardInput = {
   phase: 'preopen', opensAt: '2026-10-12T09:15:00', closesAt: '2026-10-12T15:30:00', now: '2026-10-12T08:50:00', inLive: false,
@@ -50,5 +50,25 @@ describe('liveCardView', () => {
       status: "You're in this session", button: 'return', big: '0:30:00', label: 'Closes in', canJoin: true,
     })
     expect(liveCardView({ ...base, phase: 'closed', now: '2026-10-12T16:00:00', inLive: true })).toMatchObject({ status: 'Market closed', big: '15:30', button: 'return' })
+  })
+})
+
+describe('clockPhase', () => {
+  const o = '2026-10-12T09:15:00'
+  const c = '2026-10-12T15:30:00'
+  it('derives the state from the clock', () => {
+    expect(clockPhase('2026-10-12T08:00:00', o, c, 'open')).toBe('preopen')
+    expect(clockPhase('2026-10-12T12:00:00', o, c, 'closed')).toBe('open')
+    expect(clockPhase('2026-10-12T15:27:00', o, c, 'open')).toBe('closing')
+    expect(clockPhase('2026-10-12T15:30:00', o, c, 'open')).toBe('closed')
+    expect(clockPhase('2026-10-12T17:14:54', o, c, 'open')).toBe('closed')
+  })
+  it('a practice session (no opening time) is open until it ends', () => {
+    expect(clockPhase('2026-10-12T23:00:00', undefined, '2026-10-13T00:30:00', 'closed')).toBe('open')
+    expect(clockPhase('2026-10-13T00:31:00', undefined, '2026-10-13T00:30:00', 'open')).toBe('closed')
+  })
+  it('falls back to the backend only without a clock or a close time', () => {
+    expect(clockPhase(undefined, o, c, 'preopen')).toBe('preopen')
+    expect(clockPhase('2026-10-12T12:00:00', o, undefined, 'closed')).toBe('closed')
   })
 })

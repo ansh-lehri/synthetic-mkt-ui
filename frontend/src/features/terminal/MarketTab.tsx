@@ -61,7 +61,7 @@ export function MarketTab({
               className={`grid min-h-[60px] w-full grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(4.5rem,1fr))] items-center gap-3 px-4 py-1.5 text-left hover:bg-raised ${on ? 'bg-raised' : ''}`}
             >
               <span className="flex min-w-0 flex-col">
-                <span className="text-[15px] font-semibold">{i.instrument}</span>
+                <span className="text-[0.9375rem] font-semibold">{i.instrument}</span>
                 <span className="truncate text-sm text-muted">{i.name}</span>
               </span>
               <span className="text-right font-semibold">

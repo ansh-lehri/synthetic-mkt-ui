@@ -17,8 +17,9 @@ const (
 	PhaseClosed  = "closed"
 )
 
-// Session schedule, as offsets from local midnight.
-const (
+// Session schedule, as offsets from local midnight. Variables (not constants) only so the
+// real-time demo mode can shift the whole schedule to start "now" (see ShiftSchedule).
+var (
 	preopenAt = 9 * time.Hour
 	openAt    = 9*time.Hour + 15*time.Minute
 	closingAt = 15*time.Hour + 15*time.Minute
@@ -104,4 +105,13 @@ func (c *Clock) StepInterval() time.Duration {
 		return 50 * time.Millisecond
 	}
 	return d
+}
+
+// ShiftSchedule moves the whole session schedule (preopen, open, closing, close) by d. It is
+// called once at startup by the real-time demo mode, before any clock or request exists.
+func ShiftSchedule(d time.Duration) {
+	preopenAt += d
+	openAt += d
+	closingAt += d
+	closeAt += d
 }

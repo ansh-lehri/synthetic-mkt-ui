@@ -10,9 +10,14 @@
 }
 
 @layer base {
+  /* Fluid type: the whole UI is rem-based, so scaling the root scales text, spacing and the page
+     width together. 16px up to ~1440px wide, ~19px at 2000px, ~22px at 2560px, capped at 24px. */
+  html {
+    font-size: clamp(16px, 8.2px + 0.54vw, 24px);
+  }
   body {
     @apply bg-bg font-sans text-ink antialiased;
-    font-size: var(--fs-md);
+    font-size: 0.9375rem;
   }
   /* Visible focus ring on every interactive element (token-driven). */
   :focus-visible {

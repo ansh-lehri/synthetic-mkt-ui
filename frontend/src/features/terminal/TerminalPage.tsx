@@ -6,6 +6,7 @@ import { getAccountId } from '../../lib/account'
 import { useMarketClock } from '../../lib/marketClock'
 import { useMarketStore } from '../../lib/marketStore'
 import type { Side } from '../../lib/orderTicket'
+import { clockPhase } from '../../lib/liveCard'
 import { clockOf, closeLabel, conditionLabel, exitCopy, orderBlockReason, switchCopy, timeLeft } from '../../lib/session'
 import { AccountStrip } from './AccountStrip'
 import { OrdersTab, PnlTab, PositionsTab, TradesTab } from './AccountTabs'
@@ -84,19 +85,28 @@ export default function TerminalPage() {
 
   const activeSymbol = symbol && book.instruments.some((i) => i.instrument === symbol) ? symbol : book.instruments[0]?.instrument
 
-  // Market phase. Live: the snapshots (the socket is the live source), falling back to the session
-  // then the markets list. Practice runs its own clock, so its phase is the session's.
-  const livePhase = (activeSymbol && snapshots[activeSymbol]?.phase) || m.market?.live_session.phase
-  const phase = sess?.type === 'practice' ? sess.phase : livePhase ?? sess?.phase
+  // Market state. The UI decides it from its own market clock and the backend's close time (the
+  // session's `closes_at`, and for live the market's `opens_at`); the backend's phase (the snapshots,
+  // then the session / markets list) is only the fallback until the clock is known.
+  const backendPhase = ((activeSymbol && snapshots[activeSymbol]?.phase) || m.market?.live_session.phase || sess?.phase) as
+    | 'preopen' | 'open' | 'closing' | 'closed' | undefined
+  const nowLocal = useMarketClock(m.market?.timezone) // the UI runs the clock itself
+  const phase = backendPhase
+    ? clockPhase(
+        nowLocal,
+        sess?.type === 'live' ? m.market?.live_session.opens_at : undefined,
+        sess?.closes_at ?? m.market?.live_session.closes_at,
+        sess?.type === 'practice' ? sess.phase : backendPhase,
+      )
+    : undefined
   useEffect(() => {
     // A phase change moves "today's" session window: refresh it so the live bar's bucket is right.
-    if (phase) void queryClient.invalidateQueries({ queryKey: ['markets'] })
-  }, [phase, queryClient])
+    if (backendPhase) void queryClient.invalidateQueries({ queryKey: ['markets'] })
+  }, [backendPhase, queryClient])
 
   const mode = sess?.type
   const orderBlock = mode ? orderBlockReason(phase, mode) : undefined
   const closes = closeLabel(sess?.closes_at)
-  const nowLocal = useMarketClock(sess ? m.market?.timezone : undefined) // the UI runs the clock itself
   // Past the close on the local clock but the backend still says trading: the two disagree (e.g. the
   // mock's simulated day), so show the close time rather than a misleading 0:00:00.
   const rawLeft = timeLeft(nowLocal, sess?.closes_at)

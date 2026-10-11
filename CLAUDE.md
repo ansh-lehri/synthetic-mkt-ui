@@ -426,7 +426,7 @@ copy in `lib/session.ts` (tested).
   chart bars or order data, and the PHASE still comes from the backend (`snapshot.phase`), never
   from this clock. It is the one place the client reads the real clock (rendered via Intl, not
   UTC maths). If the local clock is past the close while the backend says trading, "Time left" is
-  hidden and "Closes HH:MM" shown. **Mock caveat:** the mock's live day is simulated (60x), so the
+  hidden and "Closes HH:MM" shown. **Old mock caveat (now fixed, see 4a follow-ups):** the mock's live day is simulated (60x), so the
   live "time left" does not match its phase (it usually falls back to "Closes 15:30"); practice
   `closes_at` is real-time, so its countdown is right.
 - **Session bar** (above the tabs, as on the board): Live (solid) / Practice (dashed, "not
@@ -500,6 +500,25 @@ The top bar's Home / Terminal / Record account-menu items link the three screens
 - **Not built (no contract):** the first-visit "Your accounts are open" strip (needs account
   creation) and the "Next top-up in N min" copy (needs a refill mechanic). Loading = skeleton cards;
   load failures = error banners with Retry.
+- **Follow-ups after review (supersede the 3a/3c/4a bullets they touch):**
+  - **The Terminal decides market state from the clock too** (`clockPhase` in `lib/liveCard.ts`):
+    pre-open before `opens_at` (live only), open until the last 5 minutes (`CLOSING_SECS`, the
+    board's "Closing soon"), then closing, then closed at `closes_at` (the session's, falling back to
+    the market's). A practice session has no opening time. The backend phase (`snapshot.phase` etc.)
+    is only the fallback until the clock is known; the chart's data path still uses `snapshot.phase`.
+    Home and the Terminal now always agree.
+  - **The mock runs in REAL TIME by default** (`mock/internal/market/market.go`): market time = the
+    real wall clock in the market's zone, so the UI clock, the phases, `opens_at`/`closes_at`, bars
+    and snapshots agree. The schedule is shifted so the market opens `MOCK_OPEN_IN` (default 30s)
+    after the mock starts, runs the usual 6.5-hour day (open, closing, closed) and then stays closed;
+    restart the mock for a fresh day. Setting `MOCK_SPEED` (e.g. 60) restores the old sped-up repeating
+    day for watching phases cycle (its times are not real, so the UI clock will not match it).
+    This removes the "mock caveat" bullets above.
+  - **Fluid type and width.** The UI is rem-based and the root font size is fluid
+    (`clamp(16px, 8.2px + 0.54vw, 24px)` in `index.css`: 16px up to ~1440px wide, ~19px at 2000px,
+    ~22px at 2560px), so text, spacing and the page cap grow on big screens. Home/Record caps are now
+    `77.5rem` (1240px at 16px) instead of fixed pixels (a deliberate deviation from the board's px
+    sizes). New UI must use rem-based Tailwind classes, not fixed `px` text sizes or widths.
 - **Gotchas found:** Playwright can't `.check()` the kit's sr-only radios (click the label text);
   `getByLabel('Market')` matches only the top-bar select.
 
