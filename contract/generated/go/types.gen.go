@@ -144,13 +144,10 @@ type ActiveSession struct {
 	Condition *PracticeCondition `json:"condition"`
 
 	// ExchangeId backend-internal; UI treats as opaque or ignores
-	ExchangeId *string `json:"exchange_id,omitempty"`
-	Market     string  `json:"market"`
-
-	// Now OPTIONAL. The market's current naive-local time when the response was produced. Lets the client show a clock and time-left without ever touching UTC. When absent the UI shows only the close time. (Added in Phase 3c; PROVISIONAL like the rest of the session surface.)
-	Now   *string            `json:"now,omitempty"`
-	Phase ActiveSessionPhase `json:"phase"`
-	Type  ActiveSessionType  `json:"type"`
+	ExchangeId *string            `json:"exchange_id,omitempty"`
+	Market     string             `json:"market"`
+	Phase      ActiveSessionPhase `json:"phase"`
+	Type       ActiveSessionType  `json:"type"`
 }
 
 // ActiveSessionPhase defines model for ActiveSession.Phase.

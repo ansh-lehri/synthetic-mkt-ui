@@ -418,12 +418,17 @@ removes the cached observation so a stale account never shows). Code: `features/
 `useSessionFlow.ts` (join / start / exit), `EnterSession.tsx`, kit `SessionBar`; pure helpers and
 copy in `lib/session.ts` (tested).
 
-- **Contract addition (provisional): `ActiveSession.now`** — OPTIONAL naive-local market time at
-  response time. It is what lets the bar show a "Market time" clock and "Time left" without the
-  client ever touching UTC (time left = `closes_at − now`, two naive timestamps). The clock is
-  poll-driven (1s), not ticked locally, so it stays right whatever speed the mock runs at. If a
-  backend omits `now`, the bar shows only "Closes HH:MM". Mock: live = the session clock's
-  market-local time; practice = real time in the market's zone.
+- **The UI runs the market clock itself** (`lib/marketClock.ts`, owner's rule). The backend gives
+  the market's timezone (`/v1/markets`) and open/close times (naive-local `closes_at`); the UI ticks
+  every second from the browser's real time rendered in the market's IANA zone ("Market time"),
+  and "Time left" = `closes_at − that` (two naive timestamps). There is NO `now` in the contract
+  (an optional one was added and removed in 3c). This is display-only: it is never compared with
+  chart bars or order data, and the PHASE still comes from the backend (`snapshot.phase`), never
+  from this clock. It is the one place the client reads the real clock (rendered via Intl, not
+  UTC maths). If the local clock is past the close while the backend says trading, "Time left" is
+  hidden and "Closes HH:MM" shown. **Mock caveat:** the mock's live day is simulated (60x), so the
+  live "time left" does not match its phase (it usually falls back to "Closes 15:30"); practice
+  `closes_at` is real-time, so its countdown is right.
 - **Session bar** (above the tabs, as on the board): Live (solid) / Practice (dashed, "not
   recorded") marker, market, phase (○ Pre-open ● Open ◆ Closing ■ Closed — glyph + word), market
   time, time left, "P&L · latest trades", open positions, a switch button, and Exit (outlined

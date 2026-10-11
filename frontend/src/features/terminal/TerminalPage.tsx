@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useObservation, type CandleTimeframe, type OpenOrder } from '../../api'
 import { Banner, Button, Card, ConfirmDialog, Num, SessionBar, SkeletonText, TopBar } from '../../components'
 import { getAccountId } from '../../lib/account'
+import { useMarketClock } from '../../lib/marketClock'
 import { useMarketStore } from '../../lib/marketStore'
 import type { Side } from '../../lib/orderTicket'
 import { clockOf, closeLabel, conditionLabel, exitCopy, orderBlockReason, switchCopy, timeLeft } from '../../lib/session'
@@ -95,7 +96,11 @@ export default function TerminalPage() {
   const mode = sess?.type
   const orderBlock = mode ? orderBlockReason(phase, mode) : undefined
   const closes = closeLabel(sess?.closes_at)
-  const left = phase === 'closed' ? '0:00:00' : timeLeft(sess?.now, sess?.closes_at)
+  const nowLocal = useMarketClock(sess ? m.market?.timezone : undefined) // the UI runs the clock itself
+  // Past the close on the local clock but the backend still says trading: the two disagree (e.g. the
+  // mock's simulated day), so show the close time rather than a misleading 0:00:00.
+  const rawLeft = timeLeft(nowLocal, sess?.closes_at)
+  const left = phase === 'closed' ? '0:00:00' : rawLeft === '0:00:00' ? undefined : rawLeft
   const realised = obs && !obs.trades_degraded ? obs.recent_trades.reduce((sum, t) => sum + t.net_pnl, 0) : 0
 
   const instrumentOf = (sym: string) => book.instruments.find((i) => i.instrument === sym)
@@ -121,7 +126,7 @@ export default function TerminalPage() {
           mode={sess.type}
           market={m.market?.name ?? sess.market}
           phase={(phase ?? sess.phase) as 'preopen' | 'open' | 'closing' | 'closed'}
-          clock={clockOf(sess.now)}
+          clock={clockOf(nowLocal)}
           remainingLabel={left ? 'Time left' : 'Closes'}
           remaining={left ?? closes}
           timezone={m.market?.timezone ?? ''}
