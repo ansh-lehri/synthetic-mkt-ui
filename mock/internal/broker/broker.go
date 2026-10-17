@@ -22,13 +22,15 @@ import (
 	api "github.com/ansh-2505-lehri/synthetic-mkt-ui/contract/generated/go"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/httpx"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/identity"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/store"
 )
 
 type handler struct {
-	sessions *store.Sessions
-	cfg      Config
-	orderSeq atomic.Int64
+	sessions   *store.Sessions
+	identities *identity.Identities
+	cfg        Config
+	orderSeq   atomic.Int64
 
 	mu       sync.Mutex
 	ledgers  map[string]*ledger         // the real (live) account
@@ -60,7 +62,7 @@ func (h *handler) liveLedger(acct string) *ledger {
 // session — that session's own copy (created from the live trading balance the first time it is
 // needed, fresh for every new practice session). Orders and the live reads use this one.
 func (h *handler) ledgerNow(acct string) *ledger {
-	if s, in := h.sessions.Get(acct); in && s.Type == api.Practice {
+	if s, in := h.sessions.Get(acct); in && s.Mode == store.Ondemand {
 		seq, _ := h.sessions.Seq(acct)
 		p := h.practice[acct]
 		if p == nil || p.seq != seq {
@@ -96,8 +98,10 @@ func (h *handler) nextOrderID(accountID string) string {
 }
 
 // Register mounts the broker routes on mux.
-func Register(mux *http.ServeMux, sessions *store.Sessions, cfg Config) *Accounts {
-	h := &handler{sessions: sessions, cfg: cfg, ledgers: map[string]*ledger{}, practice: map[string]*practiceLedger{}}
+func Register(mux *http.ServeMux, sessions *store.Sessions, identities *identity.Identities, cfg Config) *Accounts {
+	h := &handler{sessions: sessions, identities: identities, cfg: cfg, ledgers: map[string]*ledger{}, practice: map[string]*practiceLedger{}}
+	// identity-adjacent (needs ledger access, so it lives here rather than in internal/identity)
+	mux.HandleFunc("/v1/account/cash", httpx.Method(http.MethodGet, h.cash))
 	// orders
 	mux.HandleFunc("/v1/orders", httpx.Method(http.MethodPost, h.place))
 	mux.HandleFunc("/v1/orders/cancel", httpx.Method(http.MethodPost, h.cancel))
@@ -249,7 +253,7 @@ func (h *handler) modify(w http.ResponseWriter, r *http.Request) {
 	// 409 = cancel leg failed, no place attempted (modify_status "rejected").
 	reject := func(reason string) {
 		httpx.WriteJSON(w, http.StatusConflict, api.ModifyResponse{
-			ModifyStatus: api.Rejected,
+			ModifyStatus: api.ModifyResponseModifyStatusRejected,
 			Cancel:       api.ModifyLeg{Status: ptr("rejected"), OrderId: &req.OrderId, Reason: &reason},
 		})
 	}
@@ -275,7 +279,7 @@ func (h *handler) modify(w http.ResponseWriter, r *http.Request) {
 	}
 	if reason != "" {
 		httpx.WriteJSON(w, http.StatusOK, api.ModifyResponse{
-			ModifyStatus: api.Partial,
+			ModifyStatus: api.ModifyResponseModifyStatusPartial,
 			Cancel:       api.ModifyLeg{Status: ptr("accepted"), OrderId: &req.OrderId},
 			Replace:      &api.ModifyLeg{Status: ptr("rejected"), Reason: &reason},
 			Warning:      ptr("The original order was cancelled but the replacement was rejected (" + reason + "). You no longer have a working order."),
@@ -283,7 +287,7 @@ func (h *handler) modify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, api.ModifyResponse{
-		ModifyStatus: api.Ok,
+		ModifyStatus: api.ModifyResponseModifyStatusOk,
 		Cancel:       api.ModifyLeg{Status: ptr("accepted"), OrderId: &req.OrderId},
 		Replace:      &api.ModifyLeg{Status: ptr("accepted"), OrderId: &newID},
 	})
@@ -318,6 +322,26 @@ func (h *handler) transfer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, api.TransferResponse{Available: l.available, Bank: l.bank})
+}
+
+// ---------------------------------------------------------------- pre-session cash
+
+// cash is the one broker/reads endpoint that 404s on an unknown account_id — unlike
+// every live/durable read below, it needs no session at all; it reads the ledger
+// straight (lazily seeded on first use, same as every other read).
+func (h *handler) cash(w http.ResponseWriter, r *http.Request) {
+	acct, ok := httpx.RequireQuery(w, r, "account_id")
+	if !ok {
+		return
+	}
+	if h.identities != nil && !h.identities.Known(acct) {
+		httpx.WriteError(w, http.StatusNotFound, "account not found")
+		return
+	}
+	h.mu.Lock()
+	l := h.liveLedger(acct)
+	h.mu.Unlock()
+	httpx.WriteJSON(w, http.StatusOK, api.Cash{TradingCash: l.available, BankCash: l.bank})
 }
 
 // ---------------------------------------------------------------- live reads (409 without a session)

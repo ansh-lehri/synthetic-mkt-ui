@@ -79,6 +79,25 @@ func ChangePct(inst catalog.Instrument, r Reading) float64 {
 
 func round2(f float64) float64 { return math.Round(f*100) / 100 }
 
+// WirePhase maps the mock's internal 4-phase clock (PhasePreopen/Open/Closing/Closed —
+// used for the book/trading-availability simulation) onto the real backend's WS wire
+// vocabulary (unknown/open/auction/closed). The real exchange has no distinct
+// "preopen" state at all (confirmed: exchange/clock.Phase has only Closed/Continuous/
+// ClosingAuction) — the mock's preopen period reports "unknown" on the wire, same as
+// the real backend's own unmapped/default value; "closing" maps to "auction".
+func WirePhase(internal string) string {
+	switch internal {
+	case PhaseOpen:
+		return "open"
+	case PhaseClosing:
+		return "auction"
+	case PhaseClosed:
+		return "closed"
+	default:
+		return "unknown"
+	}
+}
+
 // Snapshot builds the whole picture the socket pushes. The book only exists while trading:
 // in preopen and after the close there is a last price but NO bid/ask (has_* false, empty
 // depth), which is what a real client must cope with. Book quantities re-roll every step,
@@ -89,7 +108,7 @@ func Snapshot(inst catalog.Instrument, r Reading) api.WsSnapshot {
 		Type:       api.WsTypeSnapshot,
 		Instrument: inst.Symbol,
 		Data: api.WsSnapshotData{
-			Phase:     r.Phase,
+			Phase:     WirePhase(r.Phase),
 			LastPrice: last,
 			HasLast:   true,
 			ChangePct: ChangePct(inst, r),

@@ -35,7 +35,7 @@ func TestOrderLifecycle(t *testing.T) {
 
 	id := e.order("L1", "buy", 10, 10100) // cost 101000
 	o := e.obs("L1")
-	if len(o.Orders) != 1 || o.Orders[0].OrderId != id || o.Orders[0].Status != api.Working || o.Orders[0].ReservedCash != 101000 {
+	if len(o.Orders) != 1 || o.Orders[0].OrderId != id || o.Orders[0].Status != api.OpenOrderStatusWorking || o.Orders[0].ReservedCash != 101000 {
 		t.Fatalf("working order: %+v", o.Orders)
 	}
 	if o.Balance.Reserved != 101000 || o.Balance.Available != start.Balance.Available-101000 {
@@ -44,7 +44,7 @@ func TestOrderLifecycle(t *testing.T) {
 
 	e.tick(tPartial)
 	o = e.obs("L1")
-	if len(o.Orders) != 1 || o.Orders[0].Status != api.PartiallyFilled || o.Orders[0].FilledQty != 5 || o.Orders[0].RemainingQty != 5 {
+	if len(o.Orders) != 1 || o.Orders[0].Status != api.OpenOrderStatusPartiallyFilled || o.Orders[0].FilledQty != 5 || o.Orders[0].RemainingQty != 5 {
 		t.Fatalf("partial fill: %+v", o.Orders)
 	}
 	if o.Positions[0].Qty != 15 {
@@ -139,7 +139,7 @@ func TestModifyPartial(t *testing.T) {
 	var mr api.ModifyResponse
 	body := `{"account_id":"L3","order_id":"` + id + `","instrument":"ACME","side":"buy","is_market":false,"new_qty":99999999,"new_price":10100}`
 	decode(t, e.want("POST", "/v1/orders/modify", body, 200), &mr)
-	if mr.ModifyStatus != api.Partial || mr.Warning == nil || *mr.Warning == "" || mr.Replace == nil || *mr.Replace.Status != "rejected" {
+	if mr.ModifyStatus != api.ModifyResponseModifyStatusPartial || mr.Warning == nil || *mr.Warning == "" || mr.Replace == nil || *mr.Replace.Status != "rejected" {
 		t.Fatalf("partial modify: %+v", mr)
 	}
 	o := e.obs("L3")
@@ -153,7 +153,7 @@ func TestModifyPartial(t *testing.T) {
 	id = e.order("L3", "buy", 1, 10100)
 	body = `{"account_id":"L3","order_id":"` + id + `","instrument":"ACME","side":"buy","is_market":true,"new_qty":1}`
 	decode(t, e.want("POST", "/v1/orders/modify", body, 200), &mr)
-	if mr.ModifyStatus != api.Partial || *mr.Replace.Reason != "no_market_price" {
+	if mr.ModifyStatus != api.ModifyResponseModifyStatusPartial || *mr.Replace.Reason != "no_market_price" {
 		t.Fatalf("market modify: %+v", mr)
 	}
 }

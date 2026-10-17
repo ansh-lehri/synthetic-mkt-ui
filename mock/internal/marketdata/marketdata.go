@@ -18,10 +18,12 @@ import (
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/httpx"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/market"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/store"
 	"github.com/gorilla/websocket"
 )
 
-// wsMarket is the one market the mock socket is bound to. The client never sends a market.
+// wsMarket is the one market the mock socket is bound to (via the session). The client
+// never sends a market directly.
 const wsMarket = "IN"
 
 const (
@@ -29,13 +31,18 @@ const (
 	maxCandleLimit     = 500
 )
 
-type handler struct{ clock *market.Clock }
+type handler struct {
+	clock    *market.Clock
+	sessions *store.Sessions
+}
 
-// Register mounts the market-data routes on mux.
-func Register(mux *http.ServeMux, clock *market.Clock) {
-	h := &handler{clock: clock}
+// Register mounts the market-data routes on mux. GET /v1/ws now requires a valid
+// ?session= from a prior session/canonical or session/ondemand call (Phase 1/2 of
+// BACKEND-INTEGRATION-PLAN.md) — the socket is no longer anonymous.
+func Register(mux *http.ServeMux, clock *market.Clock, sessions *store.Sessions) {
+	h := &handler{clock: clock, sessions: sessions}
 	mux.HandleFunc("/v1/candles", httpx.Method(http.MethodGet, h.candles))
-	mux.HandleFunc("/ws", h.ws)
+	mux.HandleFunc("/v1/ws", h.ws)
 }
 
 // candles is a durable read: 200 (incl. empty candles[]) / 400 / 503, never 404/409/504.
@@ -159,6 +166,20 @@ func (c *conn) write(v any) error {
 }
 
 func (h *handler) ws(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	sid := r.URL.Query().Get("session")
+	if sid == "" {
+		httpx.WriteError(w, http.StatusUnauthorized, "no session")
+		return
+	}
+	if _, found := h.sessions.GetBySession(sid); !found {
+		httpx.WriteError(w, http.StatusNotFound, "no live session")
+		return
+	}
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return // Upgrade has already written the HTTP error.

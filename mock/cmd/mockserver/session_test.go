@@ -9,14 +9,10 @@ import (
 // Exit returns the account to "no session": reads 409 again, and a new session can start.
 func TestExitThenRejoin(t *testing.T) {
 	e := newEnv(t)
-	e.join("n2")
+	sid := e.join("n2")
 	e.want("GET", "/v1/account/observation?account_id=n2", "", 200)
-	e.want("POST", "/v1/session/exit", `{"account_id":"n2"}`, 200)
-	var st api.SessionState
-	decode(t, e.want("GET", "/v1/session?account_id=n2", "", 200), &st)
-	if st.Active != nil {
-		t.Fatalf("active must be null after exit: %+v", st.Active)
-	}
+	e.exit(sid)
+	wantError(t, e.want("POST", "/session/current", `{"user":{"user_id":"n2"}}`, 404))
 	wantError(t, e.want("GET", "/v1/account/observation?account_id=n2", "", 409))
 	wantReason(t, e.want("POST", "/v1/orders", `{"account_id":"n2","instrument":"ACME","side":"buy","type":"limit","tif":"gtc","qty":1,"limit_price":10050}`, 409), "no_session")
 	e.join("n2")
@@ -44,28 +40,46 @@ func TestTransferMovesTheLedger(t *testing.T) {
 	}
 }
 
-// Practice will not start below the minimum trading balance (409; live is unaffected).
-func TestPracticeNeedsMinimumBalance(t *testing.T) {
-	e := newEnv(t)
-	e.want("POST", "/v1/account/transfer", `{"account_id":"p1","direction":"to_bank","amount":9450000}`, 200) // leaves 500.00 (below the 1,000.00 minimum)
-	body := `{"account_id":"p1","market":"IN","condition":"normal_day","length_minutes":90}`
-	wantReason(t, e.want("POST", "/v1/session/practice/start", body, 409), "below_minimum_balance")
-	e.want("POST", "/v1/account/transfer", `{"account_id":"p1","direction":"to_trading","amount":600000}`, 200)
-	e.want("POST", "/v1/session/practice/start", body, 200)
-	e.want("POST", "/v1/session/exit", `{"account_id":"p1"}`, 200)
-	e.want("POST", "/v1/account/transfer", `{"account_id":"p1","direction":"to_bank","amount":650000}`, 200)
-	e.want("POST", "/v1/session/live/join", `{"account_id":"p1","market":"IN"}`, 200) // live has no minimum
+// ondemand starts an on-demand session and decodes the warming_up body (fails the test
+// if the gate rejected it instead — see ondemandInsufficientFunds for that case).
+func (e *env) ondemand(acct string) api.OnDemandWarmingUpBody {
+	e.t.Helper()
+	e.want("POST", "/v1/account/open", `{"user":{"user_id":"`+acct+`"}}`, 200)
+	var od api.OnDemandWarmingUpBody
+	decode(e.t, e.want("POST", "/session/ondemand?market=IN&duration=60", `{"user":{"user_id":"`+acct+`"}}`, 200), &od)
+	if od.Status != api.WarmingUp {
+		e.t.Fatalf("expected warming_up, got %+v", od)
+	}
+	return od
 }
 
-// A practice session trades a COPY of the trading balance: orders and fills show up in the live
-// reads while it lasts, but nothing flows back to the real account and nothing is recorded.
+// Practice (on-demand) will not start below the minimum trading balance — the real
+// contract's money-floor gate is a 200 insufficient_funds body, NEVER a 409.
+func TestPracticeNeedsMinimumBalance(t *testing.T) {
+	e := newEnv(t)
+	e.want("POST", "/v1/account/open", `{"user":{"user_id":"p1"}}`, 200)
+	e.want("POST", "/v1/account/transfer", `{"account_id":"p1","direction":"to_bank","amount":9450000}`, 200) // leaves 500.00 (below the 1,000.00 minimum)
+	var insuff api.OnDemandInsufficientFundsBody
+	decode(t, e.want("POST", "/session/ondemand?market=IN&duration=60", `{"user":{"user_id":"p1"}}`, 200), &insuff)
+	if insuff.Status != api.InsufficientFunds || insuff.Message == "" {
+		t.Fatalf("bad gate rejection: %+v", insuff)
+	}
+	e.want("POST", "/v1/account/transfer", `{"account_id":"p1","direction":"to_trading","amount":600000}`, 200)
+	od := e.ondemand("p1")
+	e.exit(od.SessionId)
+	e.want("POST", "/v1/account/transfer", `{"account_id":"p1","direction":"to_bank","amount":650000}`, 200)
+	e.want("POST", "/session/canonical", `{"user":{"user_id":"p1"},"market":"IN"}`, 200) // live/canonical has no minimum
+}
+
+// A practice (on-demand) session trades a COPY of the trading balance: orders and fills
+// show up in the live reads while it lasts, but nothing flows back to the real account
+// and nothing is recorded.
 func TestPracticeIsIsolated(t *testing.T) {
 	e := newEnv(t)
 	live := e.obs2("q1") // joins live once to read the real starting state
-	e.want("POST", "/v1/session/exit", `{"account_id":"q1"}`, 200)
+	e.exit(e.currentSessionID("q1"))
 
-	body := `{"account_id":"q1","market":"IN","condition":"whipsaw","length_minutes":60}`
-	e.want("POST", "/v1/session/practice/start", body, 200)
+	od := e.ondemand("q1")
 	o := e.obs("q1")
 	if o.Balance.Available != live.Balance.Available || len(o.Positions) != 0 || len(o.Orders) != 0 || len(o.RecentTrades) != 0 {
 		t.Fatalf("practice starts from a copy of the trading balance with nothing else: %+v", o)
@@ -97,18 +111,19 @@ func TestPracticeIsIsolated(t *testing.T) {
 	}
 
 	// a new practice session starts fresh from the real balance
-	e.want("POST", "/v1/session/exit", `{"account_id":"q1"}`, 200)
-	e.want("POST", "/v1/session/practice/start", body, 200)
+	e.exit(od.SessionId)
+	od = e.ondemand("q1")
 	o = e.obs("q1")
 	if o.Balance.Available != live.Balance.Available+1 || len(o.RecentTrades) != 0 {
 		t.Fatalf("a new practice session must start fresh: %+v", o)
 	}
 	// and the real account is back after leaving practice
-	e.want("POST", "/v1/session/exit", `{"account_id":"q1"}`, 200)
-	e.join("q1")
+	e.exit(od.SessionId)
+	sid := e.join("q1")
 	if got := e.obs("q1"); got.Balance.Available != live.Balance.Available+1 || len(got.Positions) != 1 {
 		t.Fatalf("live account after practice: %+v", got)
 	}
+	e.exit(sid)
 }
 
 // obs2 joins live, returns the observation (the real starting state) and leaves the session open.
@@ -116,4 +131,12 @@ func (e *env) obs2(acct string) api.Observation {
 	e.t.Helper()
 	e.join(acct)
 	return e.obs(acct)
+}
+
+// currentSessionID resolves an account's current session_id via /session/current.
+func (e *env) currentSessionID(acct string) string {
+	e.t.Helper()
+	var cur api.SessionCurrentResponse
+	decode(e.t, e.want("POST", "/session/current", `{"user":{"user_id":"`+acct+`"}}`, 200), &cur)
+	return cur.SessionId
 }

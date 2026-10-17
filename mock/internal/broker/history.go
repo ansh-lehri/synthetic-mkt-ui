@@ -44,9 +44,9 @@ func history(now time.Time) []historyItem {
 			sym, ref, lot = "BETA", 4995, 10
 		}
 		qty := lot * int64(5+(i*3)%8)
-		dir := api.Long
+		dir := "long"
 		if i%4 == 3 {
-			dir = api.Short
+			dir = "short"
 		}
 		entryPx := ref + int64((i*3)%7-3)*tick
 		deltaTicks := int64((i*5)%11 - 5) // -5..+5 ticks, includes 0
@@ -61,7 +61,7 @@ func history(now time.Time) []historyItem {
 		exitPx := entryPx + deltaTicks*tick
 
 		gross := (exitPx - entryPx) * qty
-		if dir == api.Short {
+		if dir == "short" {
 			gross = -gross
 		}
 

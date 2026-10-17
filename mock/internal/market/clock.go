@@ -115,3 +115,13 @@ func ShiftSchedule(d time.Duration) {
 	closingAt += d
 	closeAt += d
 }
+
+// RealUTC reinterprets a naive-local wall-clock time.Time (as produced by Clock/Open/
+// Close — labelled UTC but meaning local wall time in the market's own zone) as
+// actually being in loc, and returns the genuine UTC instant. Needed wherever the real
+// contract wants an actual RFC3339 instant (GET /v1/markets' session window,
+// on-demand's warmup/session-end timers) rather than the naive-local string convention
+// used by candles/WS.
+func RealUTC(loc *time.Location, naive time.Time) time.Time {
+	return time.Date(naive.Year(), naive.Month(), naive.Day(), naive.Hour(), naive.Minute(), naive.Second(), naive.Nanosecond(), loc).UTC()
+}

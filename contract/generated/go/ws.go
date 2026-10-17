@@ -100,9 +100,17 @@ type WsDepth struct {
 	Asks []WsDepthLevel `json:"asks"`
 }
 
+// WS session-phase values (real backend vocabulary — NOT preopen/open/closing/closed).
+const (
+	WsPhaseUnknown = "unknown"
+	WsPhaseOpen    = "open"
+	WsPhaseAuction = "auction"
+	WsPhaseClosed  = "closed"
+)
+
 // WsSnapshotData is the whole picture, re-emitted on any change (latest-wins).
 type WsSnapshotData struct {
-	Phase     string  `json:"phase"` // preopen | open | closing | closed
+	Phase     string  `json:"phase"` // unknown | open | auction | closed
 	LastPrice int64   `json:"last_price"`
 	HasLast   bool    `json:"has_last"`
 	ChangePct float64 `json:"change_pct"` // the only float on the wire

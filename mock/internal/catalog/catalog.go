@@ -77,15 +77,15 @@ func Lookup(symbol string) (Instrument, bool) {
 	return Instrument{}, false
 }
 
-// API converts to the contract shape.
+// API converts to the contract's REAL wire shape: only id + tick_size, matching the
+// real backend exactly (confirmed gap — see contract/REWRITE-DIFF.md). Name/LotSize/
+// PriceDecimals stay nil here deliberately, even though the mock has real values for
+// them (i.Name/i.LotSize/i.PriceDecimals below) — this is what makes the mock a
+// faithful stand-in for this specific gap: a frontend tested only against the mock
+// should still exercise its own client-side default path for these fields, not be
+// quietly handed real values the live backend doesn't actually send yet.
 func (i Instrument) API() api.Instrument {
-	return api.Instrument{
-		Instrument:    i.Symbol,
-		Name:          i.Name,
-		TickSize:      i.TickSize,
-		LotSize:       i.LotSize,
-		PriceDecimals: i.PriceDecimals,
-	}
+	return api.Instrument{Id: i.Symbol, TickSize: i.TickSize}
 }
 
 // Location returns the market's time zone (UTC if the tz database can't resolve it).
