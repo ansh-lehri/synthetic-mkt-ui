@@ -1,13 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { observationKey, useMarkets, useObservation, type Observation, type TransferDirection, type TransferResponse } from '../../api'
-import { Banner, Button, Card, ConfirmDialog, Skeleton, TopBar } from '../../components'
+import { Banner, Button, Card, Skeleton, TopBar } from '../../components'
 import { getAccountId } from '../../lib/account'
 import { liveCardView } from '../../lib/liveCard'
 import { useMarketClock } from '../../lib/marketClock'
 import { pickMarket, useSelectedMarket } from '../../lib/selectedMarket'
-import { closeLabel, switchCopy } from '../../lib/session'
+import { closeLabel } from '../../lib/session'
 import { formatMoney } from '../../lib/ticks'
+import { SwitchConfirm } from '../session/SwitchConfirm'
 import { useSessionFlow } from '../session/useSessionFlow'
 import { BalancesCard } from './BalancesCard'
 import { LiveCard } from './LiveCard'
@@ -126,9 +127,7 @@ export default function HomePage() {
               <PracticeCard
                 marketName={market.name}
                 inPractice={sess?.type === 'practice'}
-                note={session.notice?.code === 'low_balance' ? 'Paused until your trading balance is above the minimum.' : undefined}
-                busy={session.busy === 'enter'}
-                onStart={() => void session.enter({ kind: 'practice', condition: 'normal_day', length: 90 })}
+                onStart={() => go('/practice')}
                 onReturn={() => go('/terminal')}
               />
             </div>
@@ -149,22 +148,7 @@ export default function HomePage() {
         onDone={onTransferDone}
         onUnknown={() => void qc.invalidateQueries({ queryKey: observationKey(accountId) })}
       />
-      {session.prompt && <SwitchConfirm session={session} />}
+      <SwitchConfirm session={session} />
     </div>
-  )
-}
-
-
-function SwitchConfirm({ session }: { session: ReturnType<typeof useSessionFlow> }) {
-  const p = session.prompt!
-  return (
-    <ConfirmDialog
-      open
-      tone="danger"
-      {...switchCopy(p.from.type, p.target.kind, closeLabel(p.from.closes_at))}
-      cancelLabel="Stay"
-      onCancel={session.cancelSwitch}
-      onConfirm={() => void session.confirmSwitch()}
-    />
   )
 }

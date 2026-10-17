@@ -10,12 +10,25 @@ import (
 
 // Sessions maps account_id -> its active session. Safe for concurrent use.
 type Sessions struct {
-	mu sync.RWMutex
-	m  map[string]api.ActiveSession
+	mu   sync.RWMutex
+	m    map[string]api.ActiveSession
+	seq  map[string]int64 // account -> id of its current session (changes with every new session)
+	next int64
 }
 
 // NewSessions returns an empty store (every account starts in no session).
-func NewSessions() *Sessions { return &Sessions{m: map[string]api.ActiveSession{}} }
+func NewSessions() *Sessions {
+	return &Sessions{m: map[string]api.ActiveSession{}, seq: map[string]int64{}}
+}
+
+// Seq identifies the account's current session; a new session always gets a new value, so
+// per-session state (a practice ledger) can tell "the same session" from "a fresh one".
+func (s *Sessions) Seq(accountID string) (int64, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.seq[accountID]
+	return v, ok
+}
 
 // Get returns the account's active session, if any.
 func (s *Sessions) Get(accountID string) (api.ActiveSession, bool) {
@@ -40,6 +53,8 @@ func (s *Sessions) StartIfFree(accountID string, sess api.ActiveSession) bool {
 		return false
 	}
 	s.m[accountID] = sess
+	s.next++
+	s.seq[accountID] = s.next
 	return true
 }
 
@@ -48,4 +63,5 @@ func (s *Sessions) Clear(accountID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.m, accountID)
+	delete(s.seq, accountID)
 }

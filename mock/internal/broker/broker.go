@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	api "github.com/ansh-2505-lehri/synthetic-mkt-ui/contract/generated/go"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
@@ -29,12 +30,22 @@ type handler struct {
 	cfg      Config
 	orderSeq atomic.Int64
 
-	mu      sync.Mutex
-	ledgers map[string]*ledger
+	mu       sync.Mutex
+	ledgers  map[string]*ledger         // the real (live) account
+	practice map[string]*practiceLedger // the account's CURRENT practice session, if any
 }
 
-// ledgerNow returns the account's ledger advanced to now (created on first use). Callers hold h.mu.
-func (h *handler) ledgerNow(acct string) *ledger {
+// practiceLedger is a practice session's own book: a copy of the trading balance taken when the
+// session first needs it, no positions, no history. Nothing in it ever reaches the live ledger,
+// /trades, /pnl or /costs ("not recorded"). `seq` ties it to one session.
+type practiceLedger struct {
+	seq int64
+	l   *ledger
+}
+
+// liveLedger is the account's real ledger advanced to now (created on first use). It backs the
+// durable reads, transfers and the practice stake copy. Callers hold h.mu.
+func (h *handler) liveLedger(acct string) *ledger {
 	now := h.cfg.Now()
 	l := h.ledgers[acct]
 	if l == nil {
@@ -43,6 +54,28 @@ func (h *handler) ledgerNow(acct string) *ledger {
 	}
 	l.advance(now)
 	return l
+}
+
+// ledgerNow is the ledger of the session the account is IN: the live one, or — in a practice
+// session — that session's own copy (created from the live trading balance the first time it is
+// needed, fresh for every new practice session). Orders and the live reads use this one.
+func (h *handler) ledgerNow(acct string) *ledger {
+	if s, in := h.sessions.Get(acct); in && s.Type == api.Practice {
+		seq, _ := h.sessions.Seq(acct)
+		p := h.practice[acct]
+		if p == nil || p.seq != seq {
+			live := h.liveLedger(acct)
+			l := newLedger(h.cfg, h.cfg.Now())
+			l.practice = true
+			l.available, l.reserved, l.settled, l.bank = live.available, 0, live.available, live.bank
+			l.pos = map[string]*position{}
+			p = &practiceLedger{seq: seq, l: l}
+			h.practice[acct] = p
+		}
+		p.l.advance(h.cfg.Now())
+		return p.l
+	}
+	return h.liveLedger(acct)
 }
 
 // items is the account's trade history: this session's closed trades, then the seeded history.
@@ -64,7 +97,7 @@ func (h *handler) nextOrderID(accountID string) string {
 
 // Register mounts the broker routes on mux.
 func Register(mux *http.ServeMux, sessions *store.Sessions, cfg Config) *Accounts {
-	h := &handler{sessions: sessions, cfg: cfg, ledgers: map[string]*ledger{}}
+	h := &handler{sessions: sessions, cfg: cfg, ledgers: map[string]*ledger{}, practice: map[string]*practiceLedger{}}
 	// orders
 	mux.HandleFunc("/v1/orders", httpx.Method(http.MethodPost, h.place))
 	mux.HandleFunc("/v1/orders/cancel", httpx.Method(http.MethodPost, h.cancel))
@@ -91,7 +124,7 @@ type Accounts struct{ h *handler }
 func (a *Accounts) Available(accountID string) int64 {
 	a.h.mu.Lock()
 	defer a.h.mu.Unlock()
-	return a.h.ledgerNow(accountID).available
+	return a.h.liveLedger(accountID).available
 }
 
 // liveAccount validates account_id and requires an active session. Live reads answer 409
@@ -279,7 +312,7 @@ func (h *handler) transfer(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	l := h.ledgerNow(req.AccountId)
+	l := h.liveLedger(req.AccountId) // money movement is always on the real account
 	if reason := l.transfer(req.Direction == api.ToBank, req.Amount); reason != "" {
 		httpx.WriteError(w, http.StatusUnprocessableEntity, reason)
 		return
@@ -341,7 +374,7 @@ func (h *handler) observation(w http.ResponseWriter, r *http.Request) {
 		Balance:        l.balance(),
 		Positions:      l.positions(),
 		Orders:         l.openOrders(),
-		RecentTrades:   recentTrades(append(append([]historyItem{}, l.trades...), history(h.cfg.Now())...)),
+		RecentTrades:   recentTrades(observationTrades(l, h.cfg.Now())),
 		TradesDegraded: false,
 	}
 	h.mu.Unlock()
@@ -446,4 +479,13 @@ func recentTrades(all []historyItem) []api.Trade {
 		out = append(out, it.trade)
 	}
 	return out
+}
+
+// observationTrades is the strip's source: the live account's session trades then the seeded
+// history; a practice session shows only its own trades (nothing from it is recorded).
+func observationTrades(l *ledger, now time.Time) []historyItem {
+	if l.practice {
+		return append([]historyItem{}, l.trades...)
+	}
+	return append(append([]historyItem{}, l.trades...), history(now)...)
 }

@@ -56,6 +56,7 @@ type position struct {
 
 type ledger struct {
 	cfg                          Config
+	practice                     bool // a practice ledger: a copy of the stake that never flows back
 	available, reserved, settled int64
 	bank                         int64
 	orders                       []*order

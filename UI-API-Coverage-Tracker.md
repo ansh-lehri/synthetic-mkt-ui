@@ -34,7 +34,7 @@ Three axes total:
 | 7 | Home | Join live / start practice + one-session gate | `GET /v1/session`, `POST /session/*` | Session/ref §4 | 🟢 prov |
 | 8 | Home | Low-balance refill timer | Refill mechanic | None — the low-balance strip itself works off the practice-start `409` (reason tag unspecified; mock: `below_minimum_balance`) | ⬜ |
 | 9 | Home | Transfer money (bank ↔ trading) | `POST /account/transfer` | Broker | ✅ |
-| 10 | Practice setup | Condition + length → start | `POST /session/practice/start` | Session/ref §4 | 🟢 prov |
+| 10 | Practice setup | Condition + length → start | `POST /session/practice/start` | Session/ref §4 — built in 4b; the stake (trading balance) cannot be shown before start (balances need a session) | 🟢 prov |
 | 11 | Terminal | Instrument list / watchlist | `GET /v1/instruments` | Session/ref §4 | 🟢 prov |
 | 12 | Terminal | Price chart (timeframes) | `GET /candles` + WS `candle` | Market-data — data path final; chart UI/toolbar is a placeholder, redesign planned (KLineCharts stays) | ✅ |
 | 13 | Terminal | Order book / depth | WS `snapshot` (depth) | Market-data | ✅ |
@@ -206,6 +206,7 @@ named schemas in `contract/openapi.yaml` so the Go mock and TS client share one 
 | Terminal market-data half (`/terminal`): WS client -> Zustand, KLineCharts history + live (Model A), instrument list, depth, reconnect rehydrate | ✅ Phase 3a (rows 11-13) |
 | Terminal account half (`/terminal`): `observation` poll (1s), order window (limit; Market gated), cancel/modify, Orders / Positions / Trades / P&L tabs, account strip, `trades_degraded`, 504 reconcile (rows 16-24) | ✅ Phase 3b — session bar / exit (row 25) is 3c |
 | Record screen (`/record`): trades (paged, `next_before` walk), P&L summary, IN cost/tax breakdown, US 501 | ✅ Phase 2 — against mock history |
+| Practice setup (`/practice`): condition + length pickers, summary, honest start wait, below-minimum block + Transfer, Try again, one-session confirm; mock practice runs on its own ledger (copy of the stake, nothing flows back) (row 10) | ✅ Phase 4b |
 | Home (`/`): market dropdown (persisted), live card (hours, countdown vs the UI clock, phase, join), practice entry (defaults until 4b), balances + Transfer (mock ledger), session strip, one-session confirm, low-balance strip (rows 4-7, 9) | ✅ Phase 4a — rows 3 and 8 need account creation / a refill mechanic (no contract) |
 
 ---

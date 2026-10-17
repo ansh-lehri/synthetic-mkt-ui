@@ -4,13 +4,14 @@ import { ApiError } from '../api/client'
 import type { PracticeCondition, PracticeLength } from '../api/types'
 import { ordinalMs, timePart } from './naive'
 
+/** Conditions are named by what the market does, not by an event. Descriptions are the board's. */
 export const PRACTICE_CONDITIONS: Array<{ value: PracticeCondition; label: string; hint: string }> = [
-  { value: 'normal_day', label: 'Normal day', hint: 'A typical session' },
-  { value: 'calm_range', label: 'Calm range', hint: 'Small moves inside a range' },
-  { value: 'trending_day', label: 'Trending day', hint: 'A steady move one way' },
-  { value: 'whipsaw', label: 'Whipsaw', hint: 'Sharp reversals' },
-  { value: 'unstable_day', label: 'Unstable day', hint: 'Large, erratic swings' },
-  { value: 'thin_liquidity', label: 'Thin liquidity', hint: 'Few orders on the book' },
+  { value: 'normal_day', label: 'Normal day', hint: 'A typical mix of trading. A good place to start.' },
+  { value: 'calm_range', label: 'Calm range', hint: 'Prices drift inside a narrow band.' },
+  { value: 'trending_day', label: 'Trending day', hint: 'Prices lean one way for most of the session.' },
+  { value: 'whipsaw', label: 'Whipsaw', hint: 'Prices reverse often. Hard to hold a view.' },
+  { value: 'unstable_day', label: 'Unstable day', hint: 'Large, fast moves with little warning.' },
+  { value: 'thin_liquidity', label: 'Thin liquidity', hint: 'Few agents trading. Your orders move the price.' },
 ]
 export const PRACTICE_LENGTHS: PracticeLength[] = [60, 75, 90, 105]
 export const DEFAULT_CONDITION: PracticeCondition = 'normal_day'

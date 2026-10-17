@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import HomePage from './features/home/HomePage.tsx'
+import PracticePage from './features/practice/PracticePage.tsx'
 import KitPage from './features/kit/KitPage.tsx'
 import RecordPage from './features/record/RecordPage.tsx'
 
@@ -11,6 +12,8 @@ export default function Routes() {
   switch (window.location.pathname.replace(/\/+$/, '')) {
     case '/kit':
       return <KitPage />
+    case '/practice':
+      return <PracticePage />
     case '/record':
       return <RecordPage />
     case '/terminal':

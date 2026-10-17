@@ -150,7 +150,7 @@ export default function TerminalPage() {
             <Button
               variant="ghost"
               disabled={!!session.busy}
-              onClick={() => void session.enter(sess.type === 'live' ? { kind: 'practice', condition: 'normal_day', length: 90 } : { kind: 'live' })}
+              onClick={() => (sess.type === 'live' ? window.location.assign('/practice') : void session.enter({ kind: 'live' }))}
             >
               {sess.type === 'live' ? 'Start practice' : 'Join live'}
             </Button>
