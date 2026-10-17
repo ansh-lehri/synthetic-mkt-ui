@@ -161,7 +161,7 @@ func (l *ledger) fill(o *order, qty int64, at time.Time) {
 	l.tradeSeq++
 	id := fmt.Sprintf("s-%04d", l.tradeSeq)
 	t := api.Trade{
-		TradeId: id, Instrument: o.instrument, Direction: api.Long, Quantity: qty,
+		TradeId: id, Instrument: o.instrument, Direction: "long", Quantity: qty,
 		EntryPrice: entry, ExitPrice: px, EntryAt: p.openedAt, ExitAt: at,
 		GrossPnl: gross, TotalCosts: costs, NetPnl: net,
 		PnlPct: float32(round2(float64(net) / float64(entry*qty) * 100)), ExitReason: "manual",
@@ -297,9 +297,9 @@ func (l *ledger) openOrders() []api.OpenOrder {
 		if o.side == "sell" {
 			side = api.OpenOrderSideSell
 		}
-		status := api.Working
+		status := api.OpenOrderStatusWorking
 		if o.filled > 0 {
-			status = api.PartiallyFilled
+			status = api.OpenOrderStatusPartiallyFilled
 		}
 		out = append(out, api.OpenOrder{
 			OrderId: o.id, Instrument: o.instrument, Side: side, IsMarket: false, LimitPrice: o.limit,

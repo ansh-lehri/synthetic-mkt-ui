@@ -1,28 +1,86 @@
 openapi: 3.0.3
 info:
   title: Synthetic Market Simulator — REST contract
-  version: 0.1.0
+  version: 0.2.0
   description: >
-    Single source of truth for the REST surface. Three axes:
-    broker (account/order, account_id-keyed), market-data history (public,
-    instrument-keyed), and session/reference (markets/instruments/session — PROVISIONAL).
+    Single source of truth for the REST surface, rewritten (Phase 1 of
+    BACKEND-INTEGRATION-PLAN.md) to describe the REAL backend's actual wire shapes —
+    see contract/REWRITE-DIFF.md for exactly what changed from the previous,
+    invented-mock version of this file.
+
+    Three axes: broker (account/order, account_id-keyed, under /v1/account and
+    /v1/orders), market-data (public, instrument-keyed, under /v1/candles + /v1/ws),
+    and session/identity (under /v1/account/open, /v1/markets, /v1/instruments, and
+    the unversioned /session/* routes — this split between /v1/ and bare /session/
+    paths is in the real backend as shipped, not a documentation inconsistency).
+
     Conventions: all money and prices are bare int64 (no currency field anywhere);
-    enums are lowercase snake_case strings; timestamps on the broker axis are RFC3339,
-    on the market-data + session axes they are naive-local ISO-8601 paired with a
-    `timezone` field. No auth: account_id is passed explicitly and trusted.
+    enums are lowercase snake_case strings; there is NO single timestamp convention —
+    broker reads use RFC3339, on-demand session timers use RFC3339Nano, candle/WS
+    timestamps use naive-local ISO-8601 paired with a `timezone` field, and
+    GET /v1/markets uses plain RFC3339 UTC. Each schema below says explicitly which
+    one it uses. No auth anywhere: account_id/user_id are passed explicitly and
+    trusted verbatim (confirmed — this is a documented "no-auth demo surface" on the
+    real backend, not a gap introduced by this contract).
 servers:
   - url: /
     description: Base URL is swapped (mock vs real) by the frontend client; paths are identical.
 
 tags:
+  - name: identity
   - name: orders
   - name: money
   - name: account-live
   - name: account-durable
   - name: market-data
-  - name: session-reference
+  - name: session
 
 paths:
+
+  # ============================ IDENTITY / ACCOUNT ============================
+
+  /v1/account/open:
+    post:
+      tags: [identity]
+      summary: Signup/login handshake. Idempotent — same call for first signup and every later login.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountOpenRequest' }
+      responses:
+        '200':
+          description: Same account_id returned every time for the same user_id.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountOpenResponse' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /v1/account/cash:
+    get:
+      tags: [identity]
+      summary: Pre-session cash view. Use this before a session exists; use /v1/account/balance once one does.
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cash' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '404':
+          description: account_id does not resolve to any account row (the one broker/reads endpoint that 404s).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
 
   # ============================ BROKER — ORDERS ============================
 
@@ -51,7 +109,10 @@ paths:
         '422':
           description: >
             Business reject. reason ∈ {unknown_instrument, bad_qty, bad_side,
-            bad_price, bad_type, insufficient_funds, no_market_price}.
+            bad_price, bad_type, insufficient_funds, no_market_price}. no_market_price
+            is reachable (market-buy pricing works once the exchange instance is
+            wired and the instrument has printed a quote) — not an unconditional
+            reject.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ReasonEnvelope' }
@@ -69,7 +130,7 @@ paths:
             schema: { $ref: '#/components/schemas/CancelOrderRequest' }
       responses:
         '202':
-          description: Cancel accepted locally and punched. Outcome arrives async.
+          description: Cancel accepted locally and punched. Outcome arrives async. Repeating a cancel already in flight returns the same 202 without re-punching (idempotent).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OrderIdResponse' }
@@ -77,7 +138,7 @@ paths:
         '405': { $ref: '#/components/responses/ErrorEnvelope' }
         '409':
           description: >
-            CancelFailed. reason ∈ {no_session, unknown_order, not_cancellable}.
+            reason ∈ {no_session, unknown_order, not_cancellable}.
             unknown_order deliberately merges "not found" and "belongs to another account".
           content:
             application/json:
@@ -96,7 +157,7 @@ paths:
             schema: { $ref: '#/components/schemas/ModifyOrderRequest' }
       responses:
         '200':
-          description: modify_status = "ok" or "partial". Surface warning on partial.
+          description: modify_status = "ok" or "partial". Surface warning verbatim on partial.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ModifyResponse' }
@@ -115,7 +176,7 @@ paths:
   /v1/account/transfer:
     post:
       tags: [money]
-      summary: Bank ↔ trading transfer. Never emits 409.
+      summary: Bank ↔ trading transfer. Never emits 409 (confirmed by a real-backend regression test).
       requestBody:
         required: true
         content:
@@ -144,7 +205,7 @@ paths:
   /v1/account/balance:
     get:
       tags: [account-live]
-      summary: Four cash buckets of the live account.
+      summary: Four cash buckets of the live account. Requires a live session.
       parameters:
         - { $ref: '#/components/parameters/AccountId' }
       responses:
@@ -155,14 +216,18 @@ paths:
               schema: { $ref: '#/components/schemas/Balance' }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
         '405': { $ref: '#/components/responses/ErrorEnvelope' }
-        '409': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409':
+          description: 'Exact body: {"error":"no live session for account"}.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
         '500': { $ref: '#/components/responses/ErrorEnvelope' }
         '504': { $ref: '#/components/responses/ErrorEnvelope' }
 
   /v1/account/positions:
     get:
       tags: [account-live]
-      summary: Open positions. mark_available currently always false (Phase 7).
+      summary: Open positions. mark_available is conditionally true (per-instance wiring + first trade), not permanently false.
       parameters:
         - { $ref: '#/components/parameters/AccountId' }
         - name: instrument
@@ -185,7 +250,7 @@ paths:
   /v1/account/orders:
     get:
       tags: [account-live]
-      summary: Working set only (working / partially_filled). Terminals live under /trades.
+      summary: Working set only (working / partially_filled). No instrument filter exists on this endpoint.
       parameters:
         - { $ref: '#/components/parameters/AccountId' }
       responses:
@@ -203,7 +268,7 @@ paths:
   /v1/account/observation:
     get:
       tags: [account-live]
-      summary: PREFERRED dashboard read — atomic balance+positions+orders + recent trades.
+      summary: PREFERRED dashboard read — atomic balance+positions+orders + recent trades (confirmed real, a genuine bundle).
       parameters:
         - { $ref: '#/components/parameters/AccountId' }
       responses:
@@ -232,11 +297,12 @@ paths:
           in: query
           required: false
           schema: { type: integer, default: 50, minimum: 1 }
+          description: No client-visible upper bound; silently clamps to the server's internal cap (500) rather than erroring.
         - name: before
           in: query
           required: false
           schema: { type: string, format: date-time }
-          description: Pass the previous response's next_before to page older.
+          description: RFC3339. Pass the previous response's next_before to page older.
       responses:
         '200':
           description: OK (incl. empty)
@@ -251,7 +317,7 @@ paths:
   /v1/account/pnl:
     get:
       tags: [account-durable]
-      summary: Account-wide P&L aggregate. Empty account → zero-filled 200.
+      summary: Account-wide P&L aggregate. A separate endpoint from /trades (no summary= flag). Empty account → zero-filled 200.
       parameters:
         - { $ref: '#/components/parameters/AccountId' }
       responses:
@@ -268,7 +334,7 @@ paths:
   /v1/account/costs:
     get:
       tags: [account-durable]
-      summary: Per-trade cost/tax breakdown. Country-dispatched (IN only; US → 501).
+      summary: Per-trade cost/tax breakdown. Country-dispatched (IN only; US → 501). A separate endpoint from costs/summary.
       parameters:
         - { $ref: '#/components/parameters/AccountId' }
         - { $ref: '#/components/parameters/Country' }
@@ -282,7 +348,7 @@ paths:
           schema: { type: string, format: date-time }
       responses:
         '200':
-          description: OK (incl. empty). Only non-zero cost lines are present.
+          description: OK (incl. empty). Only non-zero cost lines are present. Response key is "trades".
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CostsPage' }
@@ -295,7 +361,7 @@ paths:
   /v1/account/costs/summary:
     get:
       tags: [account-durable]
-      summary: Account-wide cost aggregate. Same country rules as /costs.
+      summary: Account-wide cost aggregate. Same country rules as /costs. A separate endpoint, not a sub-key of /costs.
       parameters:
         - { $ref: '#/components/parameters/AccountId' }
         - { $ref: '#/components/parameters/Country' }
@@ -317,8 +383,10 @@ paths:
     get:
       tags: [market-data]
       summary: >
-        Candle history (pull). Durable-read family: 200 (incl. empty) / 400 / 503.
+        Candle history (pull). Durable-read family: 200 (incl. empty) / 400 / 503 / 405.
         Never 404/409/504. Times are naive-local ISO; timezone named in the response.
+        next_cursor is in a DIFFERENT, non-standard format from broker/reads' RFC3339
+        `before` cursor — do not assume one cursor format applies everywhere on this API.
       parameters:
         - name: market
           in: query
@@ -328,6 +396,7 @@ paths:
           in: query
           required: true
           schema: { type: string, example: ACME }
+          description: Not validated against a known-instrument list here; an unknown instrument yields an empty page, not an error.
         - name: timeframe
           in: query
           required: true
@@ -341,16 +410,17 @@ paths:
           in: query
           required: true
           schema: { type: string, example: "2026-10-09T15:30:00" }
+          description: Must be strictly after from.
         - name: cursor
           in: query
           required: false
           schema: { type: string }
-          description: Pass the previous response's next_cursor to page forward.
+          description: Pass the previous response's next_cursor to page forward. Naive-local, non-RFC3339.
         - name: limit
           in: query
           required: false
-          schema: { type: integer }
-          description: Absent/oversized → engine default/clamp.
+          schema: { type: integer, default: 100 }
+          description: Default 100, server hard cap 500 (silently clamped, not rejected). 0 or negative → 400.
       responses:
         '200':
           description: OK (incl. empty candles[])
@@ -358,28 +428,61 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CandleResponse' }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
         '503': { $ref: '#/components/responses/ErrorEnvelope' }
 
-  # ===================== SESSION / REFERENCE (PROVISIONAL) =====================
+  /v1/ws:
+    get:
+      tags: [market-data]
+      summary: >
+        WebSocket upgrade for live price/quote/depth/candle streaming. Requires a
+        session id from a prior session/canonical or session/ondemand call — this
+        socket is NOT anonymous (unlike the old mock-era contract). Message framing
+        is documented in ws-schemas.md, not here (OpenAPI can't describe WS frames).
+        These are the pre-upgrade-only HTTP responses; a successful request upgrades
+        and never returns a JSON body.
+      parameters:
+        - name: session
+          in: query
+          required: true
+          schema: { type: string }
+          description: session_id from session/canonical or session/ondemand.
+      responses:
+        '401':
+          description: session query param absent/empty.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '404':
+          description: session unknown, not Active, or its market is gone/not Live.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  # ===================== SESSION / CATALOG =====================
 
   /v1/markets:
     get:
-      tags: [session-reference]
-      summary: Market list for the dropdown + Home live-session card. PROVISIONAL.
+      tags: [session]
+      summary: Market catalog + canonical liveness + current-or-next session window. No prices, no per-market auth.
       responses:
         '200':
-          description: OK
+          description: Always 200, even for an empty catalog ({"markets":[]}, never null).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MarketsResponse' }
-        '400': { $ref: '#/components/responses/ErrorEnvelope' }
-        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
 
   /v1/instruments:
     get:
-      tags: [session-reference]
+      tags: [session]
       summary: >
-        Instrument list for a market + the tick/price formatting contract. PROVISIONAL.
+        Static instrument list for a market. Only id + tick_size are on the wire —
+        name/lot_size/price_decimals are NOT returned by the real backend; this
+        contract models them as optional, client-defaulted fields (see schema) until
+        the backend adds them, per BACKEND-INTEGRATION-PLAN.md §4.
       parameters:
         - name: market
           in: query
@@ -392,86 +495,173 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/InstrumentsResponse' }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
-        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+        '404': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
 
-  /v1/session:
-    get:
-      tags: [session-reference]
-      summary: What session the account is in right now (one-session gate). PROVISIONAL.
+  /session/canonical:
+    post:
+      tags: [session]
+      summary: >
+        Join the live, always-on canonical market for a market tag. Reconnect-safe:
+        calling again while already Active on the SAME market returns the same
+        session_id/participant_id with zero broker I/O.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JoinCanonicalRequest' }
+      responses:
+        '200':
+          description: 'status is always the literal "active" on 200.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JoinCanonicalResponse' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+        '409':
+          description: ErrMarketNotLive / ErrLiveElsewhere / ErrSessionAlreadyLive (error envelope, not reason — different convention from orders).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /session/ondemand:
+    post:
+      tags: [session]
+      summary: >
+        Spin up a one-user ephemeral market instance. A HELD request — does not
+        return until the full setup pipeline completes or fails (SetupTimeout 90s
+        default). No condition field exists on this endpoint; the scenario picker is
+        frontend-only state (BACKEND-INTEGRATION-PLAN.md §4).
       parameters:
-        - { $ref: '#/components/parameters/AccountId' }
-      responses:
-        '200':
-          description: OK. active=null when the account is in no session.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SessionState' }
-        '400': { $ref: '#/components/responses/ErrorEnvelope' }
-        '503': { $ref: '#/components/responses/ErrorEnvelope' }
-
-  /v1/session/live/join:
-    post:
-      tags: [session-reference]
-      summary: Join the live session for a market. PROVISIONAL.
+        - name: market
+          in: query
+          required: true
+          schema: { type: string }
+        - name: duration
+          in: query
+          required: false
+          schema: { type: integer, default: 60, minimum: 5, maximum: 120 }
+          description: Minutes. Absent/empty defaults to 60. Non-integer or outside [5,120] → 400.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/JoinLiveRequest' }
+            schema: { $ref: '#/components/schemas/OnDemandRequest' }
       responses:
         '200':
-          description: Session binding.
+          description: Either warming_up (setup succeeded) or insufficient_funds (money-floor gate rejected the account) — both are 200, not an error.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ActiveSession' }
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/OnDemandWarmingUpBody' }
+                  - { $ref: '#/components/schemas/OnDemandInsufficientFundsBody' }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
         '409':
-          description: Already in another session (must exit first).
+          description: ErrAlreadyInSession / ErrSessionAlreadyLive (error envelope).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ReasonEnvelope' }
-        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
+        '503':
+          description: >
+            Setup failed, or SetupTimeout fired. NOT the generic error envelope —
+            uses a distinct {status:"failed",reason} shape.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnDemandFailedBody' }
 
-  /v1/session/practice/start:
+  /session/status:
+    get:
+      tags: [session]
+      summary: >
+        Fallback/recovery status read by session id. Pure registry read, works for
+        both canonical and on-demand sessions. Vocabulary is DIFFERENT from
+        /session/current's — do not conflate the two.
+      parameters:
+        - name: session
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Shape varies by state — warmup_ends_at/session_ends_at/reason are each omitted (not zeroed) when not applicable.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionStatusBody' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '404':
+          description: 'session id not in the registry. Exact body: {"error":"unknown session"}.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /session/current:
     post:
-      tags: [session-reference]
-      summary: Start a practice session with a scenario + length. PROVISIONAL.
+      tags: [session]
+      summary: >
+        Resolve "does this user have a live session, and where" purely from
+        identity — no session_id needed client-side. Vocabulary is DIFFERENT from
+        /session/status's — do not conflate the two.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/StartPracticeRequest' }
+            schema: { $ref: '#/components/schemas/SessionCurrentRequest' }
       responses:
         '200':
-          description: Session binding.
+          description: warmup_ends_at/session_ends_at populated only when mode=="ondemand".
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ActiveSession' }
+              schema: { $ref: '#/components/schemas/SessionCurrentResponse' }
         '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '404':
+          description: 'User has no session. Exact body: {"error":"no session for user"}.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
+
+  /session/exit:
+    post:
+      tags: [session]
+      summary: >
+        Exit the current session (mode-branched server-side). Canonical: a
+        broker-reported "already gone" collapses to 200 (idempotent). On-demand: an
+        already-reaped session returns 404, NOT a 200 — this asymmetry is
+        deliberate; treat 404 as success for on-demand specifically.
+      parameters:
+        - name: session
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 'Exact body: {"status":"ended"}.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionExitResponse' }
+        '400': { $ref: '#/components/responses/ErrorEnvelope' }
+        '404':
+          description: Unknown session id (canonical) OR an on-demand session already reaped — treat as success for on-demand.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '405': { $ref: '#/components/responses/ErrorEnvelope' }
         '409':
-          description: Already in another session, or below minimum balance.
+          description: 'Canonical only: session exists but is Starting/Stopping/Ended (double-leave guard).'
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ReasonEnvelope' }
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/ErrorEnvelope' }
         '503': { $ref: '#/components/responses/ErrorEnvelope' }
-
-  /v1/session/exit:
-    post:
-      tags: [session-reference]
-      summary: Exit the current session. PROVISIONAL.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ExitSessionRequest' }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ExitSessionResponse' }
-        '400': { $ref: '#/components/responses/ErrorEnvelope' }
-        '503': { $ref: '#/components/responses/ErrorEnvelope' }
+        '504': { $ref: '#/components/responses/ErrorEnvelope' }
 
 components:
 
@@ -486,7 +676,7 @@ components:
       in: query
       required: true
       schema: { type: string, enum: [IN, US] }
-      description: CASE-SENSITIVE two-letter uppercase. US → 501.
+      description: CASE-SENSITIVE two-letter uppercase. US → 501. Lowercase (e.g. "in") → 400, not a forgiving match.
 
   responses:
     ErrorEnvelope:
@@ -515,6 +705,30 @@ components:
       properties:
         order_id: { type: string, description: 'shape "<account_id>:<seq>"; opaque' }
 
+    # ---- identity ----
+    Identity:
+      type: object
+      required: [user_id]
+      properties:
+        email: { type: string, description: attribution only, never validated }
+        user_id: { type: string, description: required, trusted verbatim as the identity key }
+    AccountOpenRequest:
+      type: object
+      required: [user]
+      properties:
+        user: { $ref: '#/components/schemas/Identity' }
+    AccountOpenResponse:
+      type: object
+      required: [account_id]
+      properties:
+        account_id: { type: string, description: opaque broker handle; same value returned on every call for the same user_id }
+    Cash:
+      type: object
+      required: [trading_cash, bank_cash]
+      properties:
+        trading_cash: { type: integer, format: int64, description: 'signed; may be negative (debt is a legal state). NOT live-updated while a session is active — read balance instead once one exists.' }
+        bank_cash: { type: integer, format: int64, description: non-negative }
+
     # ---- orders ----
     PlaceOrderRequest:
       type: object
@@ -524,12 +738,12 @@ components:
         instrument: { type: string }
         side: { type: string, enum: [buy, sell] }
         type: { type: string, enum: [limit, market] }
-        tif: { type: string, enum: [gtc, ioc, fok], description: FOK accepted on wire but exchange-rejected today }
-        qty: { type: integer, format: int64, description: '> 0' }
+        tif: { type: string, enum: [gtc, ioc, fok], description: 'FOK is accepted on the wire but NOT honored downstream — the exchange matcher has no FOK branch; a fok order behaves exactly like ioc (partial fills allowed), confirmed unresolved against source.' }
+        qty: { type: integer, format: int64, description: '> 0; <=0 is a 422 bad_qty, not a 400 (funnel-level check, not wire-level)' }
         limit_price:
           type: integer
           format: int64
-          description: Ticks. Required > 0 iff type==limit; ignored for market.
+          description: Ticks. Required > 0 iff type==limit (else 422 bad_price); ignored for market.
 
     CancelOrderRequest:
       type: object
@@ -546,7 +760,7 @@ components:
         order_id: { type: string, description: the OLD order to cancel }
         instrument: { type: string }
         side: { type: string, enum: [buy, sell] }
-        is_market: { type: boolean, description: 'true→IOC market replacement; false→GTC limit' }
+        is_market: { type: boolean, description: 'true→IOC market replacement; false→GTC limit. No tif field — the replacement cannot request FOK.' }
         new_qty: { type: integer, format: int64 }
         new_price:
           type: integer
@@ -556,7 +770,7 @@ components:
     ModifyLeg:
       type: object
       properties:
-        status: { type: string, description: 'e.g. pending/accepted/rejected/failed' }
+        status: { type: string, description: 'cancel leg: pending|failed. replace leg: accepted|rejected.' }
         order_id: { type: string }
         reason: { type: string }
     ModifyResponse:
@@ -568,7 +782,10 @@ components:
         replace:
           nullable: true
           allOf: [{ $ref: '#/components/schemas/ModifyLeg' }]
-        warning: { type: string, description: present on partial; surface verbatim }
+          description: null (not an empty object) when the cancel leg was rejected and place was never attempted.
+        warning:
+          type: string
+          description: 'present only on modify_status=="partial". Verbatim text: "original order is being cancelled; replacement was rejected — you may be left with no order".'
 
     # ---- money ----
     TransferRequest:
@@ -577,8 +794,8 @@ components:
       properties:
         account_id: { type: string }
         direction: { type: string, enum: [to_bank, to_trading] }
-        amount: { type: integer, format: int64, description: '> 0' }
-        unit: { type: string, description: parsed but IGNORED (reserved) }
+        amount: { type: integer, format: int64, description: '> 0 (checked at the HTTP layer, so this is a 400, unlike order qty/price)' }
+        unit: { type: string, description: parsed but completely IGNORED server-side (reserved for a future unit vocabulary) }
     TransferResponse:
       type: object
       required: [available, bank]
@@ -605,22 +822,22 @@ components:
       type: object
       required: [available, reserved, settled, bank]
       properties:
-        available: { type: integer, format: int64, description: may be negative (debt legal) }
+        available: { type: integer, format: int64, description: may be negative (debt is a legal state) }
         reserved: { type: integer, format: int64 }
         settled: { type: integer, format: int64 }
-        bank: { type: integer, format: int64 }
+        bank: { type: integer, format: int64, description: never negative (DB check constraint) }
 
     Position:
       type: object
       required: [instrument, qty, reserved_qty, weighted_avg_entry, mark_available, ltp, gross_unrealized]
       properties:
         instrument: { type: string }
-        qty: { type: integer, format: int64 }
+        qty: { type: integer, format: int64, description: free-to-sell units }
         reserved_qty: { type: integer, format: int64 }
         weighted_avg_entry: { type: integer, format: int64, description: ticks; 0 iff flat }
-        mark_available: { type: boolean, description: currently always false (Phase 7) }
+        mark_available: { type: boolean, description: 'true once the exchange instance is wired AND the instrument has printed a trade; false for a cold/untraded instrument. NOT an unconditional false.' }
         ltp: { type: integer, format: int64, description: 0 when mark_available false }
-        gross_unrealized: { type: integer, format: int64, description: 0 when mark_available false }
+        gross_unrealized: { type: integer, format: int64, description: 0 when mark_available false. There is no net-unrealized field — intentionally absent, not a placeholder. }
 
     OpenOrder:
       type: object
@@ -628,15 +845,18 @@ components:
       properties:
         order_id: { type: string }
         instrument: { type: string }
-        side: { type: string, enum: [buy, sell] }
+        side: { type: string, enum: [buy, sell, unknown], description: unknown is the zero/out-of-range defensive value }
         is_market: { type: boolean }
         limit_price: { type: integer, format: int64, description: ticks; 0 for market }
         orig_qty: { type: integer, format: int64 }
         remaining_qty: { type: integer, format: int64 }
-        filled_qty: { type: integer, format: int64 }
-        reserved_cash: { type: integer, format: int64 }
-        reserved_units: { type: integer, format: int64 }
-        status: { type: string, enum: [working, partially_filled] }
+        filled_qty: { type: integer, format: int64, description: 'derived at the HTTP edge as orig_qty - remaining_qty' }
+        reserved_cash: { type: integer, format: int64, description: 0 for sell reservations }
+        reserved_units: { type: integer, format: int64, description: 0 for buy reservations }
+        status:
+          type: string
+          enum: [unknown, working, partially_filled, filled, cancelled, rejected]
+          description: Only working/partially_filled ever appear on THIS endpoint (terminal orders are deleted from the shard on settlement) — but the enum itself is 6-valued.
         cancel_in_flight: { type: boolean }
 
     Observation:
@@ -653,8 +873,8 @@ components:
         recent_trades:
           type: array
           items: { $ref: '#/components/schemas/Trade' }
-          description: up to 20, newest-first
-        trades_degraded: { type: boolean }
+          description: 'hardcoded limit of 20, newest-first. No client-adjustable count exists (no recent_n param).'
+        trades_degraded: { type: boolean, description: 'true iff the durable trades-read failed; the live half (balance/positions/orders) is unaffected either way.' }
 
     # ---- durable reads ----
     Trade:
@@ -663,17 +883,20 @@ components:
       properties:
         trade_id: { type: string }
         instrument: { type: string }
-        direction: { type: string, enum: [long, short] }
+        direction: { type: string, description: 'free-form string at this seam ("long"/"short" observed); not a closed Go enum at the broker/reads boundary' }
         quantity: { type: integer, format: int64 }
         entry_price: { type: integer, format: int64 }
         exit_price: { type: integer, format: int64 }
-        entry_at: { type: string, format: date-time }
-        exit_at: { type: string, format: date-time }
-        gross_pnl: { type: integer, format: int64 }
-        total_costs: { type: integer, format: int64 }
-        net_pnl: { type: integer, format: int64 }
-        pnl_pct: { type: number, format: float }
-        exit_reason: { type: string }
+        entry_at: { type: string, format: date-time, description: RFC3339 }
+        exit_at: { type: string, format: date-time, description: RFC3339; the keyset-pagination column }
+        gross_pnl: { type: integer, format: int64, description: signed }
+        total_costs: { type: integer, format: int64, description: '>= 0' }
+        net_pnl: { type: integer, format: int64, description: signed }
+        pnl_pct:
+          type: number
+          format: float
+          description: 'float32 on the wire — the one deliberate float exception on this whole surface (a display percentage, not money/price).'
+        exit_reason: { type: string, description: free-form string, not a closed enum at this seam }
     TradesPage:
       type: object
       required: [trades, next_before]
@@ -685,7 +908,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: null = last page
+          description: RFC3339. null = last page.
 
     PnlSummary:
       type: object
@@ -696,13 +919,13 @@ components:
         total_costs: { type: integer, format: int64 }
         net_pnl: { type: integer, format: int64 }
         win_count: { type: integer }
-        loss_count: { type: integer, description: 'breakeven counted in neither' }
+        loss_count: { type: integer, description: 'breakeven (net_pnl==0) counted in neither' }
 
     CostLine:
       type: object
       required: [name, amount]
       properties:
-        name: { type: string, description: 'IN: stt/exchange/sebi/stamp/gst/autosquare_fee' }
+        name: { type: string, description: 'IN: stt/exchange/sebi/stamp/gst/autosquare_fee (brokerage is never emitted at the per-trade level, always 0 by design)' }
         amount: { type: integer, format: int64 }
     CostsTrade:
       type: object
@@ -721,6 +944,7 @@ components:
         trades:
           type: array
           items: { $ref: '#/components/schemas/CostsTrade' }
+          description: 'key is "trades" (not "per_trade") — confirmed against source.'
         next_before:
           type: string
           format: date-time
@@ -733,6 +957,7 @@ components:
         lines:
           type: array
           items: { $ref: '#/components/schemas/CostLine' }
+          description: zero-sum lines dropped, not emitted as amount:0
         total: { type: integer, format: int64 }
 
     # ---- market-data history ----
@@ -740,8 +965,8 @@ components:
       type: object
       required: [start, end, open, high, low, close, volume]
       properties:
-        start: { type: string, description: naive-local ISO }
-        end: { type: string, description: naive-local ISO, exclusive }
+        start: { type: string, description: naive-local ISO, no offset/Z suffix }
+        end: { type: string, description: naive-local ISO, exclusive, == start + timeframe }
         open: { type: integer, format: int64 }
         high: { type: integer, format: int64 }
         low: { type: integer, format: int64 }
@@ -754,18 +979,34 @@ components:
         market: { type: string }
         instrument: { type: string }
         timeframe: { type: string, enum: ["1m", "5m", "30m", "60m"] }
-        timezone: { type: string, example: Asia/Kolkata }
-        from: { type: string }
-        to: { type: string }
+        timezone: { type: string, example: Asia/Kolkata, description: resolved IANA zone name }
+        from: { type: string, description: echoed verbatim from the request query string }
+        to: { type: string, description: echoed verbatim from the request query string }
         candles:
           type: array
           items: { $ref: '#/components/schemas/Bar' }
+          description: never null; empty window → []
         next_cursor:
           type: string
           nullable: true
-          description: null = last page
+          description: naive-local ISO string, non-RFC3339 (different cursor format from broker/reads' before cursor). null = last page.
 
-    # ---- session / reference (provisional) ----
+    # ---- session / catalog ----
+    MarketSession:
+      type: object
+      required: [opens_at, closes_at, duration, wall_clock]
+      properties:
+        opens_at: { type: string, format: date-time, description: 'RFC3339 UTC (plain, not nano). Literal configured open time, not open-minus-preopen-lead.' }
+        closes_at: { type: string, format: date-time, description: RFC3339 UTC (plain, not nano) }
+        duration: { type: string, description: 'Go time.Duration.String(), e.g. "6h15m0s"' }
+        wall_clock: { type: string, example: "09:15–15:30 IST", description: human string from config HH:MM plus resolved tz abbreviation }
+    Market:
+      type: object
+      required: [tag, active, session]
+      properties:
+        tag: { type: string, example: IN }
+        active: { type: boolean, description: 'true iff a Live canonical market record currently exists for this tag; on-demand instances never affect this flag.' }
+        session: { $ref: '#/components/schemas/MarketSession' }
     MarketsResponse:
       type: object
       required: [markets]
@@ -773,6 +1014,30 @@ components:
         markets:
           type: array
           items: { $ref: '#/components/schemas/Market' }
+
+    Instrument:
+      type: object
+      required: [id, tick_size]
+      properties:
+        id: { type: string, example: ACME }
+        tick_size: { type: integer, format: int64, description: smallest price increment, in ticks }
+        name:
+          type: string
+          nullable: true
+          description: >
+            NOT returned by the real backend today (confirmed gap). Optional here so
+            the frontend can default it client-side (e.g. to the instrument id) until
+            the backend adds it — see BACKEND-INTEGRATION-PLAN.md §4/§6. Remove the
+            default, not this field, once the backend ships it.
+        lot_size:
+          type: integer
+          format: int64
+          nullable: true
+          description: Same gap/handling as name — client-defaults (e.g. 1) until the backend adds it.
+        price_decimals:
+          type: integer
+          nullable: true
+          description: Same gap/handling as name — client-defaults (e.g. 2) until the backend adds it.
     InstrumentsResponse:
       type: object
       required: [market, instruments]
@@ -781,74 +1046,84 @@ components:
         instruments:
           type: array
           items: { $ref: '#/components/schemas/Instrument' }
-    JoinLiveRequest:
+
+    JoinCanonicalRequest:
       type: object
-      required: [account_id, market]
+      required: [user, market]
       properties:
-        account_id: { type: string }
+        user: { $ref: '#/components/schemas/Identity' }
+        market: { type: string, description: a configured market tag }
+    JoinCanonicalResponse:
+      type: object
+      required: [session_id, participant_id, status]
+      properties:
+        session_id: { type: string }
+        participant_id: { type: string }
+        status: { type: string, enum: [active], description: always the literal "active" on 200 }
+
+    OnDemandRequest:
+      type: object
+      required: [user]
+      properties:
+        user: { $ref: '#/components/schemas/Identity' }
+    OnDemandWarmingUpBody:
+      type: object
+      required: [status, session_id, warmup_ends_at, session_ends_at]
+      properties:
+        status: { type: string, enum: [warming_up] }
+        session_id: { type: string }
+        warmup_ends_at: { type: string, description: 'RFC3339Nano UTC, e.g. "2026-03-15T10:05:00.000000000Z" — NOT plain RFC3339.' }
+        session_ends_at: { type: string, description: RFC3339Nano UTC }
+    OnDemandInsufficientFundsBody:
+      type: object
+      required: [status, message]
+      properties:
+        status: { type: string, enum: [insufficient_funds] }
+        message: { type: string }
+    OnDemandFailedBody:
+      type: object
+      required: [status, reason]
+      properties:
+        status: { type: string, enum: [failed] }
+        reason: { type: string, description: raw underlying cause string, e.g. "install_failed: ..." }
+
+    SessionStatusBody:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [warming_up, ready, failed, ended]
+          description: 'DIFFERENT vocabulary from /session/current''s status field for the SAME underlying states (Starting→warming_up, Active→ready, Stopping/Ended→ended, Failed→failed). Do not conflate the two enums.'
+        warmup_ends_at: { type: string, nullable: true, description: RFC3339Nano. Omitted (not present), not zeroed, when not applicable. }
+        session_ends_at: { type: string, nullable: true, description: RFC3339Nano. Omitted when not applicable. }
+        reason: { type: string, nullable: true, description: present only when status=="failed" }
+
+    SessionCurrentRequest:
+      type: object
+      required: [user]
+      properties:
+        user:
+          type: object
+          required: [user_id]
+          properties:
+            user_id: { type: string }
+    SessionCurrentResponse:
+      type: object
+      required: [session_id, mode, market, status]
+      properties:
+        session_id: { type: string }
+        mode: { type: string, enum: [canonical, ondemand] }
         market: { type: string }
-    StartPracticeRequest:
+        status:
+          type: string
+          enum: [starting, active, stopping, ended, failed]
+          description: 'Raw SessionState.String() vocabulary — DIFFERENT from /session/status''s UI-facing labels for the same states. Do not conflate the two enums.'
+        warmup_ends_at: { type: string, nullable: true, description: RFC3339Nano. Populated ONLY when mode=="ondemand"; canonical sessions never carry this. }
+        session_ends_at: { type: string, nullable: true, description: RFC3339Nano. Populated ONLY when mode=="ondemand".}
+
+    SessionExitResponse:
       type: object
-      required: [account_id, market, condition, length_minutes]
+      required: [status]
       properties:
-        account_id: { type: string }
-        market: { type: string }
-        condition: { $ref: '#/components/schemas/PracticeCondition' }
-        length_minutes:
-          type: integer
-          enum: [60, 75, 90, 105]
-    ExitSessionRequest:
-      type: object
-      required: [account_id]
-      properties:
-        account_id: { type: string }
-    ExitSessionResponse:
-      type: object
-      properties:
-        ok: { type: boolean }
-    PracticeCondition:
-      type: string
-      enum: [normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity]
-    LiveSessionInfo:
-      type: object
-      required: [phase, opens_at, closes_at]
-      properties:
-        phase: { type: string, enum: [preopen, open, closing, closed] }
-        opens_at: { type: string, description: naive-local ISO }
-        closes_at: { type: string, description: naive-local ISO }
-    Market:
-      type: object
-      required: [code, name, timezone, live_session]
-      properties:
-        code: { type: string, example: IN }
-        name: { type: string, example: India }
-        timezone: { type: string, example: Asia/Kolkata }
-        live_session: { $ref: '#/components/schemas/LiveSessionInfo' }
-    Instrument:
-      type: object
-      required: [instrument, name, tick_size, lot_size, price_decimals]
-      properties:
-        instrument: { type: string, example: ACME }
-        name: { type: string, example: Acme Industries }
-        tick_size: { type: integer, format: int64, description: smallest price increment in ticks }
-        lot_size: { type: integer, format: int64 }
-        price_decimals: { type: integer, description: decimals to show when rendering price }
-    ActiveSession:
-      type: object
-      required: [type, market, phase]
-      properties:
-        type: { type: string, enum: [live, practice] }
-        market: { type: string }
-        exchange_id: { type: string, description: backend-internal; UI treats as opaque or ignores }
-        phase: { type: string, enum: [preopen, open, closing, closed] }
-        closes_at: { type: string, nullable: true, description: naive-local ISO; practice may carry ends_at instead }
-        condition:
-          nullable: true
-          allOf: [{ $ref: '#/components/schemas/PracticeCondition' }]
-    SessionState:
-      type: object
-      required: [active]
-      properties:
-        active:
-          nullable: true
-          allOf: [{ $ref: '#/components/schemas/ActiveSession' }]
+        status: { type: string, enum: [ended] }

@@ -139,9 +139,20 @@ func wantError(t *testing.T, raw []byte) {
 	}
 }
 
-func (e *env) join(acct string) {
+// join opens the account (idempotent) and joins the canonical IN session, returning
+// the session_id (needed by callers that later call exit/status/dialWS by session id).
+func (e *env) join(acct string) string {
 	e.t.Helper()
-	e.want("POST", "/v1/session/live/join", `{"account_id":"`+acct+`","market":"IN"}`, 200)
+	e.want("POST", "/v1/account/open", `{"user":{"user_id":"`+acct+`"}}`, 200)
+	var resp api.JoinCanonicalResponse
+	decode(e.t, e.want("POST", "/session/canonical", `{"user":{"user_id":"`+acct+`"},"market":"IN"}`, 200), &resp)
+	return resp.SessionId
+}
+
+// exit leaves a session by its session_id (the real contract's carrier for /session/exit).
+func (e *env) exit(sessionID string) {
+	e.t.Helper()
+	e.want("POST", "/session/exit?session="+sessionID, "", 200)
 }
 
 // ---------------------------------------------------------------- session / reference
@@ -151,11 +162,14 @@ func TestReference(t *testing.T) {
 
 	var ms api.MarketsResponse
 	decode(t, e.want("GET", "/v1/markets", "", 200), &ms)
-	if len(ms.Markets) != 1 || ms.Markets[0].Code != "IN" || ms.Markets[0].Timezone != "Asia/Kolkata" {
-		t.Fatalf("want exactly one IN market, got %+v", ms.Markets)
+	if len(ms.Markets) != 1 || ms.Markets[0].Tag != "IN" || !ms.Markets[0].Active {
+		t.Fatalf("want exactly one active IN market, got %+v", ms.Markets)
 	}
-	if strings.ContainsAny(ms.Markets[0].LiveSession.OpensAt, "Z+") {
-		t.Fatalf("opens_at must be naive-local, got %q", ms.Markets[0].LiveSession.OpensAt)
+	if !ms.Markets[0].Session.ClosesAt.After(ms.Markets[0].Session.OpensAt) {
+		t.Fatalf("session window must open before it closes: %+v", ms.Markets[0].Session)
+	}
+	if ms.Markets[0].Session.WallClock == "" || ms.Markets[0].Session.Duration == "" {
+		t.Fatalf("wall_clock/duration must be set: %+v", ms.Markets[0].Session)
 	}
 
 	var in api.InstrumentsResponse
@@ -164,8 +178,11 @@ func TestReference(t *testing.T) {
 		t.Fatalf("want 2 IN instruments, got %+v", in)
 	}
 	for _, i := range in.Instruments {
-		if i.TickSize <= 0 || i.LotSize <= 0 || i.PriceDecimals < 0 {
+		if i.TickSize <= 0 {
 			t.Fatalf("bad formatting contract: %+v", i)
+		}
+		if i.Name != nil || i.LotSize != nil || i.PriceDecimals != nil {
+			t.Fatalf("name/lot_size/price_decimals must be absent on the wire (confirmed real-backend gap): %+v", i)
 		}
 	}
 	wantError(t, e.want("GET", "/v1/instruments", "", 400))
@@ -175,55 +192,58 @@ func TestReference(t *testing.T) {
 func TestSessionGate(t *testing.T) {
 	e := newEnv(t)
 
-	var st api.SessionState
-	decode(t, e.want("GET", "/v1/session?account_id=a1", "", 200), &st)
-	if st.Active != nil {
-		t.Fatalf("default session must be null, got %+v", st.Active)
-	}
-	wantError(t, e.want("GET", "/v1/session", "", 400))
+	wantError(t, e.want("GET", "/session/status?session=nope", "", 404))
+	wantError(t, e.want("GET", "/session/status", "", 400))
+	wantError(t, e.want("POST", "/session/current", `{"user":{"user_id":"a1"}}`, 404))
 
-	var live api.ActiveSession
-	decode(t, e.want("POST", "/v1/session/live/join", `{"account_id":"a1","market":"IN"}`, 200), &live)
-	if live.Type != api.Live || live.Market != "IN" {
-		t.Fatalf("bad live session: %+v", live)
-	}
-	decode(t, e.want("GET", "/v1/session?account_id=a1", "", 200), &st)
-	if st.Active == nil || st.Active.Type != api.Live {
-		t.Fatalf("session should now be active: %+v", st)
+	var live api.JoinCanonicalResponse
+	decode(t, e.want("POST", "/session/canonical", `{"user":{"user_id":"a1"},"market":"IN"}`, 200), &live)
+	if live.Status != api.JoinCanonicalResponseStatusActive || live.SessionId == "" {
+		t.Fatalf("bad canonical join: %+v", live)
 	}
 
-	// one-session gate: a second join/start is a 409 reason envelope
-	wantReason(t, e.want("POST", "/v1/session/live/join", `{"account_id":"a1","market":"IN"}`, 409), "already_in_session")
-	wantReason(t, e.want("POST", "/v1/session/practice/start",
-		`{"account_id":"a1","market":"IN","condition":"whipsaw","length_minutes":60}`, 409), "already_in_session")
+	var cur api.SessionCurrentResponse
+	decode(t, e.want("POST", "/session/current", `{"user":{"user_id":"a1"}}`, 200), &cur)
+	if cur.Mode != api.Canonical || cur.Status != api.SessionCurrentResponseStatusActive || cur.SessionId != live.SessionId {
+		t.Fatalf("session should now be current: %+v", cur)
+	}
+	var st api.SessionStatusBody
+	decode(t, e.want("GET", "/session/status?session="+live.SessionId, "", 200), &st)
+	if st.Status != api.SessionStatusBodyStatusReady {
+		t.Fatalf("canonical status should be ready: %+v", st)
+	}
+
+	// reconnect: same account, same market, already active -> the SAME session back, 200
+	var reconnect api.JoinCanonicalResponse
+	decode(t, e.want("POST", "/session/canonical", `{"user":{"user_id":"a1"},"market":"IN"}`, 200), &reconnect)
+	if reconnect.SessionId != live.SessionId {
+		t.Fatalf("reconnect must return the SAME session: %+v vs %+v", reconnect, live)
+	}
+
 	// other accounts are independent
-	e.want("POST", "/v1/session/live/join", `{"account_id":"a2","market":"IN"}`, 200)
+	e.want("POST", "/session/canonical", `{"user":{"user_id":"a2"},"market":"IN"}`, 200)
 
-	var ex api.ExitSessionResponse
-	decode(t, e.want("POST", "/v1/session/exit", `{"account_id":"a1"}`, 200), &ex)
-	if ex.Ok == nil || !*ex.Ok {
-		t.Fatal("exit must return ok:true")
-	}
-	decode(t, e.want("GET", "/v1/session?account_id=a1", "", 200), &st)
-	if st.Active != nil {
-		t.Fatal("session should be cleared after exit")
-	}
+	e.exit(live.SessionId)
+	wantError(t, e.want("POST", "/session/current", `{"user":{"user_id":"a1"}}`, 404))
+	wantError(t, e.want("GET", "/session/status?session="+live.SessionId, "", 404))
 
-	var prac api.ActiveSession
-	decode(t, e.want("POST", "/v1/session/practice/start",
-		`{"account_id":"a1","market":"IN","condition":"whipsaw","length_minutes":60}`, 200), &prac)
-	if prac.Type != api.Practice || prac.Condition == nil || *prac.Condition != api.Whipsaw {
-		t.Fatalf("bad practice session: %+v", prac)
+	// on-demand: no condition field on the wire; 200 warming_up, never a 409 for the gate
+	var od api.OnDemandWarmingUpBody
+	decode(t, e.want("POST", "/session/ondemand?market=IN&duration=60", `{"user":{"user_id":"a1"}}`, 200), &od)
+	if od.Status != api.WarmingUp || od.SessionId == "" || od.WarmupEndsAt == "" || od.SessionEndsAt == "" {
+		t.Fatalf("bad on-demand warming_up: %+v", od)
 	}
-	e.want("POST", "/v1/session/exit", `{"account_id":"a1"}`, 200)
+	// one-session gate: a second trigger for the same busy account is a 409 error envelope
+	wantError(t, e.want("POST", "/session/ondemand?market=IN&duration=60", `{"user":{"user_id":"a1"}}`, 409))
+	wantError(t, e.want("POST", "/session/canonical", `{"user":{"user_id":"a1"},"market":"IN"}`, 409))
+	e.exit(od.SessionId)
 
 	// validation -> 400 error envelope
-	wantError(t, e.want("POST", "/v1/session/practice/start",
-		`{"account_id":"a1","market":"IN","condition":"nope","length_minutes":60}`, 400))
-	wantError(t, e.want("POST", "/v1/session/practice/start",
-		`{"account_id":"a1","market":"IN","condition":"whipsaw","length_minutes":10}`, 400))
-	wantError(t, e.want("POST", "/v1/session/live/join", `{"account_id":"a1","market":"ZZ"}`, 400))
-	wantError(t, e.want("POST", "/v1/session/live/join", `{`, 400))
+	wantError(t, e.want("POST", "/session/ondemand?market=IN&duration=abc", `{"user":{"user_id":"a1"}}`, 400))
+	wantError(t, e.want("POST", "/session/ondemand?market=IN&duration=200", `{"user":{"user_id":"a1"}}`, 400))
+	wantError(t, e.want("POST", "/session/ondemand", `{"user":{"user_id":"a1"}}`, 400))
+	wantError(t, e.want("POST", "/session/canonical", `{"user":{"user_id":"a1"},"market":"ZZ"}`, 400))
+	wantError(t, e.want("POST", "/session/canonical", `{`, 400))
 }
 
 // ---------------------------------------------------------------- live reads: 409 without a session
@@ -235,7 +255,7 @@ func TestLiveReadsNeedASession(t *testing.T) {
 		wantError(t, e.want("GET", "/v1/account/"+p, "", 400))
 	}
 
-	e.join("s1")
+	sid := e.join("s1")
 	var bal api.Balance
 	decode(t, e.want("GET", "/v1/account/balance?account_id=s1", "", 200), &bal)
 
@@ -272,7 +292,7 @@ func TestLiveReadsNeedASession(t *testing.T) {
 		t.Fatalf("bad recent_trades/trades_degraded: %+v", obs)
 	}
 
-	e.want("POST", "/v1/session/exit", `{"account_id":"s1"}`, 200)
+	e.exit(sid)
 	wantError(t, e.want("GET", "/v1/account/observation?account_id=s1", "", 409))
 }
 
@@ -412,11 +432,11 @@ func TestOrders(t *testing.T) {
 	var mr api.ModifyResponse
 	mod := `{"account_id":"o1","order_id":"` + oid.OrderId + `","instrument":"ACME","side":"buy","is_market":false,"new_qty":5,"new_price":10055}`
 	decode(t, e.want("POST", "/v1/orders/modify", mod, 200), &mr)
-	if mr.ModifyStatus != api.Ok || mr.Replace == nil {
+	if mr.ModifyStatus != api.ModifyResponseModifyStatusOk || mr.Replace == nil {
 		t.Fatalf("bad modify ok: %+v", mr)
 	}
 	decode(t, e.want("POST", "/v1/orders/modify", strings.Replace(mod, oid.OrderId, "zz:3", 1), 409), &mr)
-	if mr.ModifyStatus != api.Rejected || mr.Replace != nil {
+	if mr.ModifyStatus != api.ModifyResponseModifyStatusRejected || mr.Replace != nil {
 		t.Fatalf("bad modify rejected: %+v", mr)
 	}
 }
@@ -449,9 +469,10 @@ func TestPlumbing(t *testing.T) {
 
 // ---------------------------------------------------------------- /ws
 
-func dialWS(t *testing.T, e *env) *websocket.Conn {
+// dialWS requires a session_id now (the socket is session-scoped, no longer anonymous).
+func dialWS(t *testing.T, e *env, sessionID string) *websocket.Conn {
 	t.Helper()
-	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(e.srv.URL, "http")+"/ws", nil)
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(e.srv.URL, "http")+"/v1/ws?session="+sessionID, nil)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -460,9 +481,20 @@ func dialWS(t *testing.T, e *env) *websocket.Conn {
 	return conn
 }
 
+func TestWSRequiresASession(t *testing.T) {
+	e := newEnv(t)
+	if _, resp, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(e.srv.URL, "http")+"/v1/ws", nil); err == nil || resp.StatusCode != 401 {
+		t.Fatalf("missing session: err=%v status=%v", err, resp)
+	}
+	if _, resp, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(e.srv.URL, "http")+"/v1/ws?session=bogus", nil); err == nil || resp.StatusCode != 404 {
+		t.Fatalf("unknown session: err=%v status=%v", err, resp)
+	}
+}
+
 func TestWS(t *testing.T) {
 	e := newEnv(t)
-	conn := dialWS(t, e)
+	sid := e.join("ws1")
+	conn := dialWS(t, e, sid)
 
 	var connected api.WsConnected
 	if err := conn.ReadJSON(&connected); err != nil {

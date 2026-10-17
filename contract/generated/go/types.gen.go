@@ -7,20 +7,6 @@ import (
 	"time"
 )
 
-// Defines values for ActiveSessionPhase.
-const (
-	ActiveSessionPhaseClosed  ActiveSessionPhase = "closed"
-	ActiveSessionPhaseClosing ActiveSessionPhase = "closing"
-	ActiveSessionPhaseOpen    ActiveSessionPhase = "open"
-	ActiveSessionPhasePreopen ActiveSessionPhase = "preopen"
-)
-
-// Defines values for ActiveSessionType.
-const (
-	Live     ActiveSessionType = "live"
-	Practice ActiveSessionType = "practice"
-)
-
 // Defines values for CandleResponseTimeframe.
 const (
 	CandleResponseTimeframeN1m  CandleResponseTimeframe = "1m"
@@ -29,12 +15,9 @@ const (
 	CandleResponseTimeframeN60m CandleResponseTimeframe = "60m"
 )
 
-// Defines values for LiveSessionInfoPhase.
+// Defines values for JoinCanonicalResponseStatus.
 const (
-	LiveSessionInfoPhaseClosed  LiveSessionInfoPhase = "closed"
-	LiveSessionInfoPhaseClosing LiveSessionInfoPhase = "closing"
-	LiveSessionInfoPhaseOpen    LiveSessionInfoPhase = "open"
-	LiveSessionInfoPhasePreopen LiveSessionInfoPhase = "preopen"
+	JoinCanonicalResponseStatusActive JoinCanonicalResponseStatus = "active"
 )
 
 // Defines values for ModifyOrderRequestSide.
@@ -45,21 +28,41 @@ const (
 
 // Defines values for ModifyResponseModifyStatus.
 const (
-	Ok       ModifyResponseModifyStatus = "ok"
-	Partial  ModifyResponseModifyStatus = "partial"
-	Rejected ModifyResponseModifyStatus = "rejected"
+	ModifyResponseModifyStatusOk       ModifyResponseModifyStatus = "ok"
+	ModifyResponseModifyStatusPartial  ModifyResponseModifyStatus = "partial"
+	ModifyResponseModifyStatusRejected ModifyResponseModifyStatus = "rejected"
+)
+
+// Defines values for OnDemandFailedBodyStatus.
+const (
+	OnDemandFailedBodyStatusFailed OnDemandFailedBodyStatus = "failed"
+)
+
+// Defines values for OnDemandInsufficientFundsBodyStatus.
+const (
+	InsufficientFunds OnDemandInsufficientFundsBodyStatus = "insufficient_funds"
+)
+
+// Defines values for OnDemandWarmingUpBodyStatus.
+const (
+	WarmingUp OnDemandWarmingUpBodyStatus = "warming_up"
 )
 
 // Defines values for OpenOrderSide.
 const (
-	OpenOrderSideBuy  OpenOrderSide = "buy"
-	OpenOrderSideSell OpenOrderSide = "sell"
+	OpenOrderSideBuy     OpenOrderSide = "buy"
+	OpenOrderSideSell    OpenOrderSide = "sell"
+	OpenOrderSideUnknown OpenOrderSide = "unknown"
 )
 
 // Defines values for OpenOrderStatus.
 const (
-	PartiallyFilled OpenOrderStatus = "partially_filled"
-	Working         OpenOrderStatus = "working"
+	OpenOrderStatusCancelled       OpenOrderStatus = "cancelled"
+	OpenOrderStatusFilled          OpenOrderStatus = "filled"
+	OpenOrderStatusPartiallyFilled OpenOrderStatus = "partially_filled"
+	OpenOrderStatusRejected        OpenOrderStatus = "rejected"
+	OpenOrderStatusUnknown         OpenOrderStatus = "unknown"
+	OpenOrderStatusWorking         OpenOrderStatus = "working"
 )
 
 // Defines values for PlaceOrderRequestSide.
@@ -81,28 +84,32 @@ const (
 	PlaceOrderRequestTypeMarket PlaceOrderRequestType = "market"
 )
 
-// Defines values for PracticeCondition.
+// Defines values for SessionCurrentResponseMode.
 const (
-	CalmRange     PracticeCondition = "calm_range"
-	NormalDay     PracticeCondition = "normal_day"
-	ThinLiquidity PracticeCondition = "thin_liquidity"
-	TrendingDay   PracticeCondition = "trending_day"
-	UnstableDay   PracticeCondition = "unstable_day"
-	Whipsaw       PracticeCondition = "whipsaw"
+	Canonical SessionCurrentResponseMode = "canonical"
+	Ondemand  SessionCurrentResponseMode = "ondemand"
 )
 
-// Defines values for StartPracticeRequestLengthMinutes.
+// Defines values for SessionCurrentResponseStatus.
 const (
-	N105 StartPracticeRequestLengthMinutes = 105
-	N60  StartPracticeRequestLengthMinutes = 60
-	N75  StartPracticeRequestLengthMinutes = 75
-	N90  StartPracticeRequestLengthMinutes = 90
+	SessionCurrentResponseStatusActive   SessionCurrentResponseStatus = "active"
+	SessionCurrentResponseStatusEnded    SessionCurrentResponseStatus = "ended"
+	SessionCurrentResponseStatusFailed   SessionCurrentResponseStatus = "failed"
+	SessionCurrentResponseStatusStarting SessionCurrentResponseStatus = "starting"
+	SessionCurrentResponseStatusStopping SessionCurrentResponseStatus = "stopping"
 )
 
-// Defines values for TradeDirection.
+// Defines values for SessionExitResponseStatus.
 const (
-	Long  TradeDirection = "long"
-	Short TradeDirection = "short"
+	Ended SessionExitResponseStatus = "ended"
+)
+
+// Defines values for SessionStatusBodyStatus.
+const (
+	SessionStatusBodyStatusEnded     SessionStatusBodyStatus = "ended"
+	SessionStatusBodyStatusFailed    SessionStatusBodyStatus = "failed"
+	SessionStatusBodyStatusReady     SessionStatusBodyStatus = "ready"
+	SessionStatusBodyStatusWarmingUp SessionStatusBodyStatus = "warming_up"
 )
 
 // Defines values for TransferRequestDirection.
@@ -137,32 +144,26 @@ const (
 	GetV1CandlesParamsTimeframeN60m GetV1CandlesParamsTimeframe = "60m"
 )
 
-// ActiveSession defines model for ActiveSession.
-type ActiveSession struct {
-	// ClosesAt naive-local ISO; practice may carry ends_at instead
-	ClosesAt  *string            `json:"closes_at"`
-	Condition *PracticeCondition `json:"condition"`
-
-	// ExchangeId backend-internal; UI treats as opaque or ignores
-	ExchangeId *string            `json:"exchange_id,omitempty"`
-	Market     string             `json:"market"`
-	Phase      ActiveSessionPhase `json:"phase"`
-	Type       ActiveSessionType  `json:"type"`
+// AccountOpenRequest defines model for AccountOpenRequest.
+type AccountOpenRequest struct {
+	User Identity `json:"user"`
 }
 
-// ActiveSessionPhase defines model for ActiveSession.Phase.
-type ActiveSessionPhase string
-
-// ActiveSessionType defines model for ActiveSession.Type.
-type ActiveSessionType string
+// AccountOpenResponse defines model for AccountOpenResponse.
+type AccountOpenResponse struct {
+	// AccountId opaque broker handle; same value returned on every call for the same user_id
+	AccountId string `json:"account_id"`
+}
 
 // Balance defines model for Balance.
 type Balance struct {
-	// Available may be negative (debt legal)
+	// Available may be negative (debt is a legal state)
 	Available int64 `json:"available"`
-	Bank      int64 `json:"bank"`
-	Reserved  int64 `json:"reserved"`
-	Settled   int64 `json:"settled"`
+
+	// Bank never negative (DB check constraint)
+	Bank     int64 `json:"bank"`
+	Reserved int64 `json:"reserved"`
+	Settled  int64 `json:"settled"`
 }
 
 // Bar defines model for Bar.
@@ -188,37 +189,56 @@ type CancelOrderRequest struct {
 
 // CandleResponse defines model for CandleResponse.
 type CandleResponse struct {
-	Candles    []Bar  `json:"candles"`
+	// Candles never null; empty window → []
+	Candles []Bar `json:"candles"`
+
+	// From echoed verbatim from the request query string
 	From       string `json:"from"`
 	Instrument string `json:"instrument"`
 	Market     string `json:"market"`
 
-	// NextCursor null = last page
+	// NextCursor naive-local ISO string, non-RFC3339 (different cursor format from broker/reads' before cursor). null = last page.
 	NextCursor *string                 `json:"next_cursor"`
 	Timeframe  CandleResponseTimeframe `json:"timeframe"`
-	Timezone   string                  `json:"timezone"`
-	To         string                  `json:"to"`
+
+	// Timezone resolved IANA zone name
+	Timezone string `json:"timezone"`
+
+	// To echoed verbatim from the request query string
+	To string `json:"to"`
 }
 
 // CandleResponseTimeframe defines model for CandleResponse.Timeframe.
 type CandleResponseTimeframe string
 
+// Cash defines model for Cash.
+type Cash struct {
+	// BankCash non-negative
+	BankCash int64 `json:"bank_cash"`
+
+	// TradingCash signed; may be negative (debt is a legal state). NOT live-updated while a session is active — read balance instead once one exists.
+	TradingCash int64 `json:"trading_cash"`
+}
+
 // CostLine defines model for CostLine.
 type CostLine struct {
 	Amount int64 `json:"amount"`
 
-	// Name IN: stt/exchange/sebi/stamp/gst/autosquare_fee
+	// Name IN: stt/exchange/sebi/stamp/gst/autosquare_fee (brokerage is never emitted at the per-trade level, always 0 by design)
 	Name string `json:"name"`
 }
 
 // CostsPage defines model for CostsPage.
 type CostsPage struct {
-	NextBefore *time.Time   `json:"next_before"`
-	Trades     []CostsTrade `json:"trades"`
+	NextBefore *time.Time `json:"next_before"`
+
+	// Trades key is "trades" (not "per_trade") — confirmed against source.
+	Trades []CostsTrade `json:"trades"`
 }
 
 // CostsSummary defines model for CostsSummary.
 type CostsSummary struct {
+	// Lines zero-sum lines dropped, not emitted as amount:0
 	Lines      []CostLine `json:"lines"`
 	Total      int64      `json:"total"`
 	TradeCount int        `json:"trade_count"`
@@ -237,26 +257,29 @@ type ErrorBody struct {
 	Error string `json:"error"`
 }
 
-// ExitSessionRequest defines model for ExitSessionRequest.
-type ExitSessionRequest struct {
-	AccountId string `json:"account_id"`
-}
+// Identity defines model for Identity.
+type Identity struct {
+	// Email attribution only
+	Email *string `json:"email,omitempty"`
 
-// ExitSessionResponse defines model for ExitSessionResponse.
-type ExitSessionResponse struct {
-	Ok *bool `json:"ok,omitempty"`
+	// UserId required
+	UserId string `json:"user_id"`
 }
 
 // Instrument defines model for Instrument.
 type Instrument struct {
-	Instrument string `json:"instrument"`
-	LotSize    int64  `json:"lot_size"`
-	Name       string `json:"name"`
+	Id string `json:"id"`
 
-	// PriceDecimals decimals to show when rendering price
-	PriceDecimals int `json:"price_decimals"`
+	// LotSize Same gap/handling as name — client-defaults (e.g. 1) until the backend adds it.
+	LotSize *int64 `json:"lot_size"`
 
-	// TickSize smallest price increment in ticks
+	// Name NOT returned by the real backend today (confirmed gap). Optional here so the frontend can default it client-side (e.g. to the instrument id) until the backend adds it — see BACKEND-INTEGRATION-PLAN.md §4/§6. Remove the default, not this field, once the backend ships it.
+	Name *string `json:"name"`
+
+	// PriceDecimals Same gap/handling as name — client-defaults (e.g. 2) until the backend adds it.
+	PriceDecimals *int `json:"price_decimals"`
+
+	// TickSize smallest price increment
 	TickSize int64 `json:"tick_size"`
 }
 
@@ -266,31 +289,46 @@ type InstrumentsResponse struct {
 	Market      string       `json:"market"`
 }
 
-// JoinLiveRequest defines model for JoinLiveRequest.
-type JoinLiveRequest struct {
-	AccountId string `json:"account_id"`
-	Market    string `json:"market"`
+// JoinCanonicalRequest defines model for JoinCanonicalRequest.
+type JoinCanonicalRequest struct {
+	// Market a configured market tag
+	Market string   `json:"market"`
+	User   Identity `json:"user"`
 }
 
-// LiveSessionInfo defines model for LiveSessionInfo.
-type LiveSessionInfo struct {
-	// ClosesAt naive-local ISO
-	ClosesAt string `json:"closes_at"`
+// JoinCanonicalResponse defines model for JoinCanonicalResponse.
+type JoinCanonicalResponse struct {
+	ParticipantId string `json:"participant_id"`
+	SessionId     string `json:"session_id"`
 
-	// OpensAt naive-local ISO
-	OpensAt string               `json:"opens_at"`
-	Phase   LiveSessionInfoPhase `json:"phase"`
+	// Status always the literal "active" on 200
+	Status JoinCanonicalResponseStatus `json:"status"`
 }
 
-// LiveSessionInfoPhase defines model for LiveSessionInfo.Phase.
-type LiveSessionInfoPhase string
+// JoinCanonicalResponseStatus always the literal "active" on 200
+type JoinCanonicalResponseStatus string
 
 // Market defines model for Market.
 type Market struct {
-	Code        string          `json:"code"`
-	LiveSession LiveSessionInfo `json:"live_session"`
-	Name        string          `json:"name"`
-	Timezone    string          `json:"timezone"`
+	// Active true iff a Live canonical market record currently exists for this tag; on-demand instances never affect this flag.
+	Active  bool          `json:"active"`
+	Session MarketSession `json:"session"`
+	Tag     string        `json:"tag"`
+}
+
+// MarketSession defines model for MarketSession.
+type MarketSession struct {
+	// ClosesAt RFC3339 UTC (plain
+	ClosesAt time.Time `json:"closes_at"`
+
+	// Duration Go time.Duration.String(), e.g. "6h15m0s"
+	Duration string `json:"duration"`
+
+	// OpensAt RFC3339 UTC (plain, not nano). Literal configured open time, not open-minus-preopen-lead.
+	OpensAt time.Time `json:"opens_at"`
+
+	// WallClock human string from config HH:MM plus resolved tz abbreviation
+	WallClock string `json:"wall_clock"`
 }
 
 // MarketsResponse defines model for MarketsResponse.
@@ -303,7 +341,7 @@ type ModifyLeg struct {
 	OrderId *string `json:"order_id,omitempty"`
 	Reason  *string `json:"reason,omitempty"`
 
-	// Status e.g. pending/accepted/rejected/failed
+	// Status cancel leg: pending|failed. replace leg: accepted|rejected.
 	Status *string `json:"status,omitempty"`
 }
 
@@ -312,7 +350,7 @@ type ModifyOrderRequest struct {
 	AccountId  string `json:"account_id"`
 	Instrument string `json:"instrument"`
 
-	// IsMarket true→IOC market replacement; false→GTC limit
+	// IsMarket true→IOC market replacement; false→GTC limit. No tif field — the replacement cannot request FOK.
 	IsMarket bool `json:"is_market"`
 
 	// NewPrice Required > 0 iff is_market==false; ignored for market.
@@ -331,9 +369,11 @@ type ModifyOrderRequestSide string
 type ModifyResponse struct {
 	Cancel       ModifyLeg                  `json:"cancel"`
 	ModifyStatus ModifyResponseModifyStatus `json:"modify_status"`
-	Replace      *ModifyLeg                 `json:"replace"`
 
-	// Warning present on partial; surface verbatim
+	// Replace null (not an empty object) when the cancel leg was rejected and place was never attempted.
+	Replace *ModifyLeg `json:"replace"`
+
+	// Warning present only on modify_status=="partial". Verbatim text: "original order is being cancelled; replacement was rejected — you may be left with no order".
 	Warning *string `json:"warning,omitempty"`
 }
 
@@ -346,33 +386,83 @@ type Observation struct {
 	Orders    []OpenOrder `json:"orders"`
 	Positions []Position  `json:"positions"`
 
-	// RecentTrades up to 20, newest-first
-	RecentTrades   []Trade `json:"recent_trades"`
-	TradesDegraded bool    `json:"trades_degraded"`
+	// RecentTrades hardcoded limit of 20, newest-first. No client-adjustable count exists (no recent_n param).
+	RecentTrades []Trade `json:"recent_trades"`
+
+	// TradesDegraded true iff the durable trades-read failed; the live half (balance/positions/orders) is unaffected either way.
+	TradesDegraded bool `json:"trades_degraded"`
 }
+
+// OnDemandFailedBody defines model for OnDemandFailedBody.
+type OnDemandFailedBody struct {
+	// Reason raw underlying cause string
+	Reason string                   `json:"reason"`
+	Status OnDemandFailedBodyStatus `json:"status"`
+}
+
+// OnDemandFailedBodyStatus defines model for OnDemandFailedBody.Status.
+type OnDemandFailedBodyStatus string
+
+// OnDemandInsufficientFundsBody defines model for OnDemandInsufficientFundsBody.
+type OnDemandInsufficientFundsBody struct {
+	Message string                              `json:"message"`
+	Status  OnDemandInsufficientFundsBodyStatus `json:"status"`
+}
+
+// OnDemandInsufficientFundsBodyStatus defines model for OnDemandInsufficientFundsBody.Status.
+type OnDemandInsufficientFundsBodyStatus string
+
+// OnDemandRequest defines model for OnDemandRequest.
+type OnDemandRequest struct {
+	User Identity `json:"user"`
+}
+
+// OnDemandWarmingUpBody defines model for OnDemandWarmingUpBody.
+type OnDemandWarmingUpBody struct {
+	// SessionEndsAt RFC3339Nano UTC
+	SessionEndsAt string                      `json:"session_ends_at"`
+	SessionId     string                      `json:"session_id"`
+	Status        OnDemandWarmingUpBodyStatus `json:"status"`
+
+	// WarmupEndsAt RFC3339Nano UTC, e.g. "2026-03-15T10:05:00.000000000Z" — NOT plain RFC3339.
+	WarmupEndsAt string `json:"warmup_ends_at"`
+}
+
+// OnDemandWarmingUpBodyStatus defines model for OnDemandWarmingUpBody.Status.
+type OnDemandWarmingUpBodyStatus string
 
 // OpenOrder defines model for OpenOrder.
 type OpenOrder struct {
-	CancelInFlight bool   `json:"cancel_in_flight"`
-	FilledQty      int64  `json:"filled_qty"`
-	Instrument     string `json:"instrument"`
-	IsMarket       bool   `json:"is_market"`
+	CancelInFlight bool `json:"cancel_in_flight"`
+
+	// FilledQty derived at the HTTP edge as orig_qty - remaining_qty
+	FilledQty  int64  `json:"filled_qty"`
+	Instrument string `json:"instrument"`
+	IsMarket   bool   `json:"is_market"`
 
 	// LimitPrice ticks; 0 for market
-	LimitPrice    int64           `json:"limit_price"`
-	OrderId       string          `json:"order_id"`
-	OrigQty       int64           `json:"orig_qty"`
-	RemainingQty  int64           `json:"remaining_qty"`
-	ReservedCash  int64           `json:"reserved_cash"`
-	ReservedUnits int64           `json:"reserved_units"`
-	Side          OpenOrderSide   `json:"side"`
-	Status        OpenOrderStatus `json:"status"`
+	LimitPrice   int64  `json:"limit_price"`
+	OrderId      string `json:"order_id"`
+	OrigQty      int64  `json:"orig_qty"`
+	RemainingQty int64  `json:"remaining_qty"`
+
+	// ReservedCash 0 for sell reservations
+	ReservedCash int64 `json:"reserved_cash"`
+
+	// ReservedUnits 0 for buy reservations
+	ReservedUnits int64 `json:"reserved_units"`
+
+	// Side unknown is the zero/out-of-range defensive value
+	Side OpenOrderSide `json:"side"`
+
+	// Status Only working/partially_filled ever appear on THIS endpoint (terminal orders are deleted from the shard on settlement) — but the enum itself is 6-valued.
+	Status OpenOrderStatus `json:"status"`
 }
 
-// OpenOrderSide defines model for OpenOrder.Side.
+// OpenOrderSide unknown is the zero/out-of-range defensive value
 type OpenOrderSide string
 
-// OpenOrderStatus defines model for OpenOrder.Status.
+// OpenOrderStatus Only working/partially_filled ever appear on THIS endpoint (terminal orders are deleted from the shard on settlement) — but the enum itself is 6-valued.
 type OpenOrderStatus string
 
 // OrderIdResponse defines model for OrderIdResponse.
@@ -391,14 +481,14 @@ type PlaceOrderRequest struct {
 	AccountId  string `json:"account_id"`
 	Instrument string `json:"instrument"`
 
-	// LimitPrice Ticks. Required > 0 iff type==limit; ignored for market.
+	// LimitPrice Ticks. Required > 0 iff type==limit (else 422 bad_price); ignored for market.
 	LimitPrice *int64 `json:"limit_price,omitempty"`
 
-	// Qty > 0
+	// Qty > 0; <=0 is a 422 bad_qty, not a 400 (funnel-level check, not wire-level)
 	Qty  int64                 `json:"qty"`
 	Side PlaceOrderRequestSide `json:"side"`
 
-	// Tif FOK accepted on wire but exchange-rejected today
+	// Tif FOK is accepted on the wire but NOT honored downstream — the exchange matcher has no FOK branch; a fok order behaves exactly like ioc (partial fills allowed), confirmed unresolved against source.
 	Tif  PlaceOrderRequestTif  `json:"tif"`
 	Type PlaceOrderRequestType `json:"type"`
 }
@@ -406,7 +496,7 @@ type PlaceOrderRequest struct {
 // PlaceOrderRequestSide defines model for PlaceOrderRequest.Side.
 type PlaceOrderRequestSide string
 
-// PlaceOrderRequestTif FOK accepted on wire but exchange-rejected today
+// PlaceOrderRequestTif FOK is accepted on the wire but NOT honored downstream — the exchange matcher has no FOK branch; a fok order behaves exactly like ioc (partial fills allowed), confirmed unresolved against source.
 type PlaceOrderRequestTif string
 
 // PlaceOrderRequestType defines model for PlaceOrderRequest.Type.
@@ -416,7 +506,7 @@ type PlaceOrderRequestType string
 type PnlSummary struct {
 	GrossPnl int64 `json:"gross_pnl"`
 
-	// LossCount breakeven counted in neither
+	// LossCount breakeven (net_pnl==0) counted in neither
 	LossCount  int   `json:"loss_count"`
 	NetPnl     int64 `json:"net_pnl"`
 	TotalCosts int64 `json:"total_costs"`
@@ -426,17 +516,19 @@ type PnlSummary struct {
 
 // Position defines model for Position.
 type Position struct {
-	// GrossUnrealized 0 when mark_available false
+	// GrossUnrealized 0 when mark_available false. There is no net-unrealized field — intentionally absent
 	GrossUnrealized int64  `json:"gross_unrealized"`
 	Instrument      string `json:"instrument"`
 
 	// Ltp 0 when mark_available false
 	Ltp int64 `json:"ltp"`
 
-	// MarkAvailable currently always false (Phase 7)
-	MarkAvailable bool  `json:"mark_available"`
-	Qty           int64 `json:"qty"`
-	ReservedQty   int64 `json:"reserved_qty"`
+	// MarkAvailable true once the exchange instance is wired AND the instrument has printed a trade; false for a cold/untraded instrument. NOT an unconditional false.
+	MarkAvailable bool `json:"mark_available"`
+
+	// Qty free-to-sell units
+	Qty         int64 `json:"qty"`
+	ReservedQty int64 `json:"reserved_qty"`
 
 	// WeightedAvgEntry ticks; 0 iff flat
 	WeightedAvgEntry int64 `json:"weighted_avg_entry"`
@@ -447,54 +539,102 @@ type PositionsResponse struct {
 	Positions []Position `json:"positions"`
 }
 
-// PracticeCondition defines model for PracticeCondition.
-type PracticeCondition string
-
 // ReasonEnvelope defines model for ReasonEnvelope.
 type ReasonEnvelope struct {
 	// Reason snake_case business-reject tag
 	Reason string `json:"reason"`
 }
 
-// SessionState defines model for SessionState.
-type SessionState struct {
-	Active *ActiveSession `json:"active"`
+// SessionCurrentRequest defines model for SessionCurrentRequest.
+type SessionCurrentRequest struct {
+	User struct {
+		UserId string `json:"user_id"`
+	} `json:"user"`
 }
 
-// StartPracticeRequest defines model for StartPracticeRequest.
-type StartPracticeRequest struct {
-	AccountId     string                            `json:"account_id"`
-	Condition     PracticeCondition                 `json:"condition"`
-	LengthMinutes StartPracticeRequestLengthMinutes `json:"length_minutes"`
-	Market        string                            `json:"market"`
+// SessionCurrentResponse defines model for SessionCurrentResponse.
+type SessionCurrentResponse struct {
+	Market string                     `json:"market"`
+	Mode   SessionCurrentResponseMode `json:"mode"`
+
+	// SessionEndsAt RFC3339Nano. Populated ONLY when mode=="ondemand".
+	SessionEndsAt *string `json:"session_ends_at"`
+	SessionId     string  `json:"session_id"`
+
+	// Status Raw SessionState.String() vocabulary — DIFFERENT from /session/status's UI-facing labels for the same states. Do not conflate the two enums.
+	Status SessionCurrentResponseStatus `json:"status"`
+
+	// WarmupEndsAt RFC3339Nano. Populated ONLY when mode=="ondemand"; canonical sessions never carry this.
+	WarmupEndsAt *string `json:"warmup_ends_at"`
 }
 
-// StartPracticeRequestLengthMinutes defines model for StartPracticeRequest.LengthMinutes.
-type StartPracticeRequestLengthMinutes int
+// SessionCurrentResponseMode defines model for SessionCurrentResponse.Mode.
+type SessionCurrentResponseMode string
+
+// SessionCurrentResponseStatus Raw SessionState.String() vocabulary — DIFFERENT from /session/status's UI-facing labels for the same states. Do not conflate the two enums.
+type SessionCurrentResponseStatus string
+
+// SessionExitResponse defines model for SessionExitResponse.
+type SessionExitResponse struct {
+	Status SessionExitResponseStatus `json:"status"`
+}
+
+// SessionExitResponseStatus defines model for SessionExitResponse.Status.
+type SessionExitResponseStatus string
+
+// SessionStatusBody defines model for SessionStatusBody.
+type SessionStatusBody struct {
+	// Reason present only when status=="failed"
+	Reason *string `json:"reason"`
+
+	// SessionEndsAt RFC3339Nano. Omitted when not applicable.
+	SessionEndsAt *string `json:"session_ends_at"`
+
+	// Status DIFFERENT vocabulary from /session/current's status field for the SAME underlying states (Starting→warming_up, Active→ready, Stopping/Ended→ended, Failed→failed). Do not conflate the two enums.
+	Status SessionStatusBodyStatus `json:"status"`
+
+	// WarmupEndsAt RFC3339Nano. Omitted (not present)
+	WarmupEndsAt *string `json:"warmup_ends_at"`
+}
+
+// SessionStatusBodyStatus DIFFERENT vocabulary from /session/current's status field for the SAME underlying states (Starting→warming_up, Active→ready, Stopping/Ended→ended, Failed→failed). Do not conflate the two enums.
+type SessionStatusBodyStatus string
 
 // Trade defines model for Trade.
 type Trade struct {
-	Direction  TradeDirection `json:"direction"`
-	EntryAt    time.Time      `json:"entry_at"`
-	EntryPrice int64          `json:"entry_price"`
-	ExitAt     time.Time      `json:"exit_at"`
-	ExitPrice  int64          `json:"exit_price"`
-	ExitReason string         `json:"exit_reason"`
-	GrossPnl   int64          `json:"gross_pnl"`
-	Instrument string         `json:"instrument"`
-	NetPnl     int64          `json:"net_pnl"`
-	PnlPct     float32        `json:"pnl_pct"`
-	Quantity   int64          `json:"quantity"`
-	TotalCosts int64          `json:"total_costs"`
-	TradeId    string         `json:"trade_id"`
-}
+	// Direction free-form string at this seam ("long"/"short" observed); not a closed Go enum at the broker/reads boundary
+	Direction string `json:"direction"`
 
-// TradeDirection defines model for Trade.Direction.
-type TradeDirection string
+	// EntryAt RFC3339
+	EntryAt    time.Time `json:"entry_at"`
+	EntryPrice int64     `json:"entry_price"`
+
+	// ExitAt RFC3339; the keyset-pagination column
+	ExitAt    time.Time `json:"exit_at"`
+	ExitPrice int64     `json:"exit_price"`
+
+	// ExitReason free-form string
+	ExitReason string `json:"exit_reason"`
+
+	// GrossPnl signed
+	GrossPnl   int64  `json:"gross_pnl"`
+	Instrument string `json:"instrument"`
+
+	// NetPnl signed
+	NetPnl int64 `json:"net_pnl"`
+
+	// PnlPct float32 on the wire — the one deliberate float exception on this whole surface (a display percentage, not money/price).
+	PnlPct   float32 `json:"pnl_pct"`
+	Quantity int64   `json:"quantity"`
+
+	// TotalCosts >= 0
+	TotalCosts int64  `json:"total_costs"`
+	TradeId    string `json:"trade_id"`
+}
 
 // TradesPage defines model for TradesPage.
 type TradesPage struct {
-	// NextBefore null = last page
+	// NextBefore RFC3339. null = last page.
 	NextBefore *time.Time `json:"next_before"`
 	Trades     []Trade    `json:"trades"`
 }
@@ -503,11 +643,11 @@ type TradesPage struct {
 type TransferRequest struct {
 	AccountId string `json:"account_id"`
 
-	// Amount > 0
+	// Amount > 0 (checked at the HTTP layer, so this is a 400, unlike order qty/price)
 	Amount    int64                    `json:"amount"`
 	Direction TransferRequestDirection `json:"direction"`
 
-	// Unit parsed but IGNORED (reserved)
+	// Unit parsed but completely IGNORED server-side (reserved for a future unit vocabulary)
 	Unit *string `json:"unit,omitempty"`
 }
 
@@ -529,8 +669,31 @@ type Country string
 // ErrorEnvelope defines model for ErrorEnvelope.
 type ErrorEnvelope = ErrorBody
 
+// PostSessionExitParams defines parameters for PostSessionExit.
+type PostSessionExitParams struct {
+	Session string `form:"session" json:"session"`
+}
+
+// PostSessionOndemandParams defines parameters for PostSessionOndemand.
+type PostSessionOndemandParams struct {
+	Market string `form:"market" json:"market"`
+
+	// Duration Minutes. Absent/empty defaults to 60. Non-integer or outside [5,120] → 400.
+	Duration *int `form:"duration,omitempty" json:"duration,omitempty"`
+}
+
+// GetSessionStatusParams defines parameters for GetSessionStatus.
+type GetSessionStatusParams struct {
+	Session string `form:"session" json:"session"`
+}
+
 // GetV1AccountBalanceParams defines parameters for GetV1AccountBalance.
 type GetV1AccountBalanceParams struct {
+	AccountId AccountId `form:"account_id" json:"account_id"`
+}
+
+// GetV1AccountCashParams defines parameters for GetV1AccountCash.
+type GetV1AccountCashParams struct {
 	AccountId AccountId `form:"account_id" json:"account_id"`
 }
 
@@ -538,7 +701,7 @@ type GetV1AccountBalanceParams struct {
 type GetV1AccountCostsParams struct {
 	AccountId AccountId `form:"account_id" json:"account_id"`
 
-	// Country CASE-SENSITIVE two-letter uppercase. US → 501.
+	// Country CASE-SENSITIVE two-letter uppercase. US → 501. Lowercase (e.g. "in") → 400, not a forgiving match.
 	Country GetV1AccountCostsParamsCountry `form:"country" json:"country"`
 	Limit   *int                           `form:"limit,omitempty" json:"limit,omitempty"`
 	Before  *time.Time                     `form:"before,omitempty" json:"before,omitempty"`
@@ -551,7 +714,7 @@ type GetV1AccountCostsParamsCountry string
 type GetV1AccountCostsSummaryParams struct {
 	AccountId AccountId `form:"account_id" json:"account_id"`
 
-	// Country CASE-SENSITIVE two-letter uppercase. US → 501.
+	// Country CASE-SENSITIVE two-letter uppercase. US → 501. Lowercase (e.g. "in") → 400, not a forgiving match.
 	Country GetV1AccountCostsSummaryParamsCountry `form:"country" json:"country"`
 }
 
@@ -584,26 +747,32 @@ type GetV1AccountPositionsParams struct {
 // GetV1AccountTradesParams defines parameters for GetV1AccountTrades.
 type GetV1AccountTradesParams struct {
 	AccountId AccountId `form:"account_id" json:"account_id"`
-	Limit     *int      `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// Before Pass the previous response's next_before to page older.
+	// Limit No client-visible upper bound; silently clamps to the server's internal cap (500) rather than erroring.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Before RFC3339. Pass the previous response's next_before to page older.
 	Before *time.Time `form:"before,omitempty" json:"before,omitempty"`
 }
 
 // GetV1CandlesParams defines parameters for GetV1Candles.
 type GetV1CandlesParams struct {
-	Market     string                      `form:"market" json:"market"`
+	Market string `form:"market" json:"market"`
+
+	// Instrument Not validated against a known-instrument list here; an unknown instrument yields an empty page, not an error.
 	Instrument string                      `form:"instrument" json:"instrument"`
 	Timeframe  GetV1CandlesParamsTimeframe `form:"timeframe" json:"timeframe"`
 
 	// From Naive-local ISO-8601 in the market's timezone.
 	From string `form:"from" json:"from"`
-	To   string `form:"to" json:"to"`
 
-	// Cursor Pass the previous response's next_cursor to page forward.
+	// To Must be strictly after from.
+	To string `form:"to" json:"to"`
+
+	// Cursor Pass the previous response's next_cursor to page forward. Naive-local, non-RFC3339.
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 
-	// Limit Absent/oversized → engine default/clamp.
+	// Limit Default 100, server hard cap 500 (silently clamped, not rejected). 0 or negative → 400.
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
@@ -615,10 +784,23 @@ type GetV1InstrumentsParams struct {
 	Market string `form:"market" json:"market"`
 }
 
-// GetV1SessionParams defines parameters for GetV1Session.
-type GetV1SessionParams struct {
-	AccountId AccountId `form:"account_id" json:"account_id"`
+// GetV1WsParams defines parameters for GetV1Ws.
+type GetV1WsParams struct {
+	// Session session_id from session/canonical or session/ondemand.
+	Session string `form:"session" json:"session"`
 }
+
+// PostSessionCanonicalJSONRequestBody defines body for PostSessionCanonical for application/json ContentType.
+type PostSessionCanonicalJSONRequestBody = JoinCanonicalRequest
+
+// PostSessionCurrentJSONRequestBody defines body for PostSessionCurrent for application/json ContentType.
+type PostSessionCurrentJSONRequestBody = SessionCurrentRequest
+
+// PostSessionOndemandJSONRequestBody defines body for PostSessionOndemand for application/json ContentType.
+type PostSessionOndemandJSONRequestBody = OnDemandRequest
+
+// PostV1AccountOpenJSONRequestBody defines body for PostV1AccountOpen for application/json ContentType.
+type PostV1AccountOpenJSONRequestBody = AccountOpenRequest
 
 // PostV1AccountTransferJSONRequestBody defines body for PostV1AccountTransfer for application/json ContentType.
 type PostV1AccountTransferJSONRequestBody = TransferRequest
@@ -631,12 +813,3 @@ type PostV1OrdersCancelJSONRequestBody = CancelOrderRequest
 
 // PostV1OrdersModifyJSONRequestBody defines body for PostV1OrdersModify for application/json ContentType.
 type PostV1OrdersModifyJSONRequestBody = ModifyOrderRequest
-
-// PostV1SessionExitJSONRequestBody defines body for PostV1SessionExit for application/json ContentType.
-type PostV1SessionExitJSONRequestBody = ExitSessionRequest
-
-// PostV1SessionLiveJoinJSONRequestBody defines body for PostV1SessionLiveJoin for application/json ContentType.
-type PostV1SessionLiveJoinJSONRequestBody = JoinLiveRequest
-
-// PostV1SessionPracticeStartJSONRequestBody defines body for PostV1SessionPracticeStart for application/json ContentType.
-type PostV1SessionPracticeStartJSONRequestBody = StartPracticeRequest

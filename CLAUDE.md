@@ -220,9 +220,17 @@ into the generated structs with unknown fields rejected, so the mock can't drift
   is static placeholder data (`internal/catalog` = reference data, shared by all routes).
 - **Reference data:** one market, `IN` (Asia/Kolkata, 09:15–15:30), two invented instruments:
   `ACME` (tick 5, lot 1, 2 decimals, ref 10090) and `BETA` (tick 5, lot 10, 2 decimals, ref 4995).
-- **Session gate.** `GET /v1/session` is `{active:null}` until the account joins/starts.
-  A second join/start is `409 {reason:"already_in_session"}` until `POST /v1/session/exit`
-  (idempotent). Practice has no min-balance check yet.
+- **Session gate (SUPERSEDED — this bullet is now historical, kept for context on the
+  pre-rewrite mock only).** The old mock had a single `GET /v1/session` endpoint
+  (`{active:null}` until join/start, `409 {reason:"already_in_session"}` on a second
+  join/start). Per Phase 1/2 of `BACKEND-INTEGRATION-PLAN.md`, this is now
+  `POST /session/canonical` (join), `POST /session/ondemand` (practice — the
+  money-floor gate is a **200** `insufficient_funds` body, never a 409),
+  `POST /session/current` (resolve by identity) and `GET /session/status` (resolve by
+  session id — a *different* status vocabulary from `current`). The one-session gate
+  itself is unchanged in spirit: a busy account's second join/start is still a 409,
+  now via the `{"error":...}` envelope, not `{"reason":"already_in_session"}`. See
+  `mock/internal/{store,session}` for the current implementation.
 - **No session -> 409.** Live reads (`/balance /positions /orders /observation`) answer
   `409 {"error":…}` (error envelope); order POSTs answer `409 {"reason":"no_session"}`
   (reason envelope); a modify answers `409` with a `ModifyResponse` (`rejected`).
@@ -323,8 +331,16 @@ orders/trades/P&L tabs (3b) and the session bar's states (3c).
 - **has_* gating everywhere.** Last/change need `has_last`; the depth panel needs `has_bid` /
   `has_ask`; spread needs both. With no book (pre-open, closed) it says so and shows "—".
 - **Mock market (`mock/internal/market`).** A pure function of (instrument, simulated time), so
-  REST history, bars pushed over `/ws` and snapshots can never disagree (tested: a pushed bar
+  REST history, bars pushed over `/v1/ws` and snapshots can never disagree (tested: a pushed bar
   equals the same bar from `/v1/candles`).
+  **Internal phase vocabulary vs. wire vocabulary (Phase 1/2 of
+  `BACKEND-INTEGRATION-PLAN.md`).** The clock's own 4 internal phases
+  (`PhasePreopen`/`Open`/`Closing`/`Closed`, used below for book-availability timing)
+  are unchanged, but what goes out on the WS `snapshot.data.phase` wire field is now
+  the real backend's vocabulary (`unknown`/`open`/`auction`/`closed`) via
+  `market.WirePhase` — there is no `preopen` or `closing` value on the real wire;
+  `preopen`→`unknown`, `closing`→`auction`. The bullets below describe the clock's
+  internal simulation, which is a separate thing from what's serialized to the client.
   - *Session clock:* one market day (09:00 preopen, 09:15 open, 15:15 closing, 15:30 closed)
     plays in 6.5 real minutes (`MOCK_SPEED`, default 60 simulated seconds per real second),
     holds `closed` for `MOCK_CLOSED_HOLD` (default 30s), then the next day starts. A restart

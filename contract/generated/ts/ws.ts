@@ -18,8 +18,11 @@ type Schemas = components["schemas"];
 /** 1m / 5m / 30m / 60m — the same allowlist as GET /v1/candles. */
 export type Timeframe = Schemas["CandleResponse"]["timeframe"];
 
-/** Session state: preopen → open → closing → closed. Same enum as the REST side. */
-export type Phase = Schemas["ActiveSession"]["phase"];
+/**
+ * Session state carried ONLY on the WS snapshot frame — no session HTTP endpoint
+ * carries phase. Real backend vocabulary (NOT preopen/open/closing/closed).
+ */
+export type Phase = "unknown" | "open" | "auction" | "closed";
 
 /** A finalized bar — identical shape to the REST `Bar`. */
 export type WsBar = Schemas["Bar"];

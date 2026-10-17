@@ -2,7 +2,14 @@
 
 **Purpose:** the living map of every UI function, the data/API behind it, whether a contract exists, and the order to build in. Update as contracts land.
 
-**Last updated:** 2026-10-09 (Phase 0 scaffold landed — see §8)
+**Last updated:** 2026-10-17 (Backend-integration Phases 1+2 — contract rewritten to
+the real backend's actual shapes, and `mock/` rewritten to serve it, both on branch
+`contract-rewrite`; see `BACKEND-INTEGRATION-PLAN.md`,
+`PHASE-1-CONTRACT-REWRITE-PLAN.md`, `PHASE-2-MOCK-REWRITE-PLAN.md`. The 🟢 prov
+status below described the OLD, invented mock contract's shapes as "provisional but
+stable" — that contract has now been replaced wholesale, and the mock now actually
+serves it, so 🟢 prov rows are superseded (now 🔵, see below), not merely
+re-confirmed.)
 
 ---
 
@@ -54,9 +61,22 @@ Three axes total:
 | 27 | Record | P&L summary | `GET /account/pnl` | Broker | ✅ |
 | 28 | Record | Tax / cost per trade + summary | `GET /account/costs`, `/costs/summary` | Broker — IN only | 🟡 |
 
-**Legend:** ✅ real contract, build now · 🟢 prov = provisional-locked (build now, shape may shift ~10%) · 🟡 contract real but one path/field gated · ⬜ no contract, mock with invented shape
+**Legend:** ✅ real contract, build now · 🟢 prov = provisional-locked (build now, shape may shift ~10%) · 🟡 contract real but one path/field gated · ⬜ no contract, mock with invented shape · 🔵 real contract landed in Phase 1 (contract/openapi.yaml), mock/frontend not yet rewired (Phase 2/3/4)
 
-**Tally:** 14 ✅ · 8 🟢 · 3 🟡 · 4 ⬜ (one — #15 — is the formatting field, folded into instruments)
+**Tally (pre-Phase-1):** 14 ✅ · 8 🟢 · 3 🟡 · 4 ⬜ (one — #15 — is the formatting field, folded into instruments)
+
+**Post-Phase-1 status note:** every 🟢 prov row above (#4, #6, #7, #10, #11, #15, #25)
+now has a confirmed-real contract shape in `contract/openapi.yaml` — reclassify each
+as 🔵 (real contract landed, mock/frontend rewrite pending in Phase 2/3/4) rather than
+🟢. Row #2 (Auth/sign-in) is no longer "None" — `POST /v1/account/open` is now
+contracted (🔵); row #3 (open accounts on first visit) is served by the same
+endpoint, idempotently (🔵). Row #5 (balance) and row #8 (low-balance refill) keep
+their 🟡/⬜ status but the gating mechanism changes: balance is unreadable pre-session
+via `/v1/account/balance` (409) exactly as before, but a pre-session value is now
+available via the new `GET /v1/account/cash` (🔵) — Phase 4's Home-screen work should
+use that instead of showing "—". Row #10 (practice start) drops its `condition`/
+`length_minutes` body fields entirely — replaced by `POST /session/ondemand?market=&duration=`,
+frontend-only condition state, per `BACKEND-INTEGRATION-PLAN.md` §4.
 
 ---
 

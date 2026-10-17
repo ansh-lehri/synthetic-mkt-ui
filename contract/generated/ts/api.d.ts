@@ -4,6 +4,102 @@
  */
 
 export interface paths {
+    "/v1/account/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Signup/login handshake. Idempotent — same call for first signup and every later login. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AccountOpenRequest"];
+                };
+            };
+            responses: {
+                /** @description Same account_id returned every time for the same user_id. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountOpenResponse"];
+                    };
+                };
+                400: components["responses"]["ErrorEnvelope"];
+                405: components["responses"]["ErrorEnvelope"];
+                500: components["responses"]["ErrorEnvelope"];
+                503: components["responses"]["ErrorEnvelope"];
+                504: components["responses"]["ErrorEnvelope"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/account/cash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pre-session cash view. Use this before a session exists; use /v1/account/balance once one does. */
+        get: {
+            parameters: {
+                query: {
+                    account_id: components["parameters"]["AccountId"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Cash"];
+                    };
+                };
+                400: components["responses"]["ErrorEnvelope"];
+                /** @description account_id does not resolve to any account row (the one broker/reads endpoint that 404s). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                405: components["responses"]["ErrorEnvelope"];
+                500: components["responses"]["ErrorEnvelope"];
+                503: components["responses"]["ErrorEnvelope"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orders": {
         parameters: {
             query?: never;
@@ -47,7 +143,7 @@ export interface paths {
                         "application/json": components["schemas"]["ReasonEnvelope"];
                     };
                 };
-                /** @description Business reject. reason ∈ {unknown_instrument, bad_qty, bad_side, bad_price, bad_type, insufficient_funds, no_market_price}. */
+                /** @description Business reject. reason ∈ {unknown_instrument, bad_qty, bad_side, bad_price, bad_type, insufficient_funds, no_market_price}. no_market_price is reachable (market-buy pricing works once the exchange instance is wired and the instrument has printed a quote) — not an unconditional reject. */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -89,7 +185,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Cancel accepted locally and punched. Outcome arrives async. */
+                /** @description Cancel accepted locally and punched. Outcome arrives async. Repeating a cancel already in flight returns the same 202 without re-punching (idempotent). */
                 202: {
                     headers: {
                         [name: string]: unknown;
@@ -100,7 +196,7 @@ export interface paths {
                 };
                 400: components["responses"]["ErrorEnvelope"];
                 405: components["responses"]["ErrorEnvelope"];
-                /** @description CancelFailed. reason ∈ {no_session, unknown_order, not_cancellable}. unknown_order deliberately merges "not found" and "belongs to another account". */
+                /** @description reason ∈ {no_session, unknown_order, not_cancellable}. unknown_order deliberately merges "not found" and "belongs to another account". */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -142,7 +238,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description modify_status = "ok" or "partial". Surface warning on partial. */
+                /** @description modify_status = "ok" or "partial". Surface warning verbatim on partial. */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -181,7 +277,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bank ↔ trading transfer. Never emits 409. */
+        /** Bank ↔ trading transfer. Never emits 409 (confirmed by a real-backend regression test). */
         post: {
             parameters: {
                 query?: never;
@@ -234,7 +330,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Four cash buckets of the live account. */
+        /** Four cash buckets of the live account. Requires a live session. */
         get: {
             parameters: {
                 query: {
@@ -257,7 +353,15 @@ export interface paths {
                 };
                 400: components["responses"]["ErrorEnvelope"];
                 405: components["responses"]["ErrorEnvelope"];
-                409: components["responses"]["ErrorEnvelope"];
+                /** @description Exact body: {"error":"no live session for account"}. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
                 500: components["responses"]["ErrorEnvelope"];
                 504: components["responses"]["ErrorEnvelope"];
             };
@@ -277,7 +381,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Open positions. mark_available currently always false (Phase 7). */
+        /** Open positions. mark_available is conditionally true (per-instance wiring + first trade), not permanently false. */
         get: {
             parameters: {
                 query: {
@@ -322,7 +426,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Working set only (working / partially_filled). Terminals live under /trades. */
+        /** Working set only (working / partially_filled). No instrument filter exists on this endpoint. */
         get: {
             parameters: {
                 query: {
@@ -365,7 +469,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** PREFERRED dashboard read — atomic balance+positions+orders + recent trades. */
+        /** PREFERRED dashboard read — atomic balance+positions+orders + recent trades (confirmed real, a genuine bundle). */
         get: {
             parameters: {
                 query: {
@@ -413,8 +517,9 @@ export interface paths {
             parameters: {
                 query: {
                     account_id: components["parameters"]["AccountId"];
+                    /** @description No client-visible upper bound; silently clamps to the server's internal cap (500) rather than erroring. */
                     limit?: number;
-                    /** @description Pass the previous response's next_before to page older. */
+                    /** @description RFC3339. Pass the previous response's next_before to page older. */
                     before?: string;
                 };
                 header?: never;
@@ -453,7 +558,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Account-wide P&L aggregate. Empty account → zero-filled 200. */
+        /** Account-wide P&L aggregate. A separate endpoint from /trades (no summary= flag). Empty account → zero-filled 200. */
         get: {
             parameters: {
                 query: {
@@ -495,12 +600,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Per-trade cost/tax breakdown. Country-dispatched (IN only; US → 501). */
+        /** Per-trade cost/tax breakdown. Country-dispatched (IN only; US → 501). A separate endpoint from costs/summary. */
         get: {
             parameters: {
                 query: {
                     account_id: components["parameters"]["AccountId"];
-                    /** @description CASE-SENSITIVE two-letter uppercase. US → 501. */
+                    /** @description CASE-SENSITIVE two-letter uppercase. US → 501. Lowercase (e.g. "in") → 400, not a forgiving match. */
                     country: components["parameters"]["Country"];
                     limit?: number;
                     before?: string;
@@ -511,7 +616,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK (incl. empty). Only non-zero cost lines are present. */
+                /** @description OK (incl. empty). Only non-zero cost lines are present. Response key is "trades". */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -542,12 +647,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Account-wide cost aggregate. Same country rules as /costs. */
+        /** Account-wide cost aggregate. Same country rules as /costs. A separate endpoint, not a sub-key of /costs. */
         get: {
             parameters: {
                 query: {
                     account_id: components["parameters"]["AccountId"];
-                    /** @description CASE-SENSITIVE two-letter uppercase. US → 501. */
+                    /** @description CASE-SENSITIVE two-letter uppercase. US → 501. Lowercase (e.g. "in") → 400, not a forgiving match. */
                     country: components["parameters"]["Country"];
                 };
                 header?: never;
@@ -587,19 +692,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Candle history (pull). Durable-read family: 200 (incl. empty) / 400 / 503. Never 404/409/504. Times are naive-local ISO; timezone named in the response. */
+        /** Candle history (pull). Durable-read family: 200 (incl. empty) / 400 / 503 / 405. Never 404/409/504. Times are naive-local ISO; timezone named in the response. next_cursor is in a DIFFERENT, non-standard format from broker/reads' RFC3339 `before` cursor — do not assume one cursor format applies everywhere on this API. */
         get: {
             parameters: {
                 query: {
                     market: string;
+                    /** @description Not validated against a known-instrument list here; an unknown instrument yields an empty page, not an error. */
                     instrument: string;
                     timeframe: "1m" | "5m" | "30m" | "60m";
                     /** @description Naive-local ISO-8601 in the market's timezone. */
                     from: string;
+                    /** @description Must be strictly after from. */
                     to: string;
-                    /** @description Pass the previous response's next_cursor to page forward. */
+                    /** @description Pass the previous response's next_cursor to page forward. Naive-local, non-RFC3339. */
                     cursor?: string;
-                    /** @description Absent/oversized → engine default/clamp. */
+                    /** @description Default 100, server hard cap 500 (silently clamped, not rejected). 0 or negative → 400. */
                     limit?: number;
                 };
                 header?: never;
@@ -618,7 +725,57 @@ export interface paths {
                     };
                 };
                 400: components["responses"]["ErrorEnvelope"];
+                405: components["responses"]["ErrorEnvelope"];
                 503: components["responses"]["ErrorEnvelope"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ws": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** WebSocket upgrade for live price/quote/depth/candle streaming. Requires a session id from a prior session/canonical or session/ondemand call — this socket is NOT anonymous (unlike the old mock-era contract). Message framing is documented in ws-schemas.md, not here (OpenAPI can't describe WS frames). These are the pre-upgrade-only HTTP responses; a successful request upgrades and never returns a JSON body. */
+        get: {
+            parameters: {
+                query: {
+                    /** @description session_id from session/canonical or session/ondemand. */
+                    session: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description session query param absent/empty. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description session unknown, not Active, or its market is gone/not Live. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                405: components["responses"]["ErrorEnvelope"];
             };
         };
         put?: never;
@@ -636,7 +793,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Market list for the dropdown + Home live-session card. PROVISIONAL. */
+        /** Market catalog + canonical liveness + current-or-next session window. No prices, no per-market auth. */
         get: {
             parameters: {
                 query?: never;
@@ -646,7 +803,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Always 200, even for an empty catalog ({"markets":[]}, never null). */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -655,8 +812,8 @@ export interface paths {
                         "application/json": components["schemas"]["MarketsResponse"];
                     };
                 };
-                400: components["responses"]["ErrorEnvelope"];
-                503: components["responses"]["ErrorEnvelope"];
+                405: components["responses"]["ErrorEnvelope"];
+                500: components["responses"]["ErrorEnvelope"];
             };
         };
         put?: never;
@@ -674,7 +831,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Instrument list for a market + the tick/price formatting contract. PROVISIONAL. */
+        /** Static instrument list for a market. Only id + tick_size are on the wire — name/lot_size/price_decimals are NOT returned by the real backend; this contract models them as optional, client-defaulted fields (see schema) until the backend adds them, per BACKEND-INTEGRATION-PLAN.md §4. */
         get: {
             parameters: {
                 query: {
@@ -696,7 +853,9 @@ export interface paths {
                     };
                 };
                 400: components["responses"]["ErrorEnvelope"];
-                503: components["responses"]["ErrorEnvelope"];
+                404: components["responses"]["ErrorEnvelope"];
+                405: components["responses"]["ErrorEnvelope"];
+                500: components["responses"]["ErrorEnvelope"];
             };
         };
         put?: never;
@@ -707,18 +866,137 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/session": {
+    "/session/canonical": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** What session the account is in right now (one-session gate). PROVISIONAL. */
+        get?: never;
+        put?: never;
+        /** Join the live, always-on canonical market for a market tag. Reconnect-safe: calling again while already Active on the SAME market returns the same session_id/participant_id with zero broker I/O. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JoinCanonicalRequest"];
+                };
+            };
+            responses: {
+                /** @description status is always the literal "active" on 200. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JoinCanonicalResponse"];
+                    };
+                };
+                400: components["responses"]["ErrorEnvelope"];
+                405: components["responses"]["ErrorEnvelope"];
+                /** @description ErrMarketNotLive / ErrLiveElsewhere / ErrSessionAlreadyLive (error envelope, not reason — different convention from orders). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                500: components["responses"]["ErrorEnvelope"];
+                503: components["responses"]["ErrorEnvelope"];
+                504: components["responses"]["ErrorEnvelope"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/session/ondemand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Spin up a one-user ephemeral market instance. A HELD request — does not return until the full setup pipeline completes or fails (SetupTimeout 90s default). No condition field exists on this endpoint; the scenario picker is frontend-only state (BACKEND-INTEGRATION-PLAN.md §4). */
+        post: {
+            parameters: {
+                query: {
+                    market: string;
+                    /** @description Minutes. Absent/empty defaults to 60. Non-integer or outside [5,120] → 400. */
+                    duration?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["OnDemandRequest"];
+                };
+            };
+            responses: {
+                /** @description Either warming_up (setup succeeded) or insufficient_funds (money-floor gate rejected the account) — both are 200, not an error. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OnDemandWarmingUpBody"] | components["schemas"]["OnDemandInsufficientFundsBody"];
+                    };
+                };
+                400: components["responses"]["ErrorEnvelope"];
+                405: components["responses"]["ErrorEnvelope"];
+                /** @description ErrAlreadyInSession / ErrSessionAlreadyLive (error envelope). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                500: components["responses"]["ErrorEnvelope"];
+                /** @description Setup failed, or SetupTimeout fired. NOT the generic error envelope — uses a distinct {status:"failed",reason} shape. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OnDemandFailedBody"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/session/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fallback/recovery status read by session id. Pure registry read, works for both canonical and on-demand sessions. Vocabulary is DIFFERENT from /session/current's — do not conflate the two. */
         get: {
             parameters: {
                 query: {
-                    account_id: components["parameters"]["AccountId"];
+                    session: string;
                 };
                 header?: never;
                 path?: never;
@@ -726,17 +1004,26 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK. active=null when the account is in no session. */
+                /** @description Shape varies by state — warmup_ends_at/session_ends_at/reason are each omitted (not zeroed) when not applicable. */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["SessionState"];
+                        "application/json": components["schemas"]["SessionStatusBody"];
                     };
                 };
                 400: components["responses"]["ErrorEnvelope"];
-                503: components["responses"]["ErrorEnvelope"];
+                /** @description session id not in the registry. Exact body: {"error":"unknown session"}. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                405: components["responses"]["ErrorEnvelope"];
             };
         };
         put?: never;
@@ -747,7 +1034,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/session/live/join": {
+    "/session/current": {
         parameters: {
             query?: never;
             header?: never;
@@ -756,7 +1043,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Join the live session for a market. PROVISIONAL. */
+        /** Resolve "does this user have a live session, and where" purely from identity — no session_id needed client-side. Vocabulary is DIFFERENT from /session/status's — do not conflate the two. */
         post: {
             parameters: {
                 query?: never;
@@ -766,30 +1053,30 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["JoinLiveRequest"];
+                    "application/json": components["schemas"]["SessionCurrentRequest"];
                 };
             };
             responses: {
-                /** @description Session binding. */
+                /** @description warmup_ends_at/session_ends_at populated only when mode=="ondemand". */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ActiveSession"];
+                        "application/json": components["schemas"]["SessionCurrentResponse"];
                     };
                 };
                 400: components["responses"]["ErrorEnvelope"];
-                /** @description Already in another session (must exit first). */
-                409: {
+                /** @description User has no session. Exact body: {"error":"no session for user"}. */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ReasonEnvelope"];
+                        "application/json": components["schemas"]["ErrorBody"];
                     };
                 };
-                503: components["responses"]["ErrorEnvelope"];
+                405: components["responses"]["ErrorEnvelope"];
             };
         };
         delete?: never;
@@ -798,7 +1085,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/session/practice/start": {
+    "/session/exit": {
         parameters: {
             query?: never;
             header?: never;
@@ -807,82 +1094,50 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start a practice session with a scenario + length. PROVISIONAL. */
+        /** Exit the current session (mode-branched server-side). Canonical: a broker-reported "already gone" collapses to 200 (idempotent). On-demand: an already-reaped session returns 404, NOT a 200 — this asymmetry is deliberate; treat 404 as success for on-demand specifically. */
         post: {
             parameters: {
-                query?: never;
+                query: {
+                    session: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["StartPracticeRequest"];
-                };
-            };
+            requestBody?: never;
             responses: {
-                /** @description Session binding. */
+                /** @description Exact body: {"status":"ended"}. */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ActiveSession"];
+                        "application/json": components["schemas"]["SessionExitResponse"];
                     };
                 };
                 400: components["responses"]["ErrorEnvelope"];
-                /** @description Already in another session, or below minimum balance. */
+                /** @description Unknown session id (canonical) OR an on-demand session already reaped — treat as success for on-demand. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                405: components["responses"]["ErrorEnvelope"];
+                /** @description Canonical only: session exists but is Starting/Stopping/Ended (double-leave guard). */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ReasonEnvelope"];
+                        "application/json": components["schemas"]["ErrorBody"];
                     };
                 };
+                500: components["responses"]["ErrorEnvelope"];
                 503: components["responses"]["ErrorEnvelope"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/session/exit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Exit the current session. PROVISIONAL. */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["ExitSessionRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ExitSessionResponse"];
-                    };
-                };
-                400: components["responses"]["ErrorEnvelope"];
-                503: components["responses"]["ErrorEnvelope"];
+                504: components["responses"]["ErrorEnvelope"];
             };
         };
         delete?: never;
@@ -906,6 +1161,31 @@ export interface components {
             /** @description shape "<account_id>:<seq>"; opaque */
             order_id: string;
         };
+        Identity: {
+            /** @description attribution only */
+            email?: string;
+            /** @description required */
+            user_id: string;
+        };
+        AccountOpenRequest: {
+            user: components["schemas"]["Identity"];
+        };
+        AccountOpenResponse: {
+            /** @description opaque broker handle; same value returned on every call for the same user_id */
+            account_id: string;
+        };
+        Cash: {
+            /**
+             * Format: int64
+             * @description signed; may be negative (debt is a legal state). NOT live-updated while a session is active — read balance instead once one exists.
+             */
+            trading_cash: number;
+            /**
+             * Format: int64
+             * @description non-negative
+             */
+            bank_cash: number;
+        };
         PlaceOrderRequest: {
             account_id: string;
             instrument: string;
@@ -914,18 +1194,18 @@ export interface components {
             /** @enum {string} */
             type: "limit" | "market";
             /**
-             * @description FOK accepted on wire but exchange-rejected today
+             * @description FOK is accepted on the wire but NOT honored downstream — the exchange matcher has no FOK branch; a fok order behaves exactly like ioc (partial fills allowed), confirmed unresolved against source.
              * @enum {string}
              */
             tif: "gtc" | "ioc" | "fok";
             /**
              * Format: int64
-             * @description > 0
+             * @description > 0; <=0 is a 422 bad_qty, not a 400 (funnel-level check, not wire-level)
              */
             qty: number;
             /**
              * Format: int64
-             * @description Ticks. Required > 0 iff type==limit; ignored for market.
+             * @description Ticks. Required > 0 iff type==limit (else 422 bad_price); ignored for market.
              */
             limit_price?: number;
         };
@@ -940,7 +1220,7 @@ export interface components {
             instrument: string;
             /** @enum {string} */
             side: "buy" | "sell";
-            /** @description true→IOC market replacement; false→GTC limit */
+            /** @description true→IOC market replacement; false→GTC limit. No tif field — the replacement cannot request FOK. */
             is_market: boolean;
             /** Format: int64 */
             new_qty: number;
@@ -951,7 +1231,7 @@ export interface components {
             new_price?: number;
         };
         ModifyLeg: {
-            /** @description e.g. pending/accepted/rejected/failed */
+            /** @description cancel leg: pending|failed. replace leg: accepted|rejected. */
             status?: string;
             order_id?: string;
             reason?: string;
@@ -960,8 +1240,9 @@ export interface components {
             /** @enum {string} */
             modify_status: "ok" | "partial" | "rejected";
             cancel: components["schemas"]["ModifyLeg"];
+            /** @description null (not an empty object) when the cancel leg was rejected and place was never attempted. */
             replace?: components["schemas"]["ModifyLeg"] | null;
-            /** @description present on partial; surface verbatim */
+            /** @description present only on modify_status=="partial". Verbatim text: "original order is being cancelled; replacement was rejected — you may be left with no order". */
             warning?: string;
         };
         TransferRequest: {
@@ -970,10 +1251,10 @@ export interface components {
             direction: "to_bank" | "to_trading";
             /**
              * Format: int64
-             * @description > 0
+             * @description > 0 (checked at the HTTP layer, so this is a 400, unlike order qty/price)
              */
             amount: number;
-            /** @description parsed but IGNORED (reserved) */
+            /** @description parsed but completely IGNORED server-side (reserved for a future unit vocabulary) */
             unit?: string;
         };
         TransferResponse: {
@@ -991,19 +1272,25 @@ export interface components {
         Balance: {
             /**
              * Format: int64
-             * @description may be negative (debt legal)
+             * @description may be negative (debt is a legal state)
              */
             available: number;
             /** Format: int64 */
             reserved: number;
             /** Format: int64 */
             settled: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description never negative (DB check constraint)
+             */
             bank: number;
         };
         Position: {
             instrument: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description free-to-sell units
+             */
             qty: number;
             /** Format: int64 */
             reserved_qty: number;
@@ -1012,7 +1299,7 @@ export interface components {
              * @description ticks; 0 iff flat
              */
             weighted_avg_entry: number;
-            /** @description currently always false (Phase 7) */
+            /** @description true once the exchange instance is wired AND the instrument has printed a trade; false for a cold/untraded instrument. NOT an unconditional false. */
             mark_available: boolean;
             /**
              * Format: int64
@@ -1021,15 +1308,18 @@ export interface components {
             ltp: number;
             /**
              * Format: int64
-             * @description 0 when mark_available false
+             * @description 0 when mark_available false. There is no net-unrealized field — intentionally absent
              */
             gross_unrealized: number;
         };
         OpenOrder: {
             order_id: string;
             instrument: string;
-            /** @enum {string} */
-            side: "buy" | "sell";
+            /**
+             * @description unknown is the zero/out-of-range defensive value
+             * @enum {string}
+             */
+            side: "buy" | "sell" | "unknown";
             is_market: boolean;
             /**
              * Format: int64
@@ -1040,54 +1330,86 @@ export interface components {
             orig_qty: number;
             /** Format: int64 */
             remaining_qty: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description derived at the HTTP edge as orig_qty - remaining_qty
+             */
             filled_qty: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description 0 for sell reservations
+             */
             reserved_cash: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description 0 for buy reservations
+             */
             reserved_units: number;
-            /** @enum {string} */
-            status: "working" | "partially_filled";
+            /**
+             * @description Only working/partially_filled ever appear on THIS endpoint (terminal orders are deleted from the shard on settlement) — but the enum itself is 6-valued.
+             * @enum {string}
+             */
+            status: "unknown" | "working" | "partially_filled" | "filled" | "cancelled" | "rejected";
             cancel_in_flight: boolean;
         };
         Observation: {
             balance: components["schemas"]["Balance"];
             positions: components["schemas"]["Position"][];
             orders: components["schemas"]["OpenOrder"][];
-            /** @description up to 20, newest-first */
+            /** @description hardcoded limit of 20, newest-first. No client-adjustable count exists (no recent_n param). */
             recent_trades: components["schemas"]["Trade"][];
+            /** @description true iff the durable trades-read failed; the live half (balance/positions/orders) is unaffected either way. */
             trades_degraded: boolean;
         };
         Trade: {
             trade_id: string;
             instrument: string;
-            /** @enum {string} */
-            direction: "long" | "short";
+            /** @description free-form string at this seam ("long"/"short" observed); not a closed Go enum at the broker/reads boundary */
+            direction: string;
             /** Format: int64 */
             quantity: number;
             /** Format: int64 */
             entry_price: number;
             /** Format: int64 */
             exit_price: number;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description RFC3339
+             */
             entry_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description RFC3339; the keyset-pagination column
+             */
             exit_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description signed
+             */
             gross_pnl: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description >= 0
+             */
             total_costs: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description signed
+             */
             net_pnl: number;
-            /** Format: float */
+            /**
+             * Format: float
+             * @description float32 on the wire — the one deliberate float exception on this whole surface (a display percentage, not money/price).
+             */
             pnl_pct: number;
+            /** @description free-form string */
             exit_reason: string;
         };
         TradesPage: {
             trades: components["schemas"]["Trade"][];
             /**
              * Format: date-time
-             * @description null = last page
+             * @description RFC3339. null = last page.
              */
             next_before: string | null;
         };
@@ -1100,11 +1422,11 @@ export interface components {
             /** Format: int64 */
             net_pnl: number;
             win_count: number;
-            /** @description breakeven counted in neither */
+            /** @description breakeven (net_pnl==0) counted in neither */
             loss_count: number;
         };
         CostLine: {
-            /** @description IN: stt/exchange/sebi/stamp/gst/autosquare_fee */
+            /** @description IN: stt/exchange/sebi/stamp/gst/autosquare_fee (brokerage is never emitted at the per-trade level, always 0 by design) */
             name: string;
             /** Format: int64 */
             amount: number;
@@ -1117,12 +1439,14 @@ export interface components {
             total: number;
         };
         CostsPage: {
+            /** @description key is "trades" (not "per_trade") — confirmed against source. */
             trades: components["schemas"]["CostsTrade"][];
             /** Format: date-time */
             next_before: string | null;
         };
         CostsSummary: {
             trade_count: number;
+            /** @description zero-sum lines dropped, not emitted as amount:0 */
             lines: components["schemas"]["CostLine"][];
             /** Format: int64 */
             total: number;
@@ -1148,86 +1472,144 @@ export interface components {
             instrument: string;
             /** @enum {string} */
             timeframe: "1m" | "5m" | "30m" | "60m";
-            /** @example Asia/Kolkata */
+            /**
+             * @description resolved IANA zone name
+             * @example Asia/Kolkata
+             */
             timezone: string;
+            /** @description echoed verbatim from the request query string */
             from: string;
+            /** @description echoed verbatim from the request query string */
             to: string;
+            /** @description never null; empty window → [] */
             candles: components["schemas"]["Bar"][];
-            /** @description null = last page */
+            /** @description naive-local ISO string, non-RFC3339 (different cursor format from broker/reads' before cursor). null = last page. */
             next_cursor: string | null;
+        };
+        MarketSession: {
+            /**
+             * Format: date-time
+             * @description RFC3339 UTC (plain, not nano). Literal configured open time, not open-minus-preopen-lead.
+             */
+            opens_at: string;
+            /**
+             * Format: date-time
+             * @description RFC3339 UTC (plain
+             */
+            closes_at: string;
+            /** @description Go time.Duration.String(), e.g. "6h15m0s" */
+            duration: string;
+            /**
+             * @description human string from config HH:MM plus resolved tz abbreviation
+             * @example 09:15–15:30 IST
+             */
+            wall_clock: string;
+        };
+        Market: {
+            /** @example IN */
+            tag: string;
+            /** @description true iff a Live canonical market record currently exists for this tag; on-demand instances never affect this flag. */
+            active: boolean;
+            session: components["schemas"]["MarketSession"];
         };
         MarketsResponse: {
             markets: components["schemas"]["Market"][];
+        };
+        Instrument: {
+            /** @example ACME */
+            id: string;
+            /**
+             * Format: int64
+             * @description smallest price increment
+             */
+            tick_size: number;
+            /** @description NOT returned by the real backend today (confirmed gap). Optional here so the frontend can default it client-side (e.g. to the instrument id) until the backend adds it — see BACKEND-INTEGRATION-PLAN.md §4/§6. Remove the default, not this field, once the backend ships it. */
+            name?: string | null;
+            /**
+             * Format: int64
+             * @description Same gap/handling as name — client-defaults (e.g. 1) until the backend adds it.
+             */
+            lot_size?: number | null;
+            /** @description Same gap/handling as name — client-defaults (e.g. 2) until the backend adds it. */
+            price_decimals?: number | null;
         };
         InstrumentsResponse: {
             market: string;
             instruments: components["schemas"]["Instrument"][];
         };
-        JoinLiveRequest: {
-            account_id: string;
+        JoinCanonicalRequest: {
+            user: components["schemas"]["Identity"];
+            /** @description a configured market tag */
             market: string;
         };
-        StartPracticeRequest: {
-            account_id: string;
-            market: string;
-            condition: components["schemas"]["PracticeCondition"];
-            /** @enum {integer} */
-            length_minutes: 60 | 75 | 90 | 105;
-        };
-        ExitSessionRequest: {
-            account_id: string;
-        };
-        ExitSessionResponse: {
-            ok?: boolean;
-        };
-        /** @enum {string} */
-        PracticeCondition: "normal_day" | "calm_range" | "trending_day" | "whipsaw" | "unstable_day" | "thin_liquidity";
-        LiveSessionInfo: {
-            /** @enum {string} */
-            phase: "preopen" | "open" | "closing" | "closed";
-            /** @description naive-local ISO */
-            opens_at: string;
-            /** @description naive-local ISO */
-            closes_at: string;
-        };
-        Market: {
-            /** @example IN */
-            code: string;
-            /** @example India */
-            name: string;
-            /** @example Asia/Kolkata */
-            timezone: string;
-            live_session: components["schemas"]["LiveSessionInfo"];
-        };
-        Instrument: {
-            /** @example ACME */
-            instrument: string;
-            /** @example Acme Industries */
-            name: string;
+        JoinCanonicalResponse: {
+            session_id: string;
+            participant_id: string;
             /**
-             * Format: int64
-             * @description smallest price increment in ticks
+             * @description always the literal "active" on 200
+             * @enum {string}
              */
-            tick_size: number;
-            /** Format: int64 */
-            lot_size: number;
-            /** @description decimals to show when rendering price */
-            price_decimals: number;
+            status: "active";
         };
-        ActiveSession: {
+        OnDemandRequest: {
+            user: components["schemas"]["Identity"];
+        };
+        OnDemandWarmingUpBody: {
             /** @enum {string} */
-            type: "live" | "practice";
+            status: "warming_up";
+            session_id: string;
+            /** @description RFC3339Nano UTC, e.g. "2026-03-15T10:05:00.000000000Z" — NOT plain RFC3339. */
+            warmup_ends_at: string;
+            /** @description RFC3339Nano UTC */
+            session_ends_at: string;
+        };
+        OnDemandInsufficientFundsBody: {
+            /** @enum {string} */
+            status: "insufficient_funds";
+            message: string;
+        };
+        OnDemandFailedBody: {
+            /** @enum {string} */
+            status: "failed";
+            /** @description raw underlying cause string */
+            reason: string;
+        };
+        SessionStatusBody: {
+            /**
+             * @description DIFFERENT vocabulary from /session/current's status field for the SAME underlying states (Starting→warming_up, Active→ready, Stopping/Ended→ended, Failed→failed). Do not conflate the two enums.
+             * @enum {string}
+             */
+            status: "warming_up" | "ready" | "failed" | "ended";
+            /** @description RFC3339Nano. Omitted (not present) */
+            warmup_ends_at?: string | null;
+            /** @description RFC3339Nano. Omitted when not applicable. */
+            session_ends_at?: string | null;
+            /** @description present only when status=="failed" */
+            reason?: string | null;
+        };
+        SessionCurrentRequest: {
+            user: {
+                user_id: string;
+            };
+        };
+        SessionCurrentResponse: {
+            session_id: string;
+            /** @enum {string} */
+            mode: "canonical" | "ondemand";
             market: string;
-            /** @description backend-internal; UI treats as opaque or ignores */
-            exchange_id?: string;
-            /** @enum {string} */
-            phase: "preopen" | "open" | "closing" | "closed";
-            /** @description naive-local ISO; practice may carry ends_at instead */
-            closes_at?: string | null;
-            condition?: components["schemas"]["PracticeCondition"] | null;
+            /**
+             * @description Raw SessionState.String() vocabulary — DIFFERENT from /session/status's UI-facing labels for the same states. Do not conflate the two enums.
+             * @enum {string}
+             */
+            status: "starting" | "active" | "stopping" | "ended" | "failed";
+            /** @description RFC3339Nano. Populated ONLY when mode=="ondemand"; canonical sessions never carry this. */
+            warmup_ends_at?: string | null;
+            /** @description RFC3339Nano. Populated ONLY when mode=="ondemand". */
+            session_ends_at?: string | null;
         };
-        SessionState: {
-            active: components["schemas"]["ActiveSession"] | null;
+        SessionExitResponse: {
+            /** @enum {string} */
+            status: "ended";
         };
     };
     responses: {
@@ -1243,7 +1625,7 @@ export interface components {
     };
     parameters: {
         AccountId: string;
-        /** @description CASE-SENSITIVE two-letter uppercase. US → 501. */
+        /** @description CASE-SENSITIVE two-letter uppercase. US → 501. Lowercase (e.g. "in") → 400, not a forgiving match. */
         Country: "IN" | "US";
     };
     requestBodies: never;

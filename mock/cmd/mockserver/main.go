@@ -16,6 +16,7 @@ import (
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/broker"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/httpx"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/identity"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/market"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/marketdata"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/session"
@@ -52,10 +53,12 @@ func newHandlerWith(clock *market.Clock, brokerCfg ...broker.Config) http.Handle
 	if len(brokerCfg) > 0 {
 		cfg = brokerCfg[0] // tests inject a fake wall clock and fill delays
 	}
-	sessions := store.NewSessions() // the only mutable state besides the clock: which session each account is in
+	sessions := store.NewSessions(cfg.Now) // which session each account is in; on-demand warm-up/expiry use the same clock as order fills
+	identities := identity.NewIdentities()
 	mux := http.NewServeMux()
-	accounts := broker.Register(mux, sessions, cfg)
-	marketdata.Register(mux, clock)
+	accounts := broker.Register(mux, sessions, identities, cfg)
+	identity.Register(mux, identities)
+	marketdata.Register(mux, clock, sessions)
 	session.Register(mux, sessions, clock, accounts.Available)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "not found")

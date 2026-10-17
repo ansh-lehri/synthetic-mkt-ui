@@ -45,40 +45,32 @@ func subscribe(t *testing.T, conn *websocket.Conn, subs string) {
 	}
 }
 
+// TestMarketsFollowTheSessionClock: /v1/markets carries NO phase on the real contract
+// (confirmed removal) — only the catalog/active flag + today's RFC3339 UTC session
+// window. The window still tracks the simulated day; phase itself is now checked only
+// via the WS snapshot (TestWSSnapshotsMoveAndCarryThePhase below).
 func TestMarketsFollowTheSessionClock(t *testing.T) {
 	e := newEnv(t) // sim 10:00 on day 0
-	phase := func() api.LiveSessionInfo {
+	win := func() api.MarketSession {
 		var ms api.MarketsResponse
 		decode(t, e.want("GET", "/v1/markets", "", 200), &ms)
-		return ms.Markets[0].LiveSession
+		return ms.Markets[0].Session
 	}
-	if ls := phase(); ls.Phase != "open" || ls.OpensAt != "2026-10-12T09:15:00" || ls.ClosesAt != "2026-10-12T15:30:00" {
-		t.Fatalf("at 10:00: %+v", ls)
+	loc, _ := time.LoadLocation("Asia/Kolkata")
+	wantOpen := time.Date(2026, 10, 12, 9, 15, 0, 0, loc).UTC()
+	wantClose := time.Date(2026, 10, 12, 15, 30, 0, 0, loc).UTC()
+	if w := win(); !w.OpensAt.Equal(wantOpen) || !w.ClosesAt.Equal(wantClose) {
+		t.Fatalf("at 10:00: got %+v, want opens=%v closes=%v", w, wantOpen, wantClose)
 	}
-	e.advanceSim(5*time.Hour + 15*time.Minute) // 15:15
-	if ls := phase(); ls.Phase != "closing" {
-		t.Fatalf("at 15:15: %+v", ls)
+	e.advanceSim(5*time.Hour + 15*time.Minute) // 15:15, still today's window
+	if w := win(); !w.OpensAt.Equal(wantOpen) || !w.ClosesAt.Equal(wantClose) {
+		t.Fatalf("at 15:15: %+v", w)
 	}
-	e.advanceSim(15 * time.Minute) // 15:30
-	if ls := phase(); ls.Phase != "closed" {
-		t.Fatalf("at 15:30: %+v", ls)
-	}
-	e.wall.advance(31 * time.Second) // past the closed hold -> next day, preopen
-	if ls := phase(); ls.Phase != "preopen" || ls.OpensAt != "2026-10-13T09:15:00" {
-		t.Fatalf("next morning: %+v", ls)
-	}
-
-	// a live session reports the market's CURRENT phase, not a stored one
-	e.join("p1")
-	var st api.SessionState
-	decode(t, e.want("GET", "/v1/session?account_id=p1", "", 200), &st)
-	if st.Active == nil || st.Active.Phase != "preopen" {
-		t.Fatalf("live session phase should follow the clock: %+v", st.Active)
-	}
-	e.advanceSim(20 * time.Minute) // 09:20, open
-	decode(t, e.want("GET", "/v1/session?account_id=p1", "", 200), &st)
-	if st.Active.Phase != "open" {
-		t.Fatalf("after the open: %+v", st.Active)
+	e.advanceSim(15 * time.Minute)   // 15:30, closed
+	e.wall.advance(31 * time.Second) // past the closed hold -> next day's window
+	nextOpen := time.Date(2026, 10, 13, 9, 15, 0, 0, loc).UTC()
+	if w := win(); !w.OpensAt.Equal(nextOpen) {
+		t.Fatalf("next morning window: %+v, want opens=%v", w, nextOpen)
 	}
 }
 
@@ -104,7 +96,8 @@ func TestCandlesOnlyReturnClosedBarsAndAdvanceWithTheClock(t *testing.T) {
 
 func TestWSSnapshotsMoveAndCarryThePhase(t *testing.T) {
 	e := newEnv(t)
-	conn := dialWS(t, e)
+	sid := e.join("wsp1")
+	conn := dialWS(t, e, sid)
 	readFrame(t, conn) // connected
 	subscribe(t, conn, `{"stream":"snapshot","instrument":"ACME"}`)
 	nextOfType(t, conn, "ack")
@@ -149,7 +142,8 @@ func TestWSSnapshotsMoveAndCarryThePhase(t *testing.T) {
 
 func TestWSPushesClosedBarsAndTheyMatchHistory(t *testing.T) {
 	e := newEnv(t) // 10:00:00
-	conn := dialWS(t, e)
+	sid := e.join("wsp2")
+	conn := dialWS(t, e, sid)
 	readFrame(t, conn)
 	subscribe(t, conn, `{"stream":"candle","instrument":"ACME","timeframe":"1m"},{"stream":"candle","instrument":"BETA","timeframe":"5m"}`)
 	nextOfType(t, conn, "ack")
@@ -196,7 +190,8 @@ func TestWSPushesClosedBarsAndTheyMatchHistory(t *testing.T) {
 
 func TestWSUnsubscribeStopsPushes(t *testing.T) {
 	e := newEnv(t)
-	conn := dialWS(t, e)
+	sid := e.join("wsp3")
+	conn := dialWS(t, e, sid)
 	readFrame(t, conn)
 	subscribe(t, conn, `{"stream":"snapshot","instrument":"ACME"}`)
 	nextOfType(t, conn, "ack")
