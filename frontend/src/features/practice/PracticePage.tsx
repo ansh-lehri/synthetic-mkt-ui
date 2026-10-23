@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMarkets, type PracticeCondition, type PracticeLength } from '../../api'
 import { Banner, Button, Card, Num, TopBar } from '../../components'
-import { logout, requireAccountId } from '../../lib/identity'
+import { logout, requireAccountId, requireEmail } from '../../lib/identity'
 import { marketName } from '../../lib/marketTimezone'
 import { pickMarket, useSelectedMarket } from '../../lib/selectedMarket'
 import { DEFAULT_CONDITION, DEFAULT_LENGTH, PRACTICE_CONDITIONS, PRACTICE_LENGTHS, conditionLabel } from '../../lib/session'
@@ -22,6 +22,7 @@ const radioCard =
  */
 export default function PracticePage() {
   const accountId = requireAccountId()
+  const email = requireEmail()
   const marketsQ = useMarkets({ refetchMs: 15_000 })
   const markets = marketsQ.data?.markets ?? []
   const chosen = useSelectedMarket((s) => s.code)
@@ -34,8 +35,8 @@ export default function PracticePage() {
   const [balance, setBalance] = useState<number>() // known only after a transfer here (see the note on the card)
   const [funded, setFunded] = useState(false) // a transfer went through after a low-balance refusal
 
-  const session = useSessionFlow(accountId ?? '', market?.tag, { onEntered: () => go('/terminal') })
-  if (!accountId) return null // requireAccountId already redirected to /signup
+  const session = useSessionFlow(email ?? '', market?.tag, { onEntered: () => go('/terminal') })
+  if (!accountId || !email) return null // requireAccountId/requireEmail already redirected to /signup
   const sess = session.active
   const starting = session.busy === 'enter'
   const lowBalance = session.notice?.code === 'low_balance' && !funded

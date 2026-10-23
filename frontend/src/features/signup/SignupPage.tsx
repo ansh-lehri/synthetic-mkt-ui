@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Banner, Button, Card, Field } from '../../components'
-import { openAccount, storeAccountId } from '../../lib/identity'
+import { openAccount, storeAccountId, storeEmail } from '../../lib/identity'
 
 const go = (path: string) => window.location.assign(path)
 
@@ -21,8 +21,10 @@ export default function SignupPage() {
     setBusy(true)
     setError(undefined)
     try {
-      const { account_id } = await openAccount(email.trim())
+      const trimmed = email.trim()
+      const { account_id } = await openAccount(trimmed)
       storeAccountId(account_id)
+      storeEmail(trimmed)
       go('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')

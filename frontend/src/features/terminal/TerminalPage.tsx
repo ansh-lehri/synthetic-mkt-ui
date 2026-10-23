@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useObservation, type CandleTimeframe, type OpenOrder } from '../../api'
 import { Banner, Button, Card, ConfirmDialog, Num, SessionBar, SkeletonText, TopBar } from '../../components'
-import { logout, requireAccountId } from '../../lib/identity'
+import { logout, requireAccountId, requireEmail } from '../../lib/identity'
 import { instantToNaiveLocal, useMarketClock } from '../../lib/marketClock'
 import { marketName, marketTimezone } from '../../lib/marketTimezone'
 import { setMarketSession, useMarketStore } from '../../lib/marketStore'
@@ -57,6 +57,7 @@ export default function TerminalPage() {
   const [timeframe, setTimeframe] = useState<CandleTimeframe>(init.tf)
   const queryClient = useQueryClient()
   const accountId = requireAccountId()
+  const email = requireEmail()
 
   const m = useTerminalMarket()
   const tz = m.market ? marketTimezone(m.market.tag) : undefined
@@ -68,7 +69,7 @@ export default function TerminalPage() {
   useSubscriptions(book.instruments.map((i) => ({ stream: 'snapshot' as const, instrument: i.id })))
 
   // ---- session (HTTP poll): which session the account is in, and the way in / out
-  const session = useSessionFlow(accountId ?? '', m.market?.tag)
+  const session = useSessionFlow(email ?? '', m.market?.tag)
   const sess = session.active
   const noSession = session.known && !sess
 
@@ -129,7 +130,7 @@ export default function TerminalPage() {
   const badge = (id: Tab): number | undefined =>
     id === 'orders' ? obs?.orders.length : id === 'positions' ? obs?.positions.filter((p) => p.qty !== 0).length : undefined
 
-  if (!accountId) return null // requireAccountId already redirected to /signup
+  if (!accountId || !email) return null // requireAccountId/requireEmail already redirected to /signup
 
   return (
     <div className="min-h-screen bg-bg text-ink">

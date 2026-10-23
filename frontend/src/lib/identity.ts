@@ -11,6 +11,12 @@ import { apiGet, apiPost } from '../api/client'
 import type { AccountOpenResponse, Cash } from '../api/types'
 
 const STORAGE_KEY = 'identity.accountId'
+// The real backend's EnsureAccount is keyed on the exact user_id string you give it — the
+// account_id it returns is an opaque handle, not a second valid user_id. /session/canonical
+// and /session/ondemand expect the ORIGINAL user_id (email) back, not the account_id, or
+// they resolve to a different, invisible account. Both must be kept, each used in its own
+// lane: email for session calls, account_id for every balance/order/position/trade read.
+const EMAIL_STORAGE_KEY = 'identity.email'
 
 /** The account_id from a previous successful signup/login, or null on a fresh browser. */
 export function getStoredAccountId(): string | null {
@@ -24,6 +30,23 @@ export function getStoredAccountId(): string | null {
 export function storeAccountId(accountId: string): void {
   try {
     localStorage.setItem(STORAGE_KEY, accountId)
+  } catch {
+    // storage unavailable: identity just won't persist across reloads this session
+  }
+}
+
+/** The email (the real backend's user_id) from a previous successful signup/login. */
+export function getStoredEmail(): string | null {
+  try {
+    return localStorage.getItem(EMAIL_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function storeEmail(email: string): void {
+  try {
+    localStorage.setItem(EMAIL_STORAGE_KEY, email)
   } catch {
     // storage unavailable: identity just won't persist across reloads this session
   }
@@ -51,10 +74,11 @@ export function useCash(accountId: string, enabled: boolean) {
   return useQuery({ queryKey: ['cash', accountId], queryFn: () => getCash(accountId), enabled })
 }
 
-/** Clears the stored account_id and sends the user back to Signup — the one place logout lives. */
+/** Clears the stored identity and sends the user back to Signup — the one place logout lives. */
 export function logout(): void {
   try {
     localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(EMAIL_STORAGE_KEY)
   } catch {
     // storage unavailable — nothing to clear
   }
@@ -77,4 +101,16 @@ export function requireAccountId(): string | null {
   const id = getStoredAccountId()
   if (!id) window.location.assign('/signup')
   return id
+}
+
+/**
+ * Every screen that starts/joins/resolves a session (not just reads account data) also
+ * needs the original email — session calls take user_id, not account_id (see the note by
+ * EMAIL_STORAGE_KEY above). No stored email -> redirect to Signup and return null, same
+ * pattern as requireAccountId.
+ */
+export function requireEmail(): string | null {
+  const email = getStoredEmail()
+  if (!email) window.location.assign('/signup')
+  return email
 }

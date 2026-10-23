@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { observationKey, useMarkets, useObservation, type Observation, type TransferDirection, type TransferResponse } from '../../api'
 import { Banner, Button, Card, Skeleton, TopBar } from '../../components'
-import { logout, requireAccountId, useCash } from '../../lib/identity'
+import { logout, requireAccountId, requireEmail, useCash } from '../../lib/identity'
 import { liveCardView } from '../../lib/liveCard'
 import { instantToNaiveLocal, useMarketClock } from '../../lib/marketClock'
 import { marketName, marketTimezone } from '../../lib/marketTimezone'
@@ -25,6 +25,7 @@ const go = (path: string) => window.location.assign(path)
  */
 export default function HomePage() {
   const accountId = requireAccountId()
+  const email = requireEmail()
   const qc = useQueryClient()
   const marketsQ = useMarkets({ refetchMs: 5000 })
   const markets = marketsQ.data?.markets ?? []
@@ -34,7 +35,7 @@ export default function HomePage() {
   const tz = market ? marketTimezone(market.tag) : undefined
 
   // Join / start enter the Terminal on success; the one-session rule (409 -> confirm -> exit -> enter) lives in the flow.
-  const session = useSessionFlow(accountId ?? '', market?.tag, { onEntered: () => go('/terminal') })
+  const session = useSessionFlow(email ?? '', market?.tag, { onEntered: () => go('/terminal') })
   const sess = session.active
   const obsQ = useObservation(accountId ?? '', !!sess && !!accountId)
   const obs: Observation | undefined = sess ? obsQ.data : undefined
@@ -48,7 +49,7 @@ export default function HomePage() {
   const [afterTransfer, setAfterTransfer] = useState<{ trading: number; bank: number } | undefined>()
   const [notice, setNotice] = useState<string>()
 
-  if (!accountId) return null // requireAccountId already redirected to /signup
+  if (!accountId || !email) return null // requireAccountId/requireEmail already redirected to /signup
 
   const trading = obs?.balance.available ?? afterTransfer?.trading ?? cashQ.data?.trading_cash
   const bank = obs?.balance.bank ?? afterTransfer?.bank ?? cashQ.data?.bank_cash
