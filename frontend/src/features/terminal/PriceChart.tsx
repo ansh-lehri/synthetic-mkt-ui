@@ -17,16 +17,83 @@ import { formatPrice, type PriceFormat } from '../../lib/ticks'
 import { readChartTheme, type ChartType } from './chartTheme'
 import { TIMEFRAME_MINUTES } from './bars'
 import type { CandleTimeframe } from '../../api'
+import { registerChartPatterns } from './chartOverlayPatterns'
+import { registerCustomIndicators } from './chartCustomIndicators'
 
-export type DrawTool = 'trend' | 'horizontal' | 'rect'
+export type DrawTool =
+  | 'trend'
+  | 'ray'
+  | 'horizontal'
+  | 'horizontalRay'
+  | 'parallelChannel'
+  | 'priceChannel'
+  | 'fib'
+  | 'rect'
+  | 'circle'
+  | 'polygon'
+  | 'arc'
+  | 'text'
+  | 'headShoulders'
+  | 'invHeadShoulders'
+  | 'doubleTop'
+  | 'doubleBottom'
+  | 'triangleAsc'
+  | 'triangleDesc'
+  | 'triangleSym'
+  | 'wedgeRising'
+  | 'wedgeFalling'
+  | 'flagBull'
+  | 'flagBear'
+  | 'cupHandle'
+  | 'harmonicXABCD'
+  | 'harmonicABCD'
 
-const OVERLAY_NAME: Record<DrawTool, string> = { trend: 'segment', horizontal: 'horizontalStraightLine', rect: 'rectBox' }
+const OVERLAY_NAME: Record<DrawTool, string> = {
+  trend: 'segment',
+  ray: 'rayLine',
+  horizontal: 'horizontalStraightLine',
+  horizontalRay: 'horizontalRayLine',
+  parallelChannel: 'parallelStraightLine',
+  priceChannel: 'priceChannelLine',
+  fib: 'fibonacciLineStyled',
+  rect: 'rectBox',
+  circle: 'circle',
+  polygon: 'polygon',
+  arc: 'arc',
+  text: 'text',
+  headShoulders: 'HeadAndShoulders',
+  invHeadShoulders: 'InverseHeadAndShoulders',
+  doubleTop: 'DoubleTop',
+  doubleBottom: 'DoubleBottom',
+  triangleAsc: 'TriangleAscending',
+  triangleDesc: 'TriangleDescending',
+  triangleSym: 'TriangleSymmetric',
+  wedgeRising: 'WedgeRising',
+  wedgeFalling: 'WedgeFalling',
+  flagBull: 'FlagBull',
+  flagBear: 'FlagBear',
+  cupHandle: 'CupAndHandle',
+  harmonicXABCD: 'XABCD',
+  harmonicABCD: 'ABCD',
+}
 
-// The library has no rectangle overlay; this two-point one draws a box.
+// Indicators placed on the price scale itself (candle_pane); everything else gets its own
+// sub-pane (an oscillator). Mirrors the reference charting project's own split.
+export const MAIN_PANE_INDICATORS = new Set(['MA', 'EMA', 'SMA', 'BBI', 'BOLL', 'SAR'])
+
+// Fixed cycling palette so simultaneously-active indicator lines stay visually distinct.
+// Deliberately not design tokens (see chartOverlayPatterns.ts's comment) — these are
+// user-added analysis lines, not chrome, and tokens.css has no 8-way indicator palette.
+const INDICATOR_COLORS = ['#a78bfa', '#38bdf8', '#fb923c', '#34d399', '#f472b6', '#facc15', '#60a5fa', '#f87171']
+
+// The library has no rectangle overlay; this two-point one draws a box. Chart-pattern
+// overlays and the two custom indicators (Aroon, A/D) register themselves on import.
 let registered = false
 function registerOnce() {
   if (registered) return
   registered = true
+  registerChartPatterns()
+  registerCustomIndicators()
   registerOverlay({
     name: 'rectBox',
     totalStep: 3,
@@ -51,6 +118,11 @@ export interface PriceChartHandle {
   undo: () => void
   redo: () => void
   clearDrawings: () => void
+  /** Add an indicator by its KLineCharts name (built-in or custom-registered). Each name is a
+   * singleton: adding one already active replaces it with the new calcParams. */
+  addIndicator: (name: string, calcParams?: number[]) => void
+  removeIndicator: (name: string) => void
+  activeIndicators: () => string[]
 }
 
 export interface PriceChartProps {
@@ -58,7 +130,6 @@ export interface PriceChartProps {
   timeframe: CandleTimeframe
   fmt: PriceFormat
   type: ChartType
-  ma: boolean
   /** Reports how many drawings can be undone / redone. */
   onDrawingsChange?: (undo: number, redo: number) => void
   className?: string
@@ -75,7 +146,7 @@ function periodOf(tf: CandleTimeframe): Period {
 }
 
 export const PriceChart = forwardRef<PriceChartHandle, PriceChartProps>(function PriceChart(props, ref) {
-  const { symbol, timeframe, fmt, type, ma, onDrawingsChange, className } = props
+  const { symbol, timeframe, fmt, type, onDrawingsChange, className } = props
   const host = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const dataRef = useRef<KLineData[]>([])
@@ -83,6 +154,8 @@ export const PriceChart = forwardRef<PriceChartHandle, PriceChartProps>(function
   const drawn = useRef<Drawn[]>([])
   const undone = useRef<Drawn[]>([])
   const tool = useRef<DrawTool | null>(null)
+  const indicators = useRef<Map<string, { paneId: string; isMainPane: boolean }>>(new Map())
+  const colorCount = useRef(0)
   const typeRef = useRef(type)
   typeRef.current = type
   const onChange = useRef(onDrawingsChange)
@@ -142,6 +215,33 @@ export const PriceChart = forwardRef<PriceChartHandle, PriceChartProps>(function
       tool.current = null
       report()
     },
+    addIndicator: (name, calcParams) => {
+      const chart = chartRef.current
+      if (!chart) return
+      const isMainPane = MAIN_PANE_INDICATORS.has(name)
+      const existing = indicators.current.get(name)
+      if (existing) chart.removeIndicator({ paneId: existing.paneId, name })
+      const color = INDICATOR_COLORS[colorCount.current % INDICATOR_COLORS.length]
+      colorCount.current += 1
+      const paneId = chart.createIndicator(
+        {
+          name,
+          paneId: isMainPane ? 'candle_pane' : `pane_${name}`,
+          ...(calcParams ? { calcParams } : {}),
+          styles: { lines: [{ color }, { color, style: 'dashed', dashedValue: [4, 3] }, { color }, { color }] },
+        },
+        isMainPane,
+      ) as string | null
+      indicators.current.set(name, { paneId: isMainPane ? 'candle_pane' : (paneId ?? `pane_${name}`), isMainPane })
+    },
+    removeIndicator: (name) => {
+      const chart = chartRef.current
+      const existing = indicators.current.get(name)
+      if (!chart || !existing) return
+      chart.removeIndicator({ paneId: existing.paneId, name })
+      indicators.current.delete(name)
+    },
+    activeIndicators: () => Array.from(indicators.current.keys()),
   }))
 
   // Create / dispose the chart once.
@@ -206,14 +306,6 @@ export const PriceChart = forwardRef<PriceChartHandle, PriceChartProps>(function
     const el = host.current
     if (el) chartRef.current?.setStyles(readChartTheme(el, type))
   }, [type])
-
-  // MA 20 on the price pane.
-  useEffect(() => {
-    const chart = chartRef.current
-    if (!chart) return
-    chart.removeIndicator({ name: 'MA' })
-    if (ma) chart.createIndicator({ name: 'MA', calcParams: [20], paneId: 'candle_pane' }, true)
-  }, [ma])
 
   return <div ref={host} className={className} data-testid="price-chart" />
 })
