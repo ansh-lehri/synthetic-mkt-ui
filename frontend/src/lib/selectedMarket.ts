@@ -30,6 +30,6 @@ export const useSelectedMarket = create<State>((set) => ({
 }))
 
 /** The chosen market if the backend still lists it, else the first listed one. */
-export function pickMarket<T extends { code: string }>(markets: readonly T[], chosen: string | null): T | undefined {
-  return markets.find((m) => m.code === chosen) ?? markets[0]
+export function pickMarket<T extends { tag: string }>(markets: readonly T[], chosen: string | null): T | undefined {
+  return markets.find((m) => m.tag === chosen) ?? markets[0]
 }

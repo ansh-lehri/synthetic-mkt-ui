@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { Bar, CandleTimeframe, Instrument, Market } from '../../api'
 import { getAllCandles } from '../../api'
 import { Banner, Button, Card, Chip, Num, SegmentedToggle, Spinner } from '../../components'
+import { instrumentName } from '../../lib/instrumentDefaults'
 import { barKey, useMarketStore } from '../../lib/marketStore'
+import { instantToNaiveLocal } from '../../lib/marketClock'
+import { marketTimezone } from '../../lib/marketTimezone'
 import type { PriceFormat } from '../../lib/ticks'
 import { advanceLive, historyWindow, liveBucketStart, liveToKLine, mergeFinal, TIMEFRAMES, toKLine, type LiveBar } from './bars'
 import type { ChartType } from './chartTheme'
@@ -81,15 +84,19 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
     { stream: 'candle', instrument: symbol, timeframe },
   ])
 
-  const openAt = market.live_session.opens_at
-  const closeAt = market.live_session.closes_at
+  const tz = marketTimezone(market.tag)
+  // GET /v1/markets' session.opens_at/closes_at are now real RFC3339 instants — converted
+  // to the naive-local strings GET /v1/candles still expects (that endpoint's convention is
+  // unchanged by the contract rewrite).
+  const openAt = instantToNaiveLocal(market.session.opens_at, tz)
+  const closeAt = instantToNaiveLocal(market.session.closes_at, tz)
   const fmt = fmtFor(symbol)
 
   // History. The query key carries the socket epoch, so a reconnect RE-FETCHES it (the server
   // does no backfill). It waits for the first connect (or a failed one) to avoid loading twice.
   const history = useQuery({
-    queryKey: ['candles', market.code, symbol, timeframe, openAt, epoch],
-    queryFn: () => getAllCandles({ market: market.code, instrument: symbol, timeframe, ...historyWindow(timeframe, openAt, closeAt) }),
+    queryKey: ['candles', market.tag, symbol, timeframe, openAt, epoch],
+    queryFn: () => getAllCandles({ market: market.tag, instrument: symbol, timeframe, ...historyWindow(timeframe, openAt, closeAt) }),
     enabled: epoch > 0 || status === 'reconnecting',
     gcTime: 0,
     staleTime: 0,
@@ -100,7 +107,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
   const live = useRef<LiveBar | null>(null)
 
   const pushTip = () => {
-    if (!snap || !snap.has_last || (snap.phase !== 'open' && snap.phase !== 'closing')) return
+    if (!snap || !snap.has_last || (snap.phase !== 'open' && snap.phase !== 'auction')) return
     const last = finals.current[finals.current.length - 1] ?? null
     const start = liveBucketStart(last, openAt)
     if (!start) return
@@ -160,7 +167,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
     else chart.current?.startDraw(t)
   }
 
-  const instrument = instruments.find((i) => i.instrument === symbol)
+  const instrument = instruments.find((i) => i.id === symbol)
   const loading = history.isFetching && !history.data
   const empty = !!history.data && history.data.length === 0 && !snap?.has_last
 
@@ -176,7 +183,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
           className="min-h-[44px] rounded-md border border-line bg-raised px-3 text-sm text-ink"
         >
           {instruments.map((i) => (
-            <option key={i.instrument} value={i.instrument}>{i.instrument}  {i.name}</option>
+            <option key={i.id} value={i.id}>{i.id}  {instrumentName(i)}</option>
           ))}
         </select>
         <span className="text-2xl font-semibold">
@@ -239,7 +246,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
 
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-line px-4 py-2.5 text-sm text-muted">
         <span>
-          {symbol}{instrument ? ` · ${instrument.name}` : ''}, {timeframe}, {type === 'candles' ? 'candles' : 'line'}
+          {symbol}{instrument ? ` · ${instrumentName(instrument)}` : ''}, {timeframe}, {type === 'candles' ? 'candles' : 'line'}
           {ma ? ', MA 20 on' : ''}. {HELP[tool]}
         </span>
       </div>

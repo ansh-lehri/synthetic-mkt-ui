@@ -23,7 +23,8 @@ export type Country = 'IN' | 'US'
 // ---- market-data axis
 export type Bar = Schemas['Bar']
 export type CandleResponse = Schemas['CandleResponse']
-export type SessionPhase = Schemas['LiveSessionInfo']['phase']
+/** No session HTTP endpoint carries phase — it's WS-only (see @contract/ws's Phase). */
+export type SessionPhase = 'unknown' | 'open' | 'auction' | 'closed'
 
 // ---- account axis (live reads + orders, used by the Terminal)
 export type Observation = Schemas['Observation']
@@ -36,12 +37,32 @@ export type ModifyOrderRequest = Schemas['ModifyOrderRequest']
 export type ModifyResponse = Schemas['ModifyResponse']
 export type OrderIdResponse = Schemas['OrderIdResponse']
 
-// ---- session/reference axis (provisional): which session the account is in
-export type ActiveSession = Schemas['ActiveSession']
-export type SessionState = Schemas['SessionState']
-export type PracticeCondition = Schemas['PracticeCondition']
-export type PracticeLength = Schemas['StartPracticeRequest']['length_minutes']
-export type ExitSessionResponse = Schemas['ExitSessionResponse']
+// ---- identity (POST /v1/account/open, GET /v1/account/cash)
+export type Identity = Schemas['Identity']
+export type AccountOpenRequest = Schemas['AccountOpenRequest']
+export type AccountOpenResponse = Schemas['AccountOpenResponse']
+export type Cash = Schemas['Cash']
+
+// ---- session axis: two kinds (canonical/on-demand), two status vocabularies — see
+// BACKEND-INTEGRATION-PLAN.md §3. No `condition` field exists on the wire; the practice
+// scenario picker below is frontend-only state, never sent to the backend.
+export type JoinCanonicalRequest = Schemas['JoinCanonicalRequest']
+export type JoinCanonicalResponse = Schemas['JoinCanonicalResponse']
+export type OnDemandRequest = Schemas['OnDemandRequest']
+export type OnDemandWarmingUpBody = Schemas['OnDemandWarmingUpBody']
+export type OnDemandInsufficientFundsBody = Schemas['OnDemandInsufficientFundsBody']
+export type OnDemandFailedBody = Schemas['OnDemandFailedBody']
+export type SessionStatusBody = Schemas['SessionStatusBody']
+export type SessionCurrentRequest = Schemas['SessionCurrentRequest']
+export type SessionCurrentResponse = Schemas['SessionCurrentResponse']
+export type SessionExitResponse = Schemas['SessionExitResponse']
+
+/** Frontend-only — no wire representation. The six conditions are a product decision,
+ * not a contract value; the backend is building its own scenario endpoints separately. */
+export type PracticeCondition = 'normal_day' | 'calm_range' | 'trending_day' | 'whipsaw' | 'unstable_day' | 'thin_liquidity'
+/** Frontend-only — /session/ondemand takes a plain `duration` minutes query param, not this enum. */
+export type PracticeLength = 60 | 75 | 90 | 105
+
 export type TransferRequest = Schemas['TransferRequest']
 export type TransferResponse = Schemas['TransferResponse']
 export type TransferDirection = TransferRequest['direction']

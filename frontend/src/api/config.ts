@@ -14,7 +14,11 @@ export function apiBase(): string {
   return requireEnv('VITE_API_BASE').replace(/\/+$/, '')
 }
 
-/** Full WebSocket URL for live market data. */
+/**
+ * WebSocket origin only (e.g. "ws://localhost:8080"), WITHOUT a trailing slash or path —
+ * `lib/marketStore.ts` appends `/v1/ws?session=<id>` itself, since the real backend's socket
+ * is session-scoped (a real-backend shape change: there is no anonymous market-data feed).
+ */
 export function wsBase(): string {
-  return requireEnv('VITE_WS_BASE')
+  return requireEnv('VITE_WS_BASE').replace(/\/+$/, '')
 }

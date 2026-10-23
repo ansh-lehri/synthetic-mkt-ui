@@ -30,7 +30,8 @@ export function EnterSession({
     <Card as="section" aria-label="Enter a session" title="You are not in a session">
       <div className="space-y-4">
         <p className="text-sm text-muted">
-          Prices are live below, but orders and your account need a session. Join the live {marketName ?? 'market'} session to trade with your balance, or start a practice session on a scenario.
+          Live prices, orders and your account all need a session — the real backend has no
+          market-data feed without one. Join the live {marketName ?? 'market'} session to trade with your balance, or start a practice session on a scenario.
         </p>
         {notice && <Banner tone={notice.tone} title={notice.title} onDismiss={onDismiss}>{notice.body}</Banner>}
         <div className="grid gap-4 md:grid-cols-2">

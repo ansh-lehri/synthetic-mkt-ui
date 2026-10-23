@@ -16,7 +16,7 @@ export function ModifyDialog({
 }: {
   order: OpenOrder | null
   instrument: Instrument | undefined
-  onSubmit: (req: { order_id: string; instrument: string; side: OpenOrder['side']; is_market: false; new_qty: number; new_price: number }) => void
+  onSubmit: (req: { order_id: string; instrument: string; side: 'buy' | 'sell'; is_market: false; new_qty: number; new_price: number }) => void
   onCancel: () => void
 }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -57,16 +57,16 @@ function ModifyForm({
   onSubmit: Parameters<typeof ModifyDialog>[0]['onSubmit']
   onCancel: () => void
 }) {
+  const fmt = { tick_size: instrument.tick_size, price_decimals: instrument.price_decimals ?? 2, symbol: instrument.id, lot_size: instrument.lot_size ?? 1 }
   const [qtyText, setQtyText] = useState(String(order.orig_qty))
-  const [priceText, setPriceText] = useState(formatPrice(order.limit_price, instrument))
-  const fmt = { tick_size: instrument.tick_size, price_decimals: instrument.price_decimals, symbol: instrument.instrument, lot_size: instrument.lot_size }
+  const [priceText, setPriceText] = useState(formatPrice(order.limit_price, fmt))
   const check = checkTicket({ qtyText, priceText, type: 'limit', instrument: fmt })
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault()
         if (!check.ok || check.qty === null || check.price === null) return
-        onSubmit({ order_id: order.order_id, instrument: order.instrument, side: order.side, is_market: false, new_qty: check.qty, new_price: check.price })
+        onSubmit({ order_id: order.order_id, instrument: order.instrument, side: order.side === 'sell' ? 'sell' : 'buy', is_market: false, new_qty: check.qty, new_price: check.price })
       }}
     >
       <div className="space-y-4 p-5">

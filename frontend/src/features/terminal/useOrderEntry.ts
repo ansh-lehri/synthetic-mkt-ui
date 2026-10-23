@@ -60,7 +60,7 @@ export function useOrderEntry(accountId: string, obs: Observation | undefined, o
   const found = unconfirmed && obs && !awaiting ? findNewOrder(unconfirmed.before, obs.orders, unconfirmed.sig) : null
   const settledPlaced: PlacedOrder | undefined =
     unconfirmed && found
-      ? { orderId: found.order_id, instrument: found.instrument, side: found.side, qty: found.orig_qty, positionAtPlace: unconfirmed.positionAtPlace, seenFilled: found.filled_qty }
+      ? { orderId: found.order_id, instrument: found.instrument, side: unconfirmed.sig.side, qty: found.orig_qty, positionAtPlace: unconfirmed.positionAtPlace, seenFilled: found.filled_qty }
       : undefined
   const settledFeedback: TicketFeedback | undefined =
     unconfirmed && !awaiting

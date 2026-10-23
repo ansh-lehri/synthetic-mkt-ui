@@ -2,9 +2,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { observationKey, useMarkets, useObservation, type Observation, type TransferDirection, type TransferResponse } from '../../api'
 import { Banner, Button, Card, Skeleton, TopBar } from '../../components'
-import { getAccountId } from '../../lib/account'
+import { logout, requireAccountId, useCash } from '../../lib/identity'
 import { liveCardView } from '../../lib/liveCard'
-import { useMarketClock } from '../../lib/marketClock'
+import { instantToNaiveLocal, useMarketClock } from '../../lib/marketClock'
+import { marketName, marketTimezone } from '../../lib/marketTimezone'
 import { pickMarket, useSelectedMarket } from '../../lib/selectedMarket'
 import { closeLabel } from '../../lib/session'
 import { formatMoney } from '../../lib/ticks'
@@ -23,28 +24,35 @@ const go = (path: string) => window.location.assign(path)
  * dropdown; switching it changes only the live card and the practice label (balances are global).
  */
 export default function HomePage() {
-  const accountId = getAccountId()
+  const accountId = requireAccountId()
   const qc = useQueryClient()
   const marketsQ = useMarkets({ refetchMs: 5000 })
   const markets = marketsQ.data?.markets ?? []
   const chosen = useSelectedMarket((s) => s.code)
   const selectMarket = useSelectedMarket((s) => s.select)
   const market = pickMarket(markets, chosen)
+  const tz = market ? marketTimezone(market.tag) : undefined
 
   // Join / start enter the Terminal on success; the one-session rule (409 -> confirm -> exit -> enter) lives in the flow.
-  const session = useSessionFlow(accountId, market?.code, { onEntered: () => go('/terminal') })
+  const session = useSessionFlow(accountId ?? '', market?.tag, { onEntered: () => go('/terminal') })
   const sess = session.active
-  const obsQ = useObservation(accountId, !!sess)
+  const obsQ = useObservation(accountId ?? '', !!sess && !!accountId)
   const obs: Observation | undefined = sess ? obsQ.data : undefined
-  const nowLocal = useMarketClock(market?.timezone) // the UI runs the market clock itself
+  // Home-load sequencing (BACKEND-INTEGRATION-PLAN.md §3, locked): once session state is
+  // known (session.known, from useSessionFlow's own resolveCurrentSession call — not an
+  // extra round trip), call balance (via observation) if active, cash if not. Never both.
+  const cashQ = useCash(accountId ?? '', session.known && !sess && !!accountId)
+  const nowLocal = useMarketClock(tz) // the UI runs the market clock itself
 
   const [transferOpen, setTransferOpen] = useState(false)
   const [afterTransfer, setAfterTransfer] = useState<{ trading: number; bank: number } | undefined>()
   const [notice, setNotice] = useState<string>()
 
-  const trading = obs?.balance.available ?? afterTransfer?.trading
-  const bank = obs?.balance.bank ?? afterTransfer?.bank
-  const source = obs ? 'session' : afterTransfer ? 'transfer' : 'none'
+  if (!accountId) return null // requireAccountId already redirected to /signup
+
+  const trading = obs?.balance.available ?? afterTransfer?.trading ?? cashQ.data?.trading_cash
+  const bank = obs?.balance.bank ?? afterTransfer?.bank ?? cashQ.data?.bank_cash
+  const source = obs ? 'session' : afterTransfer ? 'transfer' : cashQ.data ? 'cash' : 'none'
 
   const onTransferDone = (res: TransferResponse, direction: TransferDirection, amount: number) => {
     setAfterTransfer({ trading: res.available, bank: res.bank })
@@ -55,21 +63,24 @@ export default function HomePage() {
   }
 
   const loading = (marketsQ.isPending && !marketsQ.data) || (!session.known && !session.loadError)
+  // GET /v1/markets carries no phase anymore (real-backend shape change) — the fallback is
+  // only used before the clock resolves, which is immediate, so 'preopen' is a safe default.
   const liveView =
     market &&
+    tz &&
     liveCardView({
-      phase: market.live_session.phase,
-      opensAt: market.live_session.opens_at,
-      closesAt: market.live_session.closes_at,
+      phase: 'preopen',
+      opensAt: instantToNaiveLocal(market.session.opens_at, tz),
+      closesAt: instantToNaiveLocal(market.session.closes_at, tz),
       now: nowLocal,
-      inLive: sess?.type === 'live' && sess.market === market.code,
+      inLive: sess?.mode === 'live' && sess.market === market.tag,
     })
 
   return (
     <div className="min-h-screen bg-bg text-ink">
       <TopBar
-        markets={markets.map((m) => ({ code: m.code, name: m.name }))}
-        market={market?.code ?? ''}
+        markets={markets.map((m) => ({ code: m.tag, name: marketName(m.tag) }))}
+        market={market?.tag ?? ''}
         onMarketChange={selectMarket}
         marketsLoading={marketsQ.isPending}
         accountLabel={accountId}
@@ -77,6 +88,7 @@ export default function HomePage() {
           { label: 'Home', onSelect: () => {} },
           { label: 'Terminal', onSelect: () => go('/terminal') },
           { label: 'Record', onSelect: () => go('/record') },
+          { label: 'Log out', onSelect: logout },
         ]}
       />
       <main className="mx-auto flex w-full max-w-[77.5rem] flex-col gap-4 px-4 pb-10 pt-6 sm:px-6">
@@ -85,7 +97,7 @@ export default function HomePage() {
         {sess && (
           <Banner
             tone="info"
-            title={`You're in a ${sess.type} session.`}
+            title={`You're in a ${sess.mode} session.`}
             action={<Button variant="primary" onClick={() => go('/terminal')}>Return to session</Button>}
           />
         )}
@@ -113,20 +125,20 @@ export default function HomePage() {
             <div className="space-y-5"><Card><Skeleton className="h-52 w-full" /></Card><Card><Skeleton className="h-32 w-full" /></Card></div>
             <Card><Skeleton className="h-64 w-full" /></Card>
           </div>
-        ) : market && liveView ? (
+        ) : market && liveView && tz ? (
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_21.25rem]">
             <div className="space-y-5">
               <LiveCard
-                marketName={market.name}
-                window={`${closeLabel(market.live_session.opens_at)} – ${closeLabel(market.live_session.closes_at)} · ${market.timezone}`}
+                marketName={marketName(market.tag)}
+                window={`${closeLabel(instantToNaiveLocal(market.session.opens_at, tz))} – ${closeLabel(instantToNaiveLocal(market.session.closes_at, tz))} · ${tz}`}
                 view={liveView}
                 busy={session.busy === 'enter'}
                 onJoin={() => void session.enter({ kind: 'live' })}
                 onReturn={() => go('/terminal')}
               />
               <PracticeCard
-                marketName={market.name}
-                inPractice={sess?.type === 'practice'}
+                marketName={marketName(market.tag)}
+                inPractice={sess?.mode === 'practice'}
                 onStart={() => go('/practice')}
                 onReturn={() => go('/terminal')}
               />

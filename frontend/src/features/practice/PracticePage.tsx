@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useMarkets, type PracticeCondition, type PracticeLength } from '../../api'
 import { Banner, Button, Card, Num, TopBar } from '../../components'
-import { getAccountId } from '../../lib/account'
+import { logout, requireAccountId } from '../../lib/identity'
+import { marketName } from '../../lib/marketTimezone'
 import { pickMarket, useSelectedMarket } from '../../lib/selectedMarket'
 import { DEFAULT_CONDITION, DEFAULT_LENGTH, PRACTICE_CONDITIONS, PRACTICE_LENGTHS, conditionLabel } from '../../lib/session'
 import { TransferDialog } from '../home/TransferDialog'
@@ -20,7 +21,7 @@ const radioCard =
  * the trading balance: profit or loss is not added to it, and nothing is recorded.
  */
 export default function PracticePage() {
-  const accountId = getAccountId()
+  const accountId = requireAccountId()
   const marketsQ = useMarkets({ refetchMs: 15_000 })
   const markets = marketsQ.data?.markets ?? []
   const chosen = useSelectedMarket((s) => s.code)
@@ -33,7 +34,8 @@ export default function PracticePage() {
   const [balance, setBalance] = useState<number>() // known only after a transfer here (see the note on the card)
   const [funded, setFunded] = useState(false) // a transfer went through after a low-balance refusal
 
-  const session = useSessionFlow(accountId, market?.code, { onEntered: () => go('/terminal') })
+  const session = useSessionFlow(accountId ?? '', market?.tag, { onEntered: () => go('/terminal') })
+  if (!accountId) return null // requireAccountId already redirected to /signup
   const sess = session.active
   const starting = session.busy === 'enter'
   const lowBalance = session.notice?.code === 'low_balance' && !funded
@@ -53,7 +55,7 @@ export default function PracticePage() {
           <div className="space-y-2" role="status">
             <h1 className="text-2xl font-semibold tracking-tight">Starting your practice session…</h1>
             <p className="text-muted">
-              {market?.name}, {conditionLabel(condition)}, {length} min
+              {market ? marketName(market.tag) : undefined}, {conditionLabel(condition)}, {length} min
             </p>
           </div>
         </main>
@@ -64,8 +66,8 @@ export default function PracticePage() {
   return (
     <div className="min-h-screen bg-bg text-ink">
       <TopBar
-        markets={markets.map((m) => ({ code: m.code, name: m.name }))}
-        market={market?.code ?? ''}
+        markets={markets.map((m) => ({ code: m.tag, name: marketName(m.tag) }))}
+        market={market?.tag ?? ''}
         onMarketChange={selectMarket}
         marketsLoading={marketsQ.isPending}
         accountLabel={accountId}
@@ -73,6 +75,7 @@ export default function PracticePage() {
           { label: 'Home', onSelect: () => go('/') },
           { label: 'Terminal', onSelect: () => go('/terminal') },
           { label: 'Record', onSelect: () => go('/record') },
+          { label: 'Log out', onSelect: logout },
         ]}
       />
       <main className="mx-auto flex w-full max-w-[77.5rem] flex-col gap-6 px-4 pb-12 pt-6 sm:px-6">
@@ -87,7 +90,7 @@ export default function PracticePage() {
         {sess && (
           <Banner
             tone="info"
-            title={`You're in a ${sess.type} session.`}
+            title={`You're in a ${sess.mode} session.`}
             action={<Button variant="ghost" onClick={() => go('/terminal')}>Return to session</Button>}
           >
             Starting practice will ask you to leave it first.
@@ -140,7 +143,7 @@ export default function PracticePage() {
             <h2 id="sum-h" className="text-base font-semibold">Your practice</h2>
             <dl className="divide-y divide-line text-sm">
               {[
-                ['Market', market?.name ?? '—'],
+                ['Market', market ? marketName(market.tag) : '—'],
                 ['Conditions', conditionLabel(condition) ?? '—'],
                 ['Length', `${length} min`],
               ].map(([k, v]) => (

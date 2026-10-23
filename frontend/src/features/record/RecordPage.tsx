@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useCosts, useCostsSummary, useInstruments, useMarkets, usePnl, useTrades } from '../../api'
 import { Banner, Button, Card, EmptyState, Field, SegmentedToggle, SkeletonText, TopBar } from '../../components'
-import { getAccountId } from '../../lib/account'
+import { logout, requireAccountId } from '../../lib/identity'
+import { marketName, marketTimezone } from '../../lib/marketTimezone'
 import type { PriceFormat } from '../../lib/ticks'
 import { PnlSummaryCard } from './PnlSummaryCard'
 import { QueryError } from './QueryError'
@@ -29,7 +30,7 @@ const TABS = [
  * contract's keyset cursor (see range.ts); the contract has no from/to parameters.
  */
 export default function RecordPage() {
-  const accountId = getAccountId()
+  const accountId = requireAccountId()
   const markets = useMarkets()
   const [marketCode, setMarketCode] = useState<string>('')
   const [tab, setTab] = useState<Tab>('history')
@@ -37,20 +38,22 @@ export default function RecordPage() {
   const [applied, setApplied] = useState<Range | null>(null)
 
   const marketList = markets.data?.markets ?? []
-  const market = marketList.find((m) => m.code === marketCode) ?? marketList[0]
-  const tz = market?.timezone
-  const country = market?.code // the contract's `country` param is the market code (IN | US)
+  const market = marketList.find((m) => m.tag === marketCode) ?? marketList[0]
+  const tz = market ? marketTimezone(market.tag) : undefined
+  const country = market?.tag // the contract's `country` param is the market code (IN | US)
 
   // Until the user submits, the applied range is the default (last 30 market days).
   const defaults = useMemo(() => (tz ? defaultRange(tz) : null), [tz])
   const range = applied ?? defaults
   const draftRange = draft ?? defaults
 
+  if (!accountId) return null // requireAccountId already redirected to /signup
+
   return (
     <div className="min-h-screen bg-bg text-ink">
       <TopBar
-        markets={marketList.map((m) => ({ code: m.code, name: m.name }))}
-        market={market?.code ?? ''}
+        markets={marketList.map((m) => ({ code: m.tag, name: marketName(m.tag) }))}
+        market={market?.tag ?? ''}
         onMarketChange={setMarketCode}
         marketsLoading={markets.isPending}
         accountLabel={accountId}
@@ -58,6 +61,7 @@ export default function RecordPage() {
           { label: 'Home', onSelect: () => window.location.assign('/') },
           { label: 'Terminal', onSelect: () => window.location.assign('/terminal') },
           { label: 'Record', onSelect: () => {} },
+          { label: 'Log out', onSelect: logout },
         ]}
       />
       <main className="mx-auto flex max-w-[77.5rem] flex-col gap-5 px-4 pb-16 pt-6 sm:px-6">
@@ -74,10 +78,10 @@ export default function RecordPage() {
           <Card><SkeletonText lines={4} label="Loading" /></Card>
         ) : (
           <RecordBody
-            key={market.code}
+            key={market.tag}
             accountId={accountId}
             tab={tab}
-            marketName={market.name}
+            marketName={marketName(market.tag)}
             country={country}
             tz={tz}
             draft={draftRange}
@@ -121,7 +125,7 @@ function RecordBody(props: {
 
   const fmtBySymbol = useMemo(() => {
     const m = new Map<string, PriceFormat>()
-    for (const i of instruments.data?.instruments ?? []) m.set(i.instrument, { tick_size: i.tick_size, price_decimals: i.price_decimals })
+    for (const i of instruments.data?.instruments ?? []) m.set(i.id, { tick_size: i.tick_size, price_decimals: i.price_decimals ?? 2 })
     return m
   }, [instruments.data])
 

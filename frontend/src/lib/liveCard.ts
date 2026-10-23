@@ -9,6 +9,25 @@ import { ordinalMs, timePart } from './naive'
 
 export type Phase = 'preopen' | 'open' | 'closing' | 'closed'
 
+/**
+ * Maps the real backend's WS wire vocabulary (unknown/open/auction/closed — the only
+ * place market phase is carried at all, see BACKEND-INTEGRATION-PLAN.md) onto this
+ * module's own UI-decided Phase, for use as `clockPhase`'s fallback before the clock is
+ * known. There is no "preopen" on the wire; "unknown" is its closest equivalent.
+ */
+export function fromWirePhase(wire: 'unknown' | 'open' | 'auction' | 'closed'): Phase {
+  switch (wire) {
+    case 'open':
+      return 'open'
+    case 'auction':
+      return 'closing'
+    case 'closed':
+      return 'closed'
+    default:
+      return 'preopen'
+  }
+}
+
 export interface LiveCardInput {
   phase: Phase
   opensAt: string

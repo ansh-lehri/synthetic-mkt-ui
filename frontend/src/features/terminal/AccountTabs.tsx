@@ -17,12 +17,13 @@ function Price({ value, symbol, fmtFor }: { value: number; symbol: string; fmtFo
   return <Num kind="price" value={value} fmt={fmt ?? NO_FMT} available={fmt !== null} />
 }
 
-function SidePill({ side }: { side: 'buy' | 'sell' }) {
+function SidePill({ side }: { side: 'buy' | 'sell' | 'unknown' }) {
   const buy = side === 'buy'
+  const label = side === 'unknown' ? 'Unknown' : buy ? 'Buy' : 'Sell'
   return (
-    <span className={`inline-flex items-center gap-1 rounded-pill px-2.5 py-0.5 text-xs font-semibold ${buy ? 'bg-gainBg text-gain' : 'bg-lossBg text-loss'}`}>
-      <span aria-hidden="true">{buy ? '▲' : '▼'}</span>
-      {buy ? 'Buy' : 'Sell'}
+    <span className={`inline-flex items-center gap-1 rounded-pill px-2.5 py-0.5 text-xs font-semibold ${side === 'unknown' ? 'bg-raised text-muted' : buy ? 'bg-gainBg text-gain' : 'bg-lossBg text-loss'}`}>
+      {side !== 'unknown' && <span aria-hidden="true">{buy ? '▲' : '▼'}</span>}
+      {label}
     </span>
   )
 }

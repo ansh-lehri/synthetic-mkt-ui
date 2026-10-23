@@ -14,6 +14,17 @@ export function marketNow(timeZone: string, at: Date = new Date()): string {
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`
 }
 
+/**
+ * GET /v1/markets' session.opens_at/closes_at are now real RFC3339 UTC instants (a
+ * confirmed real-backend shape change, Phase 1 of BACKEND-INTEGRATION-PLAN.md) — this
+ * converts one to the naive-local string every other helper here (and in lib/liveCard.ts,
+ * lib/session.ts) already expects, at the one boundary where a real instant enters the
+ * app. The "client never touches UTC" rule is unchanged downstream of this call.
+ */
+export function instantToNaiveLocal(isoInstant: string, timeZone: string): string {
+  return marketNow(timeZone, new Date(isoInstant))
+}
+
 /** The market's current naive-local time, re-read every second. Undefined until the zone is known. */
 export function useMarketClock(timeZone: string | undefined): string | undefined {
   const [tick, setTick] = useState(0)

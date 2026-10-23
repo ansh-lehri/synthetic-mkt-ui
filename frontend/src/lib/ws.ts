@@ -120,6 +120,27 @@ export class MarketSocket {
     this.connect()
   }
 
+  /**
+   * Changes the connect target (e.g. the session_id query param changed because the user
+   * joined/exited/switched sessions). A no-op if the URL is unchanged; otherwise forces an
+   * immediate reconnect against the new URL, keeping all wanted subscriptions intact.
+   */
+  setUrl(url: string): void {
+    if (url === this.opts.url) return
+    this.opts.url = url
+    if (!this.running) return
+    this.attempt = 0
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    const old = this.ws
+    this.ws = null
+    this.ready = false
+    old?.close()
+    this.connect()
+  }
+
   stop(): void {
     this.running = false
     this.ready = false

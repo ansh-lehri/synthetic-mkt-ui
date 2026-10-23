@@ -29,7 +29,7 @@ export function DepthPanel({ symbol, snap, fmt, embedded = false }: { symbol: st
           Spread <Num kind="price" value={spread ?? 0} fmt={f} available={spread !== null && fmt !== null} size="sm" />
         </span>
         {snap && !snap.quote.has_bid && !snap.quote.has_ask && (
-          <span className="text-sm text-muted">No book while the market is {snap.phase === 'preopen' ? 'in pre-open' : snap.phase}.</span>
+          <span className="text-sm text-muted">No book while the market is {snap.phase === 'unknown' ? 'in pre-open' : snap.phase}.</span>
         )}
       </div>
 
