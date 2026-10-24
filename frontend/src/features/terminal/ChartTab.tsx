@@ -169,6 +169,13 @@ export interface ChartTabProps {
   onSymbol: (s: string) => void
   timeframe: CandleTimeframe
   onTimeframe: (t: CandleTimeframe) => void
+  /**
+   * When set, these override the canonical market.session.opens_at/closes_at for the candle
+   * history query and the live-bar bucket calculation. Required for practice (on-demand)
+   * sessions, which run outside the canonical market schedule.
+   */
+  sessionOpenAt?: string
+  sessionCloseAt?: string
 }
 
 /**
@@ -177,7 +184,7 @@ export interface ChartTabProps {
  *  - a `candle` frame arrives only when a bucket CLOSES and replaces the tip with the real bar;
  *  - between closes the rightmost bar's tip moves with snapshot.last_price.
  */
-export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe }: ChartTabProps) {
+export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe, sessionOpenAt, sessionCloseAt }: ChartTabProps) {
   const [type, setType] = useState<ChartType>('candles')
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>([])
   const [settingsFor, setSettingsFor] = useState<string | null>(null)
@@ -207,11 +214,10 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
   ])
 
   const tz = marketTimezone(market.tag)
-  // GET /v1/markets' session.opens_at/closes_at are now real RFC3339 instants — converted
-  // to the naive-local strings GET /v1/candles still expects (that endpoint's convention is
-  // unchanged by the contract rewrite).
-  const openAt = instantToNaiveLocal(market.session.opens_at, tz)
-  const closeAt = instantToNaiveLocal(market.session.closes_at, tz)
+  // sessionOpenAt/sessionCloseAt override the canonical market schedule for practice sessions,
+  // which run outside the canonical market window. For live sessions the canonical times apply.
+  const openAt = sessionOpenAt ?? instantToNaiveLocal(market.session.opens_at, tz)
+  const closeAt = sessionCloseAt ?? instantToNaiveLocal(market.session.closes_at, tz)
   const fmt = fmtFor(symbol)
 
   // History. The query key carries the socket epoch, so a reconnect RE-FETCHES it (the server
