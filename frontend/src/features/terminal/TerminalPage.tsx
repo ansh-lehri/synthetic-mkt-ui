@@ -318,7 +318,7 @@ export default function TerminalPage() {
                 onCancelAll={() => void actions.cancelAll(obs.orders)}
               />
             ) : tab === 'positions' ? (
-              <PositionsTab positions={obs.positions} names={(s) => instrumentOf(s)?.name ?? ''} fmtFor={book.fmtFor} />
+              <PositionsTab positions={obs.positions} names={(s) => instrumentOf(s)?.name ?? ''} fmtFor={book.fmtFor} snapshots={snapshots} />
             ) : tab === 'trades' ? (
               <TradesTab trades={obs.recent_trades} degraded={obs.trades_degraded} fmtFor={book.fmtFor} tz={tz ?? 'UTC'} />
             ) : (

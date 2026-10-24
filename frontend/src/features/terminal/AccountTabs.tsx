@@ -1,6 +1,7 @@
 import type { Balance, OpenOrder, Position, Trade } from '../../api'
 import { Banner, Button, Card, Num, type BannerTone } from '../../components'
 import type { PriceFormat } from '../../lib/ticks'
+import type { SnapshotData } from '../../lib/marketStore'
 import { formatDay, formatTime } from '../record/range'
 
 // The Terminal's account tabs. Everything here is read from ONE source: the observation poll.
@@ -143,42 +144,64 @@ export function OrdersTab({
 
 // ---------------------------------------------------------------- Positions
 
-export function PositionsTab({ positions, names, fmtFor }: { positions: Position[]; names: (symbol: string) => string; fmtFor: FmtFor }) {
+export function PositionsTab({ positions, names, fmtFor, snapshots }: { positions: Position[]; names: (symbol: string) => string; fmtFor: FmtFor; snapshots: Record<string, SnapshotData> }) {
   const open = positions.filter((p) => p.qty !== 0)
   return (
     <section aria-labelledby="po-h" className="space-y-3">
       <Head title="Open positions" count={open.length} />
       <Card flush className="overflow-hidden">
         <div className="relative overflow-x-auto">
-          <table className="w-full min-w-[520px] border-collapse text-sm" id="po-h">
-            <caption className="sr-only">Open positions with quantity and average entry price.</caption>
+          <table className="w-full min-w-[700px] border-collapse text-sm" id="po-h">
+            <caption className="sr-only">Open positions with live P&amp;L.</caption>
             <thead>
               <tr className="text-left">
                 <th scope="col" className={TH}>Instrument</th>
                 <th scope="col" className={`${TH} text-right`}>Qty</th>
                 <th scope="col" className={`${TH} text-right`}>Avg price</th>
-                <th scope="col" className={`${TH} text-right`}>Reserved</th>
+                <th scope="col" className={`${TH} text-right`}>LTP</th>
+                <th scope="col" className={`${TH} text-right`}>Unrealised P&amp;L</th>
+                <th scope="col" className={`${TH} text-right`}>Change %</th>
               </tr>
             </thead>
             <tbody>
-              {open.map((p) => (
-                <tr key={p.instrument} className="border-t border-line" data-testid="position">
-                  <td className={TD}>
-                    <span className="flex flex-col"><span className="font-semibold">{p.instrument}</span><span className="text-sm text-muted">{names(p.instrument)}</span></span>
-                  </td>
-                  <td className={`${TD} text-right`}><Num kind="qty" value={p.qty} /></td>
-                  <td className={`${TD} text-right`}><Price value={p.weighted_avg_entry} symbol={p.instrument} fmtFor={fmtFor} /></td>
-                  <td className={`${TD} text-right`}><Num kind="qty" value={p.reserved_qty} /></td>
-                </tr>
-              ))}
+              {open.map((p) => {
+                const snap = snapshots[p.instrument]
+                // prefer backend mark when available; fall back to WS snapshot
+                const ltpTicks = p.mark_available ? p.ltp : (snap?.has_last ? snap.last_price : null)
+                const hasLtp = ltpTicks !== null
+                // ticks → rupees (*0.01); qty is signed (positive=long, negative=short)
+                const unrealisedPnl = hasLtp ? Math.round((ltpTicks! - p.weighted_avg_entry) * p.qty * 0.01) : null
+                const changePct = hasLtp && p.weighted_avg_entry !== 0
+                  ? ((ltpTicks! - p.weighted_avg_entry) / p.weighted_avg_entry) * 100
+                  : null
+                return (
+                  <tr key={p.instrument} className="border-t border-line" data-testid="position">
+                    <td className={TD}>
+                      <span className="flex flex-col"><span className="font-semibold">{p.instrument}</span><span className="text-sm text-muted">{names(p.instrument)}</span></span>
+                    </td>
+                    <td className={`${TD} text-right`}><Num kind="qty" value={p.qty} /></td>
+                    <td className={`${TD} text-right`}><Price value={p.weighted_avg_entry} symbol={p.instrument} fmtFor={fmtFor} /></td>
+                    <td className={`${TD} text-right`}>
+                      {hasLtp ? <Price value={ltpTicks!} symbol={p.instrument} fmtFor={fmtFor} /> : <span className="text-muted">—</span>}
+                    </td>
+                    <td className={`${TD} text-right`}>
+                      {unrealisedPnl !== null
+                        ? <Num kind="signed-money" value={unrealisedPnl} label={false} className="font-semibold" />
+                        : <span className="text-muted">—</span>}
+                    </td>
+                    <td className={`${TD} text-right`}>
+                      {changePct !== null
+                        ? <span className={`font-semibold ${changePct >= 0 ? 'text-gain' : 'text-loss'}`}>{changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%</span>
+                        : <span className="text-muted">—</span>}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
         {open.length === 0 && <Empty>No open positions.</Empty>}
       </Card>
-      <p className="text-sm text-muted">
-        Last price and live profit and loss are not shown yet — the exchange is not marking open positions. Quantity and average price are real.
-      </p>
     </section>
   )
 }
