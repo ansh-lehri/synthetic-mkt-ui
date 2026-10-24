@@ -4,6 +4,7 @@ import { useObservation, type CandleTimeframe, type OpenOrder } from '../../api'
 import { Banner, Button, Card, ConfirmDialog, Num, SessionBar, SkeletonText, TopBar } from '../../components'
 import { logout, requireAccountId, requireEmail } from '../../lib/identity'
 import { instantToNaiveLocal, useMarketClock } from '../../lib/marketClock'
+import { addDaysNaive } from '../../lib/naive'
 import { marketName, marketTimezone } from '../../lib/marketTimezone'
 import { setMarketSession, useMarketStore } from '../../lib/marketStore'
 import type { Side } from '../../lib/orderTicket'
@@ -109,6 +110,13 @@ export default function TerminalPage() {
   const closesAtNaive =
     practiceClosesAtNaive ?? (m.market && tz ? instantToNaiveLocal(m.market.session.closes_at, tz) : undefined)
   const opensAtNaive = sess?.mode === 'live' && m.market && tz ? instantToNaiveLocal(m.market.session.opens_at, tz) : undefined
+  // For the chart's candle history query, practice sessions need the actual session window
+  // (not the canonical market schedule). Use sess.closesAt as the close, and go 1 day back
+  // for the open — wide enough to cover any practice session length.
+  const chartCloseAt = closesAtNaive
+  const chartOpenAt = sess?.mode === 'practice' && closesAtNaive
+    ? addDaysNaive(closesAtNaive, -1)
+    : opensAtNaive ?? (m.market && tz ? instantToNaiveLocal(m.market.session.opens_at, tz) : undefined)
   const phase = backendPhase
     ? clockPhase(nowLocal, opensAtNaive, closesAtNaive, backendPhase)
     : undefined
@@ -293,7 +301,8 @@ export default function TerminalPage() {
                 onSymbol={setSymbol}
                 timeframe={timeframe}
                 onTimeframe={setTimeframe}
-                practiceClosesAt={practiceClosesAtNaive}
+                sessionOpenAt={chartOpenAt}
+                sessionCloseAt={chartCloseAt}
               />
             ) : !sess ? null : !obs ? (
               obsQ.isPending ? <Card><SkeletonText lines={3} label="Loading your account" /></Card> : null
