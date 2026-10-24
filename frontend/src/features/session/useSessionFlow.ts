@@ -8,14 +8,16 @@ import { isNoAnswer, type SessionMode } from '../../lib/session'
 
 export type EnterTarget = { kind: 'live' } | { kind: 'practice'; condition: PracticeCondition; length: PracticeLength }
 
-/** Replaces the old mock-era ActiveSession. closesAt is only known for practice (on-demand's
- * session_ends_at, an RFC3339Nano instant) — canonical/live sessions carry no end timer to
- * the frontend at all; read the market's own session.closes_at separately if needed. */
+/** Replaces the old mock-era ActiveSession. closesAt/opensAt are only known for practice
+ * (on-demand's session_ends_at / warmup_ends_at) — canonical/live sessions carry no such
+ * timers to the frontend; read the market's own session.closes_at/opens_at separately if needed. */
 export interface ActiveInfo {
   mode: SessionMode
   market: string
   sessionId: string
   closesAt?: string
+  /** RFC3339Nano: when the on-demand warmup ended = when practice trading started. Practice only. */
+  opensAt?: string
 }
 
 export interface SessionNotice {
@@ -34,7 +36,7 @@ export interface SwitchPrompt {
 function toActiveInfo(s: CurrentSessionState): ActiveInfo | null {
   if (s.kind === 'none') return null
   if (s.status === 'ended' || s.status === 'failed') return null
-  return { mode: s.mode === 'canonical' ? 'live' : 'practice', market: s.market, sessionId: s.sessionId, closesAt: s.sessionEndsAt }
+  return { mode: s.mode === 'canonical' ? 'live' : 'practice', market: s.market, sessionId: s.sessionId, closesAt: s.sessionEndsAt, opensAt: s.warmupEndsAt }
 }
 
 /**
@@ -118,7 +120,7 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
       if (outcome.kind === 'insufficient_funds') {
         return { info: { mode: 'practice', market, sessionId: '' }, lowBalance: true }
       }
-      return { info: { mode: 'practice', market, sessionId: outcome.body.session_id, closesAt: outcome.body.session_ends_at } }
+      return { info: { mode: 'practice', market, sessionId: outcome.body.session_id, closesAt: outcome.body.session_ends_at, opensAt: outcome.body.warmup_ends_at } }
     },
     [userId, market],
   )

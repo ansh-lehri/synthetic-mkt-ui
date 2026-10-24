@@ -11,8 +11,9 @@ export const TIMEFRAMES: CandleTimeframe[] = ['1m', '5m', '30m', '60m']
 
 export const TIMEFRAME_MINUTES: Record<CandleTimeframe, number> = { '1m': 1, '5m': 5, '30m': 30, '60m': 60 }
 
-/** Sessions of history to load per timeframe (coarser bars span more days). */
-export const LOOKBACK_SESSIONS: Record<CandleTimeframe, number> = { '1m': 1, '5m': 3, '30m': 10, '60m': 20 }
+/** Calendar days of history to load per timeframe. Coarser timeframes fetch more days because
+ * fewer candles per day makes a wider window cheap; 1m already yields ~375 candles/day. */
+export const LOOKBACK_SESSIONS: Record<CandleTimeframe, number> = { '1m': 30, '5m': 30, '30m': 60, '60m': 90 }
 
 /** A bar as the chart library wants it. Prices stay raw int64; labels are formatted later. */
 export function toKLine(b: Bar): KLineData {

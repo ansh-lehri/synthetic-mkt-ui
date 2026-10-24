@@ -4,7 +4,6 @@ import { useObservation, type CandleTimeframe, type OpenOrder } from '../../api'
 import { Banner, Button, Card, ConfirmDialog, Num, SessionBar, SkeletonText, TopBar } from '../../components'
 import { logout, requireAccountId, requireEmail } from '../../lib/identity'
 import { instantToNaiveLocal, useMarketClock } from '../../lib/marketClock'
-import { addDaysNaive } from '../../lib/naive'
 import { marketName, marketTimezone } from '../../lib/marketTimezone'
 import { setMarketSession, useMarketStore } from '../../lib/marketStore'
 import type { Side } from '../../lib/orderTicket'
@@ -107,16 +106,17 @@ export default function TerminalPage() {
   // close apart from the canonical-market fallback — its own on-demand exchange runs on a
   // totally different clock than the canonical market's day session.
   const practiceClosesAtNaive = sess?.mode === 'practice' && sess.closesAt && tz ? instantToNaiveLocal(sess.closesAt, tz) : undefined
+  const practiceOpensAtNaive = sess?.mode === 'practice' && sess.opensAt && tz ? instantToNaiveLocal(sess.opensAt, tz) : undefined
   const closesAtNaive =
     practiceClosesAtNaive ?? (m.market && tz ? instantToNaiveLocal(m.market.session.closes_at, tz) : undefined)
   const opensAtNaive = sess?.mode === 'live' && m.market && tz ? instantToNaiveLocal(m.market.session.opens_at, tz) : undefined
-  // For the chart's candle history query, practice sessions need the actual session window
-  // (not the canonical market schedule). Use sess.closesAt as the close, and go 1 day back
-  // for the open — wide enough to cover any practice session length.
+  // For the chart's candle history query: practice sessions use the on-demand exchange's actual
+  // open time (warmup_ends_at, when trading started), so historyWindow goes ~30 days before that
+  // instant and liveBucketStart anchors the live bar correctly at the session open.
   const chartCloseAt = closesAtNaive
-  const chartOpenAt = sess?.mode === 'practice' && closesAtNaive
-    ? addDaysNaive(closesAtNaive, -1)
-    : opensAtNaive ?? (m.market && tz ? instantToNaiveLocal(m.market.session.opens_at, tz) : undefined)
+  const chartOpenAt = practiceOpensAtNaive
+    ?? opensAtNaive
+    ?? (m.market && tz ? instantToNaiveLocal(m.market.session.opens_at, tz) : undefined)
   const phase = backendPhase
     ? clockPhase(nowLocal, opensAtNaive, closesAtNaive, backendPhase)
     : undefined

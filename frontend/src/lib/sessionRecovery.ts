@@ -17,6 +17,9 @@ export type CurrentSessionState =
       /** RFC3339Nano instant. Populated only when mode=="ondemand" — canonical sessions
        * never carry an end timer to the frontend at this door. */
       sessionEndsAt?: string
+      /** RFC3339Nano instant when the on-demand warmup period ends (= session open for trading).
+       * Populated only when mode=="ondemand". */
+      warmupEndsAt?: string
     }
 
 /** POST /session/current. A 404 ("no session for user") maps to `{kind:'none'}`, not an error. */
@@ -31,6 +34,7 @@ export async function resolveCurrentSession(userId: string): Promise<CurrentSess
       market: res.market,
       status: res.status,
       sessionEndsAt: res.session_ends_at ?? undefined,
+      warmupEndsAt: res.warmup_ends_at ?? undefined,
     }
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) return { kind: 'none' }

@@ -12,9 +12,9 @@ export const PRACTICE_CONDITIONS: Array<{ value: PracticeCondition; label: strin
   { value: 'busy', label: 'Whipsaw', hint: 'Prices reverse often. Hard to hold a view.' },
   { value: 'dispersion', label: 'Unstable day', hint: 'Large, fast moves with little warning.' },
 ]
-export const PRACTICE_LENGTHS: PracticeLength[] = [60, 75, 90, 105]
+export const PRACTICE_LENGTHS: PracticeLength[] = [10, 20, 30, 60]
 export const DEFAULT_CONDITION: PracticeCondition = 'normal'
-export const DEFAULT_LENGTH: PracticeLength = 90
+export const DEFAULT_LENGTH: PracticeLength = 30
 
 export function conditionLabel(c: string | null | undefined): string | undefined {
   if (!c) return undefined

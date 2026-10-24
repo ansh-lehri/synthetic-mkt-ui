@@ -179,11 +179,6 @@ export interface ChartTabProps {
   sessionCloseAt?: string
 }
 
-/** How far before a practice session's close to start asking for candles — comfortably covers
- * warmup (2 min) plus the longest practice length (105 min) with margin, without needing to
- * know the on-demand exchange's exact start instant (not carried anywhere on the wire). */
-const PRACTICE_LOOKBACK_HOURS = 3
-
 /**
  * Chart = history, then live (Model A):
  *  - history: GET /v1/candles, finalized bars only, re-fetched on every (re)connect;
