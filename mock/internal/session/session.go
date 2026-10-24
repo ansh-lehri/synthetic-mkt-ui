@@ -120,8 +120,9 @@ func (h *handler) canonical(w http.ResponseWriter, r *http.Request) {
 
 // ondemand is a HELD request on the real backend (synchronous setup pipeline); the
 // mock has no pipeline to run, so it returns immediately with the same body shapes.
-// No `condition` field is read — the scenario picker is frontend-only state
-// (BACKEND-INTEGRATION-PLAN.md §4), never sent on this endpoint.
+// req.Condition (the scenario picker) is accepted on the wire but deliberately not
+// read — it's a documented no-op ahead of backend support (BACKEND-INTEGRATION-PLAN.md
+// §4/§6); the mock has no scenario-driven market behavior to switch on either.
 func (h *handler) ondemand(w http.ResponseWriter, r *http.Request) {
 	var req api.OnDemandRequest
 	if !httpx.DecodeJSON(w, r, &req) {

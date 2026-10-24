@@ -9,6 +9,7 @@ import type {
   OnDemandInsufficientFundsBody,
   OnDemandRequest,
   OnDemandWarmingUpBody,
+  PracticeCondition,
   SessionExitResponse,
 } from '../api/types'
 
@@ -30,14 +31,15 @@ export type OnDemandOutcome =
   | { kind: 'insufficient_funds'; body: OnDemandInsufficientFundsBody }
 
 /**
- * POST /session/ondemand?market=&duration=. No `condition` field is sent — the scenario
- * picker is frontend-only state, never sent on this endpoint (BACKEND-INTEGRATION-PLAN.md
- * §4; the backend is building its own scenario-list endpoints separately). The money-floor
+ * POST /session/ondemand?market=&duration=. `condition` rides along as a documented no-op
+ * ahead of backend support (BACKEND-INTEGRATION-PLAN.md §4/§6, contract/openapi.yaml's
+ * PracticeCondition) — neither the mock nor the real backend reads it today; this is
+ * forward wiring only, so turning it on later is a backend-only change. The money-floor
  * gate is a 200 with a DIFFERENT body shape, never a 409 — so this resolves to a
  * discriminated outcome instead of throwing on a gate rejection.
  */
-export async function startPractice(userId: string, market: string, durationMinutes: number): Promise<OnDemandOutcome> {
-  const body: OnDemandRequest = { user: { user_id: userId } }
+export async function startPractice(userId: string, market: string, durationMinutes: number, condition?: PracticeCondition): Promise<OnDemandOutcome> {
+  const body: OnDemandRequest = { user: { user_id: userId }, ...(condition ? { condition } : {}) }
   const res = await apiPost<OnDemandWarmingUpBody | OnDemandInsufficientFundsBody>(ondemandPath(market, durationMinutes), body)
   return res.status === 'insufficient_funds' ? { kind: 'insufficient_funds', body: res } : { kind: 'warming_up', body: res }
 }

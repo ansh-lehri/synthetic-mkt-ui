@@ -114,7 +114,7 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
         const r = await joinLiveCall(userId, market)
         return { info: { mode: 'live', market, sessionId: r.session_id } }
       }
-      const outcome = await startPractice(userId, market, t.length)
+      const outcome = await startPractice(userId, market, t.length, t.condition)
       if (outcome.kind === 'insufficient_funds') {
         return { info: { mode: 'practice', market, sessionId: '' }, lowBalance: true }
       }

@@ -1527,9 +1527,8 @@ class Component extends DCLogic {
       'Normal day': 'Ordinary trading. A good place to start.',
       'Calm range': 'Prices drift inside a narrow band.',
       'Trending day': 'Prices lean one way for most of the session.',
-      'Whipsaw': 'Prices reverse often. Hard to hold a view.',
+      'Dispersion': 'Prices reverse often. Hard to hold a view.',
       'Unstable day': 'Large, fast moves with little warning.',
-      'Thin liquidity': 'Few agents trading. Your orders move the price.'
     };
     const conds = Object.keys(D).map((k) => ({ name: k, desc: D[k], on: m.pCond === k, off: m.low, pick: () => { m.pCond = k; this.up(); } }));
     const lens = [60, 75, 90, 105].map((n) => ({ label: n + ' min', on: m.pLen === n, off: m.low, pick: () => { m.pLen = n; this.up(); } }));

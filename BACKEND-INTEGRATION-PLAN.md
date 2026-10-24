@@ -1,12 +1,14 @@
 # Backend Integration Plan — Synthetic Market Simulator
 
-**Status:** Phase 1 (contract rewrite) and Phase 2 (mock rewrite) both landed on
-branch `contract-rewrite` — see `PHASE-1-CONTRACT-REWRITE-PLAN.md` /
-`PHASE-2-MOCK-REWRITE-PLAN.md` for the stage-by-stage record,
-`contract/REWRITE-DIFF.md` for the exact before/after. `mock/` builds and
-`go test ./...` passes against the new contract — the branch is ready to combine
-into a PR per §0's sequencing (contract + mock together, so `main` is never left
-non-compiling). Phases 3–5 not started.
+**Status:** Phases 1–4 landed. Phase 1 (contract rewrite) + Phase 2 (mock rewrite)
+merged to `main` via branch `contract-rewrite`. Phase 3 (frontend identity/session
+modules + Signup screen) and Phase 4 (Home/Terminal/Practice/Record rewired to the
+real contract) landed on branch `phase-3-identity-session` — not yet merged. `npx tsc
+-b --force` is clean across the whole frontend, `npx vitest run` is 109/109, and a
+full manual walk of signup → join live → balance/observation → place order → exit →
+cash → practice → Record (trades/pnl/costs) was run against the rewritten mock and
+matches exactly. Phase 5 (verification against the real backend side by side) not
+started.
 **Scope:** how the frontend (and its mock) move from the invented mock contract
 to the real backend's actual contract, without having to re-wire endpoints
 more than once.
@@ -139,7 +141,7 @@ get built against.
 | Gap | Handling |
 |---|---|
 | `GET /v1/instruments` missing `name`/`lot_size`/`price_decimals` | Modelled as optional in the contract; client-side default map keyed by instrument id until backend adds them. Confirmed as a genuine backend gap backend will close. |
-| Practice "condition" (scenario) has no backend field | Kept in frontend UI/state only; not sent on `/session/ondemand`. Backend is building scenario-list endpoints separately — revisit when those ship. |
+| Practice "condition" (scenario) has no backend field | **Updated 2026-10-23:** now sent as an optional `condition` on `OnDemandRequest` (`contract/openapi.yaml`'s `PracticeCondition` enum) — confirmed harmless on both servers (mock decodes it with `DisallowUnknownFields` now that the field exists on the struct; the real backend's plain `json.Decode` with no `DisallowUnknownFields` ignores unknown-to-it fields by default). Neither server reads the value yet — this is forward wiring only, so turning it on is a backend-only change, no frontend work left. Revisit when the backend's own scenario-list endpoints ship. |
 | Four timestamp formats on the wire | Reduces to two parsing paths in practice: (a) RFC3339 / RFC3339Nano — both parse fine with native `Date`, no custom code; (b) naive-local + a paired `timezone` field — already handled by `lib/naive.ts`. Work is tagging which field is which per endpoint, not writing new parsers. |
 | CORS — real backend sends no headers | Temporary Vite dev-proxy (`vite.config.ts`, already added) forwards `/v1` and `/session` to `localhost:8080` so the browser sees same-origin. Flagged separately as a backend/infra fix needed before any non-proxied deployment. |
 | Multi-country routing (one backend deployment per country) | **Parked, not designed.** Explicitly out of scope for this plan per your call — revisit later as its own piece of work. |
@@ -206,6 +208,37 @@ nuance — flagged here so they're not mistaken for bugs later:
   from before this rewrite) even though the real backend's is now conditionally
   `true`. Flagged as a Phase 4+ open item if live position marks become worth
   testing against the mock specifically — not blocking.
+
+## 4c. Phase 4 findings — frontend adaptation decisions made explicit
+
+- **`GET /v1/markets` dropped both `timezone` and `name`** (confirmed real-backend gap,
+  beyond the already-known instrument metadata gap). Added
+  `frontend/src/lib/marketTimezone.ts` as the one client-side lookup for both
+  (`IN`→`Asia/Kolkata`/`India`, `US`→`America/New_York`/`United States`), mirroring the
+  real backend's own market-data allowlist. Swap/remove once the contract adds these
+  fields back, not the call sites using the lookup.
+- **`opens_at`/`closes_at` are now real RFC3339 UTC instants**, not naive-local strings.
+  Added `instantToNaiveLocal()` to `lib/marketClock.ts` (reuses the existing `marketNow`
+  conversion) as the one boundary where a real instant becomes the naive-local string
+  every other helper (`lib/liveCard.ts`, `lib/session.ts`) already expects — those
+  modules themselves needed no changes.
+- **Canonical (live) sessions carry no end-timer to the frontend at all** — only
+  on-demand's `session_ends_at` is known. The session bar's "closes at" display for a
+  live session now falls back to the market's own `session.closes_at`; the one-session
+  switch-confirm dialog no longer shows a specific close time for either kind (a minor,
+  deliberate UX simplification — flagged, not silently absorbed).
+- **Practice `condition` is not shown in the Terminal's session bar anymore.** It was
+  never persisted server-side (confirmed, it's frontend-only state) and the Terminal is
+  reached by a full page navigation from Practice setup, so there is no client-side
+  channel left to carry it across. It still shows on the Practice setup screen itself.
+- **`mark_available` stays `false` in the mock** (Phase 2's existing simplification,
+  unchanged) even though the real backend's is conditionally `true` — the Positions tab
+  still ships without the live-mark column, per the original Phase 7 gate design.
+- **WS phase vocabulary** (`unknown`/`open`/`auction`/`closed`) is mapped to the
+  existing UI-decided `Phase` type (`preopen`/`open`/`closing`/`closed`) via a new
+  `fromWirePhase()` in `lib/liveCard.ts`, used only as `clockPhase`'s fallback before the
+  UI clock resolves (immediate in practice) — the UI-clock-is-primary design from Phase
+  3c/4a is otherwise unchanged.
 
 ## 5. Phased implementation order
 

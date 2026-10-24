@@ -6,15 +6,14 @@ import { ordinalMs, timePart } from './naive'
 
 /** Conditions are named by what the market does, not by an event. Descriptions are the board's. */
 export const PRACTICE_CONDITIONS: Array<{ value: PracticeCondition; label: string; hint: string }> = [
-  { value: 'normal_day', label: 'Normal day', hint: 'A typical mix of trading. A good place to start.' },
-  { value: 'calm_range', label: 'Calm range', hint: 'Prices drift inside a narrow band.' },
-  { value: 'trending_day', label: 'Trending day', hint: 'Prices lean one way for most of the session.' },
-  { value: 'whipsaw', label: 'Whipsaw', hint: 'Prices reverse often. Hard to hold a view.' },
-  { value: 'unstable_day', label: 'Unstable day', hint: 'Large, fast moves with little warning.' },
-  { value: 'thin_liquidity', label: 'Thin liquidity', hint: 'Few agents trading. Your orders move the price.' },
+  { value: 'normal', label: 'Normal day', hint: 'A typical mix of trading. A good place to start.' },
+  { value: 'calm', label: 'Calm range', hint: 'Prices drift inside a narrow band.' },
+  { value: 'thin', label: 'Trending day', hint: 'Prices lean one way for most of the session.' },
+  { value: 'busy', label: 'Whipsaw', hint: 'Prices reverse often. Hard to hold a view.' },
+  { value: 'dispersion', label: 'Unstable day', hint: 'Large, fast moves with little warning.' },
 ]
 export const PRACTICE_LENGTHS: PracticeLength[] = [60, 75, 90, 105]
-export const DEFAULT_CONDITION: PracticeCondition = 'normal_day'
+export const DEFAULT_CONDITION: PracticeCondition = 'normal'
 export const DEFAULT_LENGTH: PracticeLength = 90
 
 export function conditionLabel(c: string | null | undefined): string | undefined {

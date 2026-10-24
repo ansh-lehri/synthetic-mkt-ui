@@ -534,8 +534,9 @@ paths:
       summary: >
         Spin up a one-user ephemeral market instance. A HELD request — does not
         return until the full setup pipeline completes or fails (SetupTimeout 90s
-        default). No condition field exists on this endpoint; the scenario picker is
-        frontend-only state (BACKEND-INTEGRATION-PLAN.md §4).
+        default). Request body carries an optional `condition` (the scenario picker)
+        ahead of backend support — see OnDemandRequest/PracticeCondition; it is a
+        documented no-op until the backend reads it (BACKEND-INTEGRATION-PLAN.md §4/§6).
       parameters:
         - name: market
           in: query
@@ -1061,11 +1062,22 @@ components:
         participant_id: { type: string }
         status: { type: string, enum: [active], description: always the literal "active" on 200 }
 
+    PracticeCondition:
+      type: string
+      enum: [normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity]
+      description: >
+        The Practice setup screen's market-scenario picker. Not read by the mock or (as far
+        as confirmed) the real backend yet — sent as a documented no-op ahead of backend
+        support landing, so adding real behavior later is a backend-only change. See
+        BACKEND-INTEGRATION-PLAN.md §4/§6.
     OnDemandRequest:
       type: object
       required: [user]
       properties:
         user: { $ref: '#/components/schemas/Identity' }
+        condition:
+          allOf: [{ $ref: '#/components/schemas/PracticeCondition' }]
+          description: Optional. See PracticeCondition — currently a no-op everywhere it's read.
     OnDemandWarmingUpBody:
       type: object
       required: [status, session_id, warmup_ends_at, session_ends_at]

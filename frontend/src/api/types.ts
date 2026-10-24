@@ -44,8 +44,9 @@ export type AccountOpenResponse = Schemas['AccountOpenResponse']
 export type Cash = Schemas['Cash']
 
 // ---- session axis: two kinds (canonical/on-demand), two status vocabularies — see
-// BACKEND-INTEGRATION-PLAN.md §3. No `condition` field exists on the wire; the practice
-// scenario picker below is frontend-only state, never sent to the backend.
+// BACKEND-INTEGRATION-PLAN.md §3. `OnDemandRequest.condition` is on the wire now (sent
+// ahead of backend support) but is a documented no-op until the backend reads it — see
+// PracticeCondition below and lib/sessionActions.ts.
 export type JoinCanonicalRequest = Schemas['JoinCanonicalRequest']
 export type JoinCanonicalResponse = Schemas['JoinCanonicalResponse']
 export type OnDemandRequest = Schemas['OnDemandRequest']
@@ -57,9 +58,9 @@ export type SessionCurrentRequest = Schemas['SessionCurrentRequest']
 export type SessionCurrentResponse = Schemas['SessionCurrentResponse']
 export type SessionExitResponse = Schemas['SessionExitResponse']
 
-/** Frontend-only — no wire representation. The six conditions are a product decision,
- * not a contract value; the backend is building its own scenario endpoints separately. */
-export type PracticeCondition = 'normal_day' | 'calm_range' | 'trending_day' | 'whipsaw' | 'unstable_day' | 'thin_liquidity'
+/** The Practice setup screen's market-scenario picker. On the wire (OnDemandRequest.condition)
+ * as a documented no-op ahead of backend support — see BACKEND-INTEGRATION-PLAN.md §4/§6. */
+export type PracticeCondition = Schemas['PracticeCondition']
 /** Frontend-only — /session/ondemand takes a plain `duration` minutes query param, not this enum. */
 export type PracticeLength = 60 | 75 | 90 | 105
 

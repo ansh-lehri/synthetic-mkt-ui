@@ -101,13 +101,13 @@ export default function TerminalPage() {
   const backendPhase = wirePhase ? fromWirePhase(wirePhase) : undefined
   const nowLocal = useMarketClock(tz) // the UI runs the clock itself
   // Live (canonical) has no end-timer from the session itself — fall back to the market's own
-  // schedule; practice (on-demand) carries session_ends_at (a real instant) directly.
+  // schedule; practice (on-demand) carries session_ends_at (a real instant) directly. Kept as
+  // its own variable (not just inlined into closesAtNaive) so ChartTab can tell a real practice
+  // close apart from the canonical-market fallback — its own on-demand exchange runs on a
+  // totally different clock than the canonical market's day session.
+  const practiceClosesAtNaive = sess?.mode === 'practice' && sess.closesAt && tz ? instantToNaiveLocal(sess.closesAt, tz) : undefined
   const closesAtNaive =
-    sess?.mode === 'practice' && sess.closesAt && tz
-      ? instantToNaiveLocal(sess.closesAt, tz)
-      : m.market && tz
-        ? instantToNaiveLocal(m.market.session.closes_at, tz)
-        : undefined
+    practiceClosesAtNaive ?? (m.market && tz ? instantToNaiveLocal(m.market.session.closes_at, tz) : undefined)
   const opensAtNaive = sess?.mode === 'live' && m.market && tz ? instantToNaiveLocal(m.market.session.opens_at, tz) : undefined
   const phase = backendPhase
     ? clockPhase(nowLocal, opensAtNaive, closesAtNaive, backendPhase)
@@ -293,6 +293,7 @@ export default function TerminalPage() {
                 onSymbol={setSymbol}
                 timeframe={timeframe}
                 onTimeframe={setTimeframe}
+                practiceClosesAt={practiceClosesAtNaive}
               />
             ) : !sess ? null : !obs ? (
               obsQ.isPending ? <Card><SkeletonText lines={3} label="Loading your account" /></Card> : null

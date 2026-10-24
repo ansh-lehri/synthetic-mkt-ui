@@ -10,6 +10,7 @@ import { instantToNaiveLocal } from '../../lib/marketClock'
 import { marketTimezone } from '../../lib/marketTimezone'
 import type { PriceFormat } from '../../lib/ticks'
 import { advanceLive, historyWindow, liveBucketStart, liveToKLine, mergeFinal, TIMEFRAMES, toKLine, type LiveBar } from './bars'
+import { addHoursNaive } from '../../lib/naive'
 import { loadIndicatorPrefs, saveIndicatorPrefs, type ActiveIndicator } from './chartIndicatorPrefs'
 import type { ChartType } from './chartTheme'
 import { DepthPanel } from './DepthPanel'
@@ -169,7 +170,19 @@ export interface ChartTabProps {
   onSymbol: (s: string) => void
   timeframe: CandleTimeframe
   onTimeframe: (t: CandleTimeframe) => void
+  /** Naive-local session_ends_at, set only while the active session is practice (on-demand).
+   * An on-demand exchange runs on its OWN short clock (started whenever practice began, closes
+   * at this instant) — nothing like the canonical market's 09:15-15:30 day. Falling back to the
+   * canonical market's hours here would ask /v1/candles for a window the on-demand exchange
+   * never traded in, so every small timeframe (whose lookback is "today" or a few days) comes
+   * back empty, and only 60m's wide 20-day lookback happens to overlap at all. */
+  practiceClosesAt?: string
 }
+
+/** How far before a practice session's close to start asking for candles — comfortably covers
+ * warmup (2 min) plus the longest practice length (105 min) with margin, without needing to
+ * know the on-demand exchange's exact start instant (not carried anywhere on the wire). */
+const PRACTICE_LOOKBACK_HOURS = 3
 
 /**
  * Chart = history, then live (Model A):
@@ -177,7 +190,7 @@ export interface ChartTabProps {
  *  - a `candle` frame arrives only when a bucket CLOSES and replaces the tip with the real bar;
  *  - between closes the rightmost bar's tip moves with snapshot.last_price.
  */
-export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe }: ChartTabProps) {
+export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe, practiceClosesAt }: ChartTabProps) {
   const [type, setType] = useState<ChartType>('candles')
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>([])
   const [settingsFor, setSettingsFor] = useState<string | null>(null)
@@ -209,9 +222,10 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
   const tz = marketTimezone(market.tag)
   // GET /v1/markets' session.opens_at/closes_at are now real RFC3339 instants — converted
   // to the naive-local strings GET /v1/candles still expects (that endpoint's convention is
-  // unchanged by the contract rewrite).
-  const openAt = instantToNaiveLocal(market.session.opens_at, tz)
-  const closeAt = instantToNaiveLocal(market.session.closes_at, tz)
+  // unchanged by the contract rewrite). Practice (on-demand) overrides both ends with its own
+  // short clock instead — see ChartTabProps.practiceClosesAt.
+  const openAt = practiceClosesAt ? addHoursNaive(practiceClosesAt, -PRACTICE_LOOKBACK_HOURS) : instantToNaiveLocal(market.session.opens_at, tz)
+  const closeAt = practiceClosesAt ?? instantToNaiveLocal(market.session.closes_at, tz)
   const fmt = fmtFor(symbol)
 
   // History. The query key carries the socket epoch, so a reconnect RE-FETCHES it (the server

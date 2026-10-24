@@ -84,6 +84,15 @@ const (
 	PlaceOrderRequestTypeMarket PlaceOrderRequestType = "market"
 )
 
+// Defines values for PracticeCondition.
+const (
+	CalmRange     PracticeCondition = "calm"
+	NormalDay     PracticeCondition = "normal"
+	ThinLiquidity PracticeCondition = "thin"
+	BusyDay   PracticeCondition = "busy"
+	DispersionDay   PracticeCondition = "dispersion"
+)
+
 // Defines values for SessionCurrentResponseMode.
 const (
 	Canonical SessionCurrentResponseMode = "canonical"
@@ -414,7 +423,9 @@ type OnDemandInsufficientFundsBodyStatus string
 
 // OnDemandRequest defines model for OnDemandRequest.
 type OnDemandRequest struct {
-	User Identity `json:"user"`
+	// Condition Optional. See PracticeCondition — currently a no-op everywhere it's read.
+	Condition *PracticeCondition `json:"condition,omitempty"`
+	User      Identity           `json:"user"`
 }
 
 // OnDemandWarmingUpBody defines model for OnDemandWarmingUpBody.
@@ -538,6 +549,9 @@ type Position struct {
 type PositionsResponse struct {
 	Positions []Position `json:"positions"`
 }
+
+// PracticeCondition The Practice setup screen's market-scenario picker. Not read by the mock or (as far as confirmed) the real backend yet — sent as a documented no-op ahead of backend support landing, so adding real behavior later is a backend-only change. See BACKEND-INTEGRATION-PLAN.md §4/§6.
+type PracticeCondition string
 
 // ReasonEnvelope defines model for ReasonEnvelope.
 type ReasonEnvelope struct {
