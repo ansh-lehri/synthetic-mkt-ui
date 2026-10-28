@@ -144,7 +144,13 @@ export default function HomePage() {
               <LiveCard
                 marketName={marketName(market.tag)}
                 window={`${closeLabel(instantToNaiveLocal(market.session.opens_at, tz))} – ${closeLabel(instantToNaiveLocal(market.session.closes_at, tz))} · ${tz}`}
-                view={isGuest ? { ...liveView, canJoin: false, note: 'Live sessions require a registered account.' } : liveView}
+                view={
+                  isGuest
+                    ? { ...liveView, canJoin: false, note: 'Live sessions require a registered account.' }
+                    : session.loadError
+                      ? { ...liveView, canJoin: false }
+                      : liveView
+                }
                 busy={session.busy === 'enter'}
                 onJoin={isGuest ? () => {} : () => void session.enter({ kind: 'live' })}
                 onReturn={() => go('/terminal')}

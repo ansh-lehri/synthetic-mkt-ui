@@ -60,11 +60,20 @@ export function isExitSuccess(status: number): boolean {
 }
 
 /**
- * A busy-account conflict on join/start. Unlike orders' {"reason":"no_session"} tag,
- * canonical/on-demand 409s use the plain {"error":"<message>"} envelope with no reason
- * tag (confirmed against the real backend's docs) — so this can only check the status,
- * not a reason string.
+ * A 409 that means the user already holds a session (ErrLiveElsewhere / ErrSessionAlreadyLive).
+ * The real conductor emits reason:"session_conflict" for these cases. Falls back to a bare-409
+ * match when reason is absent (older server builds / on-demand path).
  */
 export function isSessionConflict(err: unknown): boolean {
-  return err instanceof ApiError && err.status === 409
+  if (!(err instanceof ApiError) || err.status !== 409) return false
+  return !err.reason || err.reason === 'session_conflict'
+}
+
+/**
+ * A 409 with reason:"market_not_live" — the canonical market spinup hasn't completed yet
+ * even though the clock says it should be open. Not a session conflict; the user has no
+ * session to switch from. Correct response: show a retry notice, not a switch prompt.
+ */
+export function isMarketNotLive(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.reason === 'market_not_live'
 }

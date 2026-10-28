@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, observationKey, type PracticeCondition, type PracticeLength } from '../../api'
 import type { BannerTone } from '../../components'
-import { exitSession as exitSessionCall, isExitSuccess, isSessionConflict, joinLive as joinLiveCall, startPractice } from '../../lib/sessionActions'
+import { exitSession as exitSessionCall, isExitSuccess, isMarketNotLive, isSessionConflict, joinLive as joinLiveCall, startPractice } from '../../lib/sessionActions'
 import { resolveCurrentSession, type CurrentSessionState } from '../../lib/sessionRecovery'
 import { isNoAnswer, type SessionMode } from '../../lib/session'
 
@@ -147,11 +147,16 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
         setActive(info)
         opts.onEntered?.(info)
       } catch (err) {
-        if (isSessionConflict(err)) {
+        if (isMarketNotLive(err)) {
+          // The canonical market spinup hasn't completed yet — this is a timing race,
+          // not a session conflict. No reread needed; the user has no session to switch from.
+          setNotice({ tone: 'warn', title: "Market isn't open yet", body: "The session window hasn't opened on the server yet — wait a moment and try again." })
+        } else if (isSessionConflict(err)) {
           // Another tab/device has a session we did not know about. Find out which, then ask.
           const now = await reread()
           if (now) setPrompt({ target, from: now })
-          else setNotice({ tone: 'warn', title: 'You were in a session, but it has ended', body: 'Try again.' })
+          else if (now === null) setNotice({ tone: 'warn', title: 'That session has already ended', body: 'Try again.' })
+          else setNotice({ tone: 'error', title: 'Could not verify your session', body: 'The server did not respond. Refresh and try again.' })
         } else {
           await failure(target.kind === 'live' ? 'join the live session' : 'start practice', err)
         }
