@@ -1555,7 +1555,7 @@ export interface components {
          * @description The Practice setup screen's market-scenario picker. Not read by the mock or (as far as confirmed) the real backend yet — sent as a documented no-op ahead of backend support landing, so adding real behavior later is a backend-only change. See BACKEND-INTEGRATION-PLAN.md §4/§6.
          * @enum {string}
          */
-        PracticeCondition: "normal" | "thin" | "calm" | "busy" | "dispersion";
+        PracticeCondition: "normal_day" | "calm_range" | "trending_day" | "whipsaw" | "unstable_day" | "thin_liquidity";
         OnDemandRequest: {
             user: components["schemas"]["Identity"];
             /** @description Optional. See PracticeCondition — currently a no-op everywhere it's read. */
@@ -1613,6 +1613,8 @@ export interface components {
             warmup_ends_at?: string | null;
             /** @description RFC3339Nano. Populated ONLY when mode=="ondemand". */
             session_ends_at?: string | null;
+            /** @description Non-null only when status=="starting" (on-demand spinup in flight). Values: "agents" (BringUp call in flight), "exchange" (exchange construction in flight). Null/absent in all other states. */
+            spinup_phase?: string | null;
         };
         SessionExitResponse: {
             /** @enum {string} */

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import HomePage from './features/home/HomePage.tsx'
+import LandingPage from './features/landing/LandingPage.tsx'
 import PracticePage from './features/practice/PracticePage.tsx'
 import KitPage from './features/kit/KitPage.tsx'
 import RecordPage from './features/record/RecordPage.tsx'
@@ -11,6 +12,8 @@ const TerminalPage = lazy(() => import('./features/terminal/TerminalPage.tsx'))
 /** Pathname -> page. No router dependency yet; replace this one file when a router lands. */
 export default function Routes() {
   switch (window.location.pathname.replace(/\/+$/, '')) {
+    case '/app':
+      return <HomePage />
     case '/kit':
       return <KitPage />
     case '/signup':
@@ -26,6 +29,6 @@ export default function Routes() {
         </Suspense>
       )
     default:
-      return <HomePage /> // '/' and anything unknown
+      return <LandingPage /> // '/' and anything unknown
   }
 }

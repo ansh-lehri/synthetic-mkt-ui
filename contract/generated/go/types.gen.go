@@ -86,11 +86,12 @@ const (
 
 // Defines values for PracticeCondition.
 const (
-	CalmRange     PracticeCondition = "calm"
-	NormalDay     PracticeCondition = "normal"
-	ThinLiquidity PracticeCondition = "thin"
-	BusyDay   PracticeCondition = "busy"
-	DispersionDay   PracticeCondition = "dispersion"
+	CalmRange     PracticeCondition = "calm_range"
+	NormalDay     PracticeCondition = "normal_day"
+	ThinLiquidity PracticeCondition = "thin_liquidity"
+	TrendingDay   PracticeCondition = "trending_day"
+	UnstableDay   PracticeCondition = "unstable_day"
+	Whipsaw       PracticeCondition = "whipsaw"
 )
 
 // Defines values for SessionCurrentResponseMode.
@@ -574,6 +575,9 @@ type SessionCurrentResponse struct {
 	// SessionEndsAt RFC3339Nano. Populated ONLY when mode=="ondemand".
 	SessionEndsAt *string `json:"session_ends_at"`
 	SessionId     string  `json:"session_id"`
+
+	// SpinupPhase Non-null only when status=="starting" (on-demand spinup in flight). Values: "agents" (BringUp call in flight), "exchange" (exchange construction in flight). Null/absent in all other states.
+	SpinupPhase *string `json:"spinup_phase"`
 
 	// Status Raw SessionState.String() vocabulary — DIFFERENT from /session/status's UI-facing labels for the same states. Do not conflate the two enums.
 	Status SessionCurrentResponseStatus `json:"status"`

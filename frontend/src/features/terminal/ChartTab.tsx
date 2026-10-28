@@ -10,7 +10,6 @@ import { instantToNaiveLocal } from '../../lib/marketClock'
 import { marketTimezone } from '../../lib/marketTimezone'
 import type { PriceFormat } from '../../lib/ticks'
 import { advanceLive, historyWindow, liveBucketStart, liveToKLine, mergeFinal, TIMEFRAMES, toKLine, type LiveBar } from './bars'
-import { addHoursNaive } from '../../lib/naive'
 import { loadIndicatorPrefs, saveIndicatorPrefs, type ActiveIndicator } from './chartIndicatorPrefs'
 import type { ChartType } from './chartTheme'
 import { DepthPanel } from './DepthPanel'
@@ -25,6 +24,12 @@ const TYPES = [
   { value: 'candles' as const, label: 'Candles' },
   { value: 'line' as const, label: 'Line' },
 ]
+
+// Module-level cache: survives tab switches and TF changes within a session.
+// Key: "symbol|timeframe". Saved on TF-switch cleanup and on unmount cleanup.
+type ChartCacheEntry = { finals: Bar[]; live: LiveBar | null }
+const chartDataCache = new Map<string, ChartCacheEntry>()
+function cacheKey(sym: string, tf: string) { return `${sym}|${tf}` }
 
 const ICON = 'h-5 w-5 fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.9]'
 
@@ -227,7 +232,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
     queryKey: ['candles', market.tag, symbol, timeframe, openAt, epoch],
     queryFn: () => getAllCandles({ market: market.tag, instrument: symbol, timeframe, ...historyWindow(timeframe, openAt, closeAt) }),
     enabled: epoch > 0 || status === 'reconnecting',
-    gcTime: 0,
+    gcTime: Infinity,
     staleTime: 0,
     retry: 1,
   })
@@ -282,12 +287,33 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap])
 
-  // New instrument / timeframe: forget the old series immediately.
+  // Instrument / timeframe changed (or component mounted / remounted):
+  //   - If history hasn't arrived from TQ yet, seed the chart immediately from the module
+  //     cache so the user never sees a blank while waiting for the network.
+  //   - If TQ already has cached data (gcTime: Infinity), Effect 1 fires in the same batch
+  //     and takes over — we skip the module-cache seed to avoid a double reset.
+  //   - Cleanup fires on every TF-switch AND on unmount, saving the latest state to the
+  //     cache so a return visit or a tab-switch back is instant.
   useEffect(() => {
-    finals.current = []
-    live.current = null
+    const key = cacheKey(symbol, timeframe)
+    if (!history.data) {
+      const cached = chartDataCache.get(key)
+      if (cached && cached.finals.length > 0) {
+        finals.current = cached.finals
+        live.current = null
+        chart.current?.reset(cached.finals.map(toKLine))
+        pushTipRef.current() // rebuild live bar from current snapshot
+      } else {
+        finals.current = []
+        live.current = null
+      }
+    }
     setTool('cursor')
     setUndo({ undo: 0, redo: 0 })
+    return () => {
+      chartDataCache.set(key, { finals: finals.current, live: live.current })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, timeframe])
 
   const selectTool = (t: ToolId) => {

@@ -58,7 +58,7 @@ export default function RecordPage() {
         marketsLoading={markets.isPending}
         accountLabel={accountId}
         accountItems={[
-          { label: 'Home', onSelect: () => window.location.assign('/') },
+          { label: 'Home', onSelect: () => window.location.assign('/app') },
           { label: 'Terminal', onSelect: () => window.location.assign('/terminal') },
           { label: 'Record', onSelect: () => {} },
           { label: 'Log out', onSelect: logout },

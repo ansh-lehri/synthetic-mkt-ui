@@ -20,6 +20,9 @@ export type CurrentSessionState =
       /** RFC3339Nano instant when the on-demand warmup period ends (= session open for trading).
        * Populated only when mode=="ondemand". */
       warmupEndsAt?: string
+      /** Non-null only when status=="starting". Values: "agents" (BringUp in flight),
+       * "exchange" (exchange construction). Used to drive real progress steps on PracticePage. */
+      spinupPhase?: string
     }
 
 /** POST /session/current. A 404 ("no session for user") maps to `{kind:'none'}`, not an error. */
@@ -35,6 +38,7 @@ export async function resolveCurrentSession(userId: string): Promise<CurrentSess
       status: res.status,
       sessionEndsAt: res.session_ends_at ?? undefined,
       warmupEndsAt: res.warmup_ends_at ?? undefined,
+      spinupPhase: res.spinup_phase ?? undefined,
     }
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) return { kind: 'none' }

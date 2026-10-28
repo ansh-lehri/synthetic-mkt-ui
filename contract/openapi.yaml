@@ -1133,6 +1133,7 @@ components:
           description: 'Raw SessionState.String() vocabulary — DIFFERENT from /session/status''s UI-facing labels for the same states. Do not conflate the two enums.'
         warmup_ends_at: { type: string, nullable: true, description: RFC3339Nano. Populated ONLY when mode=="ondemand"; canonical sessions never carry this. }
         session_ends_at: { type: string, nullable: true, description: RFC3339Nano. Populated ONLY when mode=="ondemand".}
+        spinup_phase: { type: string, nullable: true, description: 'Non-null only when status=="starting" (on-demand spinup in flight). Values: "agents" (BringUp call in flight), "exchange" (exchange construction in flight). Null/absent in all other states.' }
 
     SessionExitResponse:
       type: object

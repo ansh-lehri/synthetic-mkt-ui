@@ -62,7 +62,7 @@ export type SessionExitResponse = Schemas['SessionExitResponse']
  * as a documented no-op ahead of backend support — see BACKEND-INTEGRATION-PLAN.md §4/§6. */
 export type PracticeCondition = Schemas['PracticeCondition']
 /** Frontend-only — /session/ondemand takes a plain `duration` minutes query param, not this enum. */
-export type PracticeLength = 10 | 20 | 30 | 60
+export type PracticeLength = 60 | 75 | 90 | 105
 
 export type TransferRequest = Schemas['TransferRequest']
 export type TransferResponse = Schemas['TransferResponse']

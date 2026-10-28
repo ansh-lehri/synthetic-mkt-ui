@@ -118,7 +118,7 @@ export default function TerminalPage() {
     ?? opensAtNaive
     ?? (m.market && tz ? instantToNaiveLocal(m.market.session.opens_at, tz) : undefined)
   const phase = backendPhase
-    ? clockPhase(nowLocal, opensAtNaive, closesAtNaive, backendPhase)
+    ? clockPhase(nowLocal, practiceOpensAtNaive ?? opensAtNaive, closesAtNaive, backendPhase)
     : undefined
   useEffect(() => {
     // A phase change moves "today's" session window: refresh it so the live bar's bucket is right.
@@ -132,6 +132,8 @@ export default function TerminalPage() {
   // show the close time rather than a misleading 0:00:00.
   const rawLeft = timeLeft(nowLocal, closesAtNaive)
   const left = phase === 'closed' ? '0:00:00' : rawLeft === '0:00:00' ? undefined : rawLeft
+  const rawUntilOpen = timeLeft(nowLocal, practiceOpensAtNaive)
+  const timeUntilOpen = rawUntilOpen && rawUntilOpen !== '0:00:00' ? rawUntilOpen : undefined
   const realised = obs && !obs.trades_degraded ? obs.recent_trades.reduce((sum, t) => sum + t.net_pnl, 0) : 0
 
   const instrumentOf = (sym: string) => book.instruments.find((i) => i.id === sym)
@@ -149,7 +151,7 @@ export default function TerminalPage() {
         marketsLoading={m.isPending}
         accountLabel={accountId}
         accountItems={[
-          { label: 'Home', onSelect: () => window.location.assign('/') },
+          { label: 'Home', onSelect: () => window.location.assign('/app') },
           { label: 'Terminal', onSelect: () => {} },
           { label: 'Record', onSelect: () => window.location.assign('/record') },
           { label: 'Log out', onSelect: logout },
@@ -255,6 +257,11 @@ export default function TerminalPage() {
             ) : (
               <>
                 {session.notice && <Banner tone={session.notice.tone} title={session.notice.title} onDismiss={session.dismiss}>{session.notice.body}</Banner>}
+                {phase === 'preopen' && mode === 'practice' && (
+                  <Banner tone="info" title="Market warming up.">
+                    Agents are building the order book. Trading opens{timeUntilOpen ? ` in ${timeUntilOpen}` : practiceOpensAtNaive ? ` at ${practiceOpensAtNaive.slice(11, 16)}` : ' shortly'}.
+                  </Banner>
+                )}
                 {phase === 'closed' && (
                   <Banner tone="info" title="Market closed.">
                     {mode === 'live'

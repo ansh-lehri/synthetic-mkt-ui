@@ -25,7 +25,7 @@ export default function SignupPage() {
       const { account_id } = await openAccount(trimmed)
       storeAccountId(account_id)
       storeEmail(trimmed)
-      go('/')
+      go('/app')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')
       setBusy(false)
