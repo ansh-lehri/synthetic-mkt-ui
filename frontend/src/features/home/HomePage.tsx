@@ -1,8 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { observationKey, useMarkets, useObservation, type Observation, type TransferDirection, type TransferResponse } from '../../api'
 import { Banner, Button, Card, Skeleton, TopBar } from '../../components'
 import { logout, requireAccountId, requireEmail, useCash } from '../../lib/identity'
+import { getStoredGuestId, isGuestEmail } from '../../lib/guestIdentity'
+import { getGuestQuota } from '../../api/landing'
 import { liveCardView } from '../../lib/liveCard'
 import { instantToNaiveLocal, useMarketClock } from '../../lib/marketClock'
 import { marketName, marketTimezone } from '../../lib/marketTimezone'
@@ -48,6 +50,16 @@ export default function HomePage() {
   const [transferOpen, setTransferOpen] = useState(false)
   const [afterTransfer, setAfterTransfer] = useState<{ trading: number; bank: number } | undefined>()
   const [notice, setNotice] = useState<string>()
+
+  // Guest quota — only fetched when the current identity is a guest.
+  const isGuest = email ? isGuestEmail(email) : false
+  const [guestRemaining, setGuestRemaining] = useState<number | undefined>(undefined)
+  useEffect(() => {
+    if (!isGuest) return
+    const gid = getStoredGuestId()
+    if (!gid) return
+    void getGuestQuota(gid).then((q) => setGuestRemaining(q.remaining)).catch(() => {})
+  }, [isGuest])
 
   if (!accountId || !email) return null // requireAccountId/requireEmail already redirected to /signup
 
@@ -132,9 +144,9 @@ export default function HomePage() {
               <LiveCard
                 marketName={marketName(market.tag)}
                 window={`${closeLabel(instantToNaiveLocal(market.session.opens_at, tz))} – ${closeLabel(instantToNaiveLocal(market.session.closes_at, tz))} · ${tz}`}
-                view={liveView}
+                view={isGuest ? { ...liveView, canJoin: false, note: 'Live sessions require a registered account.' } : liveView}
                 busy={session.busy === 'enter'}
-                onJoin={() => void session.enter({ kind: 'live' })}
+                onJoin={isGuest ? () => {} : () => void session.enter({ kind: 'live' })}
                 onReturn={() => go('/terminal')}
               />
               <PracticeCard
@@ -142,6 +154,7 @@ export default function HomePage() {
                 inPractice={sess?.mode === 'practice'}
                 onStart={() => go('/practice')}
                 onReturn={() => go('/terminal')}
+                guestRemaining={isGuest ? guestRemaining : undefined}
               />
             </div>
             <aside>
