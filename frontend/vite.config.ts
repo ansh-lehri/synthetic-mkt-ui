@@ -23,6 +23,7 @@ export default defineConfig({
     proxy: {
       '/v1': { target: 'http://localhost:8000', changeOrigin: true, ws: true },
       '/session': { target: 'http://localhost:8000', changeOrigin: true },
+      '/api': { target: 'http://localhost:8000', changeOrigin: true },
     },
   },
   test: {
