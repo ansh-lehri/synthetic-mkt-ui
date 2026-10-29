@@ -86,8 +86,8 @@ const (
 
 // Defines values for PracticeCondition.
 const (
-	CalmRange     PracticeCondition = "calm_range"
-	NormalDay     PracticeCondition = "normal_day"
+	CalmRange     PracticeCondition = "calm"
+	NormalDay     PracticeCondition = "normal"
 	ThinLiquidity PracticeCondition = "thin_liquidity"
 	TrendingDay   PracticeCondition = "trending_day"
 	UnstableDay   PracticeCondition = "unstable_day"

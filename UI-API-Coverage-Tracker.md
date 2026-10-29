@@ -156,7 +156,7 @@ or `{ "active": null }`.
 ### Two product decisions still open on this surface (don't block catalog build)
 
 1. **`exchange_id` handshake** — does the UI ever see/pass `exchange_id`, or is it `account_id`-only like the broker (backend resolves)? The broker's account-only pattern suggests the UI stays dumb. **Leaning: UI sends `account_id` only; backend binds.**
-2. **Condition enum vocabulary** — the practice conditions (normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity) need stable snake_case strings. Product list to confirm.
+2. **Condition enum vocabulary** — the practice conditions (normal, calm, trending_day, whipsaw, unstable_day, thin_liquidity) need stable snake_case strings. Product list to confirm.
 
 ---
 

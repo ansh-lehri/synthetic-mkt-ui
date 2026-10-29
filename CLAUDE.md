@@ -457,7 +457,7 @@ copy in `lib/session.ts` (tested).
   disabled, and an open order window shows the reason and disables its CTA (`orderBlockReason`).
   Pre-open still allows orders. The contract has no separate "halt" phase, so none is shown.
 - **Not in a session** -> the enter panel (also on the account tabs): "Join live session" and
-  "Start practice" (scenario + length, defaults `normal_day` / 90 min; the six contract
+  "Start practice" (scenario + length, defaults `normal` / 90 min; the six contract
   conditions, lengths 60/75/90/105). Market data stays live underneath.
 - **Exit** always confirms. Live: "open positions are closed automatically at the market close
   (HH:MM); you can rejoin until then". Practice: "ends for good, cannot rejoin, nothing recorded".
@@ -549,7 +549,7 @@ rem, the board's layout — "← Home", title, conditions (radio cards), length 
 "Your practice" summary card on the right.
 
 - **Conditions** are named by what the market does (`lib/session.ts` `PRACTICE_CONDITIONS`, descriptions
-  from the board; `normal_day` default, "a typical mix of trading"), **length** 60 / 75 / 90 / 105 (90
+  from the board; `normal` default, "a typical mix of trading"), **length** 60 / 75 / 90 / 105 (90
   default). Native radios (sr-only input + styled label) so keyboard and screen readers work.
 - **Market** is the global top-bar dropdown: shown in the summary, not chosen here.
 - **Stake / trading balance shows "—" before start** and says why: balances can only be read inside a
@@ -581,7 +581,7 @@ rem, the board's layout — "← Home", title, conditions (radio cards), length 
 ## Still-open product decisions (don't block; flag if you hit them)
 
 - `exchange_id` handshake: leaning **account-only** (UI sends `account_id`; backend binds).
-- Practice condition enum strings: `normal_day, calm_range, trending_day, whipsaw,
+- Practice condition enum strings: `normal, calm, trending_day, whipsaw,
   unstable_day, thin_liquidity` (confirm).
 - Auth + account-creation + refill-mechanic: no contract yet — mock ad-hoc, keep isolated.
 

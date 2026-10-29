@@ -1555,7 +1555,7 @@ export interface components {
          * @description The Practice setup screen's market-scenario picker. Not read by the mock or (as far as confirmed) the real backend yet — sent as a documented no-op ahead of backend support landing, so adding real behavior later is a backend-only change. See BACKEND-INTEGRATION-PLAN.md §4/§6.
          * @enum {string}
          */
-        PracticeCondition: "normal_day" | "calm_range" | "trending_day" | "whipsaw" | "unstable_day" | "thin_liquidity";
+        PracticeCondition: "normal" | "calm" | "trending_day" | "whipsaw" | "unstable_day" | "thin_liquidity";
         OnDemandRequest: {
             user: components["schemas"]["Identity"];
             /** @description Optional. See PracticeCondition — currently a no-op everywhere it's read. */
