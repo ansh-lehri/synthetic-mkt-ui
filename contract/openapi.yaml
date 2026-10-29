@@ -545,8 +545,8 @@ paths:
         - name: duration
           in: query
           required: false
-          schema: { type: integer, default: 60, minimum: 5, maximum: 120 }
-          description: Minutes. Absent/empty defaults to 60. Non-integer or outside [5,120] → 400.
+          schema: { type: integer, default: 30, minimum: 5, maximum: 60 }
+          description: Minutes. Absent/empty defaults to 30. Non-integer or outside [5,60] → 400.
       requestBody:
         required: true
         content:
@@ -1064,7 +1064,7 @@ components:
 
     PracticeCondition:
       type: string
-      enum: [normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity]
+      enum: [normal, calm, trending_day, whipsaw, unstable_day, thin_liquidity]
       description: >
         The Practice setup screen's market-scenario picker. Not read by the mock or (as far
         as confirmed) the real backend yet — sent as a documented no-op ahead of backend

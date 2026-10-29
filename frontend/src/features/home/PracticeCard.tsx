@@ -22,7 +22,7 @@ export function PracticeCard({
         <h2 id="pr-h" className="text-xl font-semibold">Practice session</h2>
         <span className="text-sm text-muted">{marketName}</span>
       </div>
-      <p className="max-w-xl text-muted">Trade against agents whenever you like, for 60 to 105 minutes. Nothing from practice is recorded.</p>
+      <p className="max-w-xl text-muted">Trade against agents whenever you like, for 10 to 60 minutes. Nothing from practice is recorded.</p>
       {guestRemaining !== undefined && (
         <p className="text-sm text-muted">
           {guestOut
