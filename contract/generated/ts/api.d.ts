@@ -934,7 +934,7 @@ export interface paths {
             parameters: {
                 query: {
                     market: string;
-                    /** @description Minutes. Absent/empty defaults to 60. Non-integer or outside [5,120] → 400. */
+                    /** @description Minutes. Absent/empty defaults to 30. Non-integer or outside [5,60] → 400. */
                     duration?: number;
                 };
                 header?: never;
@@ -1552,10 +1552,10 @@ export interface components {
             status: "active";
         };
         /**
-         * @description The Practice setup screen's market-scenario picker. Not read by the mock or (as far as confirmed) the real backend yet — sent as a documented no-op ahead of backend support landing, so adding real behavior later is a backend-only change. See BACKEND-INTEGRATION-PLAN.md §4/§6.
+         * @description The Practice setup screen's market-scenario picker. Values map to simulation-agents scenario names: normal=Normal Day, calm=Calm Day, busy=Active Market, thin=Thin Market, dispersion=Two Camps. See BACKEND-INTEGRATION-PLAN.md §4/§6.
          * @enum {string}
          */
-        PracticeCondition: "normal" | "calm" | "trending_day" | "whipsaw" | "unstable_day" | "thin_liquidity";
+        PracticeCondition: "normal" | "calm" | "busy" | "thin" | "dispersion";
         OnDemandRequest: {
             user: components["schemas"]["Identity"];
             /** @description Optional. See PracticeCondition — currently a no-op everywhere it's read. */

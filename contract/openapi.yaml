@@ -1064,12 +1064,11 @@ components:
 
     PracticeCondition:
       type: string
-      enum: [normal, calm, trending_day, whipsaw, unstable_day, thin_liquidity]
+      enum: [normal, calm, busy, thin, dispersion]
       description: >
-        The Practice setup screen's market-scenario picker. Not read by the mock or (as far
-        as confirmed) the real backend yet — sent as a documented no-op ahead of backend
-        support landing, so adding real behavior later is a backend-only change. See
-        BACKEND-INTEGRATION-PLAN.md §4/§6.
+        The Practice setup screen's market-scenario picker. Values map to simulation-agents
+        scenario names: normal=Normal Day, calm=Calm Day, busy=Active Market, thin=Thin Market,
+        dispersion=Two Camps. See BACKEND-INTEGRATION-PLAN.md §4/§6.
     OnDemandRequest:
       type: object
       required: [user]

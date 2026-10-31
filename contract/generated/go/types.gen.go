@@ -86,12 +86,11 @@ const (
 
 // Defines values for PracticeCondition.
 const (
-	CalmRange     PracticeCondition = "calm"
-	NormalDay     PracticeCondition = "normal"
-	ThinLiquidity PracticeCondition = "thin_liquidity"
-	TrendingDay   PracticeCondition = "trending_day"
-	UnstableDay   PracticeCondition = "unstable_day"
-	Whipsaw       PracticeCondition = "whipsaw"
+	Busy       PracticeCondition = "busy"
+	Calm       PracticeCondition = "calm"
+	Dispersion PracticeCondition = "dispersion"
+	Normal     PracticeCondition = "normal"
+	Thin       PracticeCondition = "thin"
 )
 
 // Defines values for SessionCurrentResponseMode.
@@ -551,7 +550,7 @@ type PositionsResponse struct {
 	Positions []Position `json:"positions"`
 }
 
-// PracticeCondition The Practice setup screen's market-scenario picker. Not read by the mock or (as far as confirmed) the real backend yet — sent as a documented no-op ahead of backend support landing, so adding real behavior later is a backend-only change. See BACKEND-INTEGRATION-PLAN.md §4/§6.
+// PracticeCondition The Practice setup screen's market-scenario picker. Values map to simulation-agents scenario names: normal=Normal Day, calm=Calm Day, busy=Active Market, thin=Thin Market, dispersion=Two Camps. See BACKEND-INTEGRATION-PLAN.md §4/§6.
 type PracticeCondition string
 
 // ReasonEnvelope defines model for ReasonEnvelope.
@@ -696,7 +695,7 @@ type PostSessionExitParams struct {
 type PostSessionOndemandParams struct {
 	Market string `form:"market" json:"market"`
 
-	// Duration Minutes. Absent/empty defaults to 60. Non-integer or outside [5,120] → 400.
+	// Duration Minutes. Absent/empty defaults to 30. Non-integer or outside [5,60] → 400.
 	Duration *int `form:"duration,omitempty" json:"duration,omitempty"`
 }
 
