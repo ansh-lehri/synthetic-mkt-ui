@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { useObservation, type CandleTimeframe, type OpenOrder } from '../../api'
+import { ApiError, useObservation, type CandleTimeframe, type OpenOrder } from '../../api'
 import { Banner, Button, Card, ConfirmDialog, Num, SessionBar, SkeletonText, TopBar } from '../../components'
 import { logout, requireAccountId, requireEmail } from '../../lib/identity'
 import { getStoredGuestId, isGuestEmail } from '../../lib/guestIdentity'
@@ -94,7 +94,7 @@ export default function TerminalPage() {
   // ---- account half (HTTP poll) — only meaningful inside a session (otherwise it answers 409)
   const obsQ = useObservation(accountId ?? '', !!sess && !!accountId)
   const obs = sess ? obsQ.data : undefined
-  const obsFailed = !!sess && !!obsQ.error
+  const obsFailed = !!sess && !!obsQ.error && !(obsQ.error instanceof ApiError && obsQ.error.status === 409)
   const entry = useOrderEntry(accountId ?? '', obs, obsQ.dataUpdatedAt)
   const actions = useOrderActions(accountId ?? '')
   const [drawer, setDrawer] = useState<OrderDrawerState | null>(null)
