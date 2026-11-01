@@ -151,8 +151,6 @@ export default function HomePage() {
                       ? { ...liveView, canJoin: false }
                       : liveView
                 }
-                busy={session.busy === 'enter'}
-                onJoin={isGuest ? () => {} : () => void session.enter({ kind: 'live' })}
                 onReturn={() => go('/terminal')}
               />
               <PracticeCard

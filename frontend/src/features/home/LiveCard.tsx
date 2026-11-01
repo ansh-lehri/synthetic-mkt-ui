@@ -3,14 +3,12 @@ import type { LiveCardView } from '../../lib/liveCard'
 
 /** The live-session card: hours, the countdown (or time), the phase pill and the join / return button. */
 export function LiveCard({
-  marketName, window: hours, view, busy, onJoin, onReturn,
+  marketName, window: hours, view, onReturn,
 }: {
   marketName: string
   /** "09:15 – 15:30 · Asia/Kolkata" */
   window: string
   view: LiveCardView
-  busy: boolean
-  onJoin: () => void
   onReturn: () => void
 }) {
   return (
