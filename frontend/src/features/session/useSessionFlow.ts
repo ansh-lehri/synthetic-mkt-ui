@@ -18,6 +18,9 @@ export interface ActiveInfo {
   closesAt?: string
   /** RFC3339Nano: when the on-demand warmup ended = when practice trading started. Practice only. */
   opensAt?: string
+  /** Practice only: the scenario the user picked (e.g. "busy"). Not in the server response —
+   * persisted to sessionStorage keyed by sessionId so it survives a page reload. */
+  condition?: string
 }
 
 export interface SessionNotice {
@@ -36,7 +39,10 @@ export interface SwitchPrompt {
 function toActiveInfo(s: CurrentSessionState): ActiveInfo | null {
   if (s.kind === 'none') return null
   if (s.status === 'ended' || s.status === 'failed') return null
-  return { mode: s.mode === 'canonical' ? 'live' : 'practice', market: s.market, sessionId: s.sessionId, closesAt: s.sessionEndsAt, opensAt: s.warmupEndsAt }
+  const condition = s.mode === 'ondemand'
+    ? (sessionStorage.getItem(`session:condition:${s.sessionId}`) ?? undefined)
+    : undefined
+  return { mode: s.mode === 'canonical' ? 'live' : 'practice', market: s.market, sessionId: s.sessionId, closesAt: s.sessionEndsAt, opensAt: s.warmupEndsAt, condition }
 }
 
 /**
@@ -120,7 +126,9 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
       if (outcome.kind === 'insufficient_funds') {
         return { info: { mode: 'practice', market, sessionId: '' }, lowBalance: true }
       }
-      return { info: { mode: 'practice', market, sessionId: outcome.body.session_id, closesAt: outcome.body.session_ends_at, opensAt: outcome.body.warmup_ends_at } }
+      const sessionId = outcome.body.session_id
+      sessionStorage.setItem(`session:condition:${sessionId}`, t.condition)
+      return { info: { mode: 'practice', market, sessionId, closesAt: outcome.body.session_ends_at, opensAt: outcome.body.warmup_ends_at, condition: t.condition } }
     },
     [userId, market],
   )

@@ -74,7 +74,7 @@ export function useCash(accountId: string, enabled: boolean) {
   return useQuery({ queryKey: ['cash', accountId], queryFn: () => getCash(accountId), enabled })
 }
 
-/** Clears the stored identity and sends the user back to Signup — the one place logout lives. */
+/** Clears the stored identity and sends the user to the landing page. */
 export function logout(): void {
   try {
     localStorage.removeItem(STORAGE_KEY)
@@ -82,7 +82,7 @@ export function logout(): void {
   } catch {
     // storage unavailable — nothing to clear
   }
-  window.location.assign('/signup')
+  window.location.assign('/')
 }
 
 export type IdentityScreen = 'signup' | 'ready'

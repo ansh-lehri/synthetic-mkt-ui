@@ -80,3 +80,17 @@ export function historyWindow(tf: CandleTimeframe, sessionOpenAt: string, sessio
 export function sameDay(a: string, b: string): boolean {
   return datePart(a) === datePart(b)
 }
+
+/**
+ * Append local bars (module cache or sessionStorage) that are strictly after
+ * the last server-returned bar. Server bars are authoritative; local bars fill
+ * in live-session candles the OHLCV endpoint hasn't persisted yet (on-demand
+ * sessions run on an ephemeral exchange whose candles may not reach the history
+ * endpoint before the session ends).
+ */
+export function mergeSessionCandles(server: Bar[], local: Bar[]): Bar[] {
+  if (local.length === 0) return server
+  const cutoff = server.length > 0 ? server[server.length - 1].start : ''
+  const extra = local.filter(b => b.start > cutoff)
+  return extra.length > 0 ? [...server, ...extra] : server
+}

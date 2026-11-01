@@ -9,7 +9,7 @@ import { barKey, useMarketStore } from '../../lib/marketStore'
 import { instantToNaiveLocal } from '../../lib/marketClock'
 import { marketTimezone } from '../../lib/marketTimezone'
 import type { PriceFormat } from '../../lib/ticks'
-import { advanceLive, historyWindow, liveBucketStart, liveToKLine, mergeFinal, TIMEFRAMES, toKLine, type LiveBar } from './bars'
+import { advanceLive, historyWindow, liveBucketStart, liveToKLine, mergeFinal, mergeSessionCandles, TIMEFRAMES, toKLine, type LiveBar } from './bars'
 import { loadIndicatorPrefs, saveIndicatorPrefs, type ActiveIndicator } from './chartIndicatorPrefs'
 import type { ChartType } from './chartTheme'
 import { DepthPanel } from './DepthPanel'
@@ -30,6 +30,19 @@ const TYPES = [
 type ChartCacheEntry = { finals: Bar[]; live: LiveBar | null }
 const chartDataCache = new Map<string, ChartCacheEntry>()
 function cacheKey(sym: string, tf: string) { return `${sym}|${tf}` }
+
+// sessionStorage helpers: persist finalized bars across hard refreshes, keyed by
+// sessionId so data from a previous session never bleeds into a new one.
+function ssKey(sessionId: string, sym: string, tf: string) { return `chart:${sessionId}:${sym}:${tf}` }
+function saveToSession(sessionId: string, sym: string, tf: string, bars: Bar[]): void {
+  try { sessionStorage.setItem(ssKey(sessionId, sym, tf), JSON.stringify(bars)) } catch { /* quota / unavailable */ }
+}
+function loadFromSession(sessionId: string, sym: string, tf: string): Bar[] {
+  try {
+    const raw = sessionStorage.getItem(ssKey(sessionId, sym, tf))
+    return raw ? (JSON.parse(raw) as Bar[]) : []
+  } catch { return [] }
+}
 
 const ICON = 'h-5 w-5 fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.9]'
 
@@ -182,6 +195,8 @@ export interface ChartTabProps {
    */
   sessionOpenAt?: string
   sessionCloseAt?: string
+  /** Session ID used to key the sessionStorage candle cache (hard-refresh recovery). */
+  sessionId?: string
 }
 
 /**
@@ -190,7 +205,7 @@ export interface ChartTabProps {
  *  - a `candle` frame arrives only when a bucket CLOSES and replaces the tip with the real bar;
  *  - between closes the rightmost bar's tip moves with snapshot.last_price.
  */
-export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe, sessionOpenAt, sessionCloseAt }: ChartTabProps) {
+export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe, sessionOpenAt, sessionCloseAt, sessionId }: ChartTabProps) {
   const [type, setType] = useState<ChartType>('candles')
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>([])
   const [settingsFor, setSettingsFor] = useState<string | null>(null)
@@ -258,15 +273,28 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
     finals.current = after
     live.current = null // the closed bar replaces the tip
     chart.current?.update(toKLine(b))
+    if (sessionId) saveToSession(sessionId, symbol, timeframe, finals.current)
   }
 
-  // 1. History arrived (first load or after a reconnect): replace everything, then catch up
-  //    on any bar that closed while it was loading.
+  // 1. History arrived (first load or after a reconnect): merge server bars with any
+  //    locally-cached live-session bars (module cache = tab-switch survival;
+  //    sessionStorage = hard-refresh survival), then catch up on any bar that closed
+  //    while loading.
   useEffect(() => {
     if (!history.data) return
-    finals.current = history.data
+    const key = cacheKey(symbol, timeframe)
+    const cached = chartDataCache.get(key)
+    const persisted = sessionId ? loadFromSession(sessionId, symbol, timeframe) : []
+    // Deduplicate local sources by bar start time, prefer the most recent value.
+    const localMap = new Map<string, Bar>()
+    for (const b of [...(cached?.finals ?? []), ...persisted]) localMap.set(b.start, b)
+    const local = [...localMap.values()].sort((a, b) => (a.start < b.start ? -1 : 1))
+    // Server is authoritative for historical candles; local supplies live-session
+    // candles the server hasn't persisted yet.
+    const merged = mergeSessionCandles(history.data, local)
+    finals.current = merged
     live.current = null
-    chart.current?.reset(history.data.map(toKLine))
+    chart.current?.reset(merged.map(toKLine))
     if (pushed) applyFinal(pushed.bar)
     pushTipRef.current()
     // eslint-disable-next-line react-hooks/exhaustive-deps

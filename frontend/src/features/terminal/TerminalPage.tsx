@@ -167,8 +167,7 @@ export default function TerminalPage() {
           remainingLabel={left ? 'Time left' : 'Closes'}
           remaining={left ?? closes}
           timezone={tz ?? ''}
-          // No condition shown here: it's frontend-only state tied to the setup screen, not
-          // retained server-side across a page load (BACKEND-INTEGRATION-PLAN.md §4).
+          condition={conditionLabel(sess.condition)}
           stats={[
             { label: 'P&L · latest trades', value: <Num kind="signed-money" value={realised} available={!!obs && !obs.trades_degraded} /> },
             { label: 'Open positions', value: <Num kind="qty" value={obs?.positions.filter((p) => p.qty !== 0).length ?? 0} available={!!obs} /> },
@@ -278,7 +277,7 @@ export default function TerminalPage() {
                 <AccountStrip obs={obs} disabled={!!orderBlock || !obs} onTrade={(side) => openDrawer(side, tab === 'chart' ? activeSymbol : drawer?.symbol ?? activeSymbol)} />
               </>
             )}
-            {obsFailed && (
+            {obsFailed && phase !== 'closed' && (
               <Banner
                 tone="error"
                 title="Could not refresh your account"
@@ -310,6 +309,7 @@ export default function TerminalPage() {
                 onTimeframe={setTimeframe}
                 sessionOpenAt={chartOpenAt}
                 sessionCloseAt={chartCloseAt}
+                sessionId={sess?.sessionId}
               />
             ) : !sess ? null : !obs ? (
               obsQ.isPending ? <Card><SkeletonText lines={3} label="Loading your account" /></Card> : null
