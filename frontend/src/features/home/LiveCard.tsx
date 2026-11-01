@@ -44,9 +44,9 @@ export function LiveCard({
           {view.button === 'return' ? (
             <Button variant="primary" onClick={onReturn}>Return to session</Button>
           ) : (
-            <Button variant="primary" disabled={!view.canJoin} loading={busy} onClick={onJoin}>Join live session</Button>
+            <Button variant="primary" disabled>Join live session</Button>
           )}
-          {view.note && <span className="text-sm text-muted">{view.note}</span>}
+          <span className="text-sm text-muted">Coming soon</span>
         </div>
       </div>
     </Card>

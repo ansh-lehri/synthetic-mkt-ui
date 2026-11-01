@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useObservation, type CandleTimeframe, type OpenOrder } from '../../api'
 import { Banner, Button, Card, ConfirmDialog, Num, SessionBar, SkeletonText, TopBar } from '../../components'
 import { logout, requireAccountId, requireEmail } from '../../lib/identity'
+import { getStoredGuestId, isGuestEmail } from '../../lib/guestIdentity'
+import { getGuestQuota } from '../../api/landing'
 import { instantToNaiveLocal, useMarketClock } from '../../lib/marketClock'
 import { marketName, marketTimezone } from '../../lib/marketTimezone'
 import { setMarketSession, useMarketStore } from '../../lib/marketStore'
@@ -67,6 +69,16 @@ export default function TerminalPage() {
 
   // Keep a live price for every instrument in the list (the watchlist), on one socket.
   useSubscriptions(book.instruments.map((i) => ({ stream: 'snapshot' as const, instrument: i.id })))
+
+  // ---- guest quota: only relevant when the identity is a guest account
+  const isGuest = email ? isGuestEmail(email) : false
+  const [guestRemaining, setGuestRemaining] = useState<number | undefined>(undefined)
+  useEffect(() => {
+    if (!isGuest) return
+    const gid = getStoredGuestId()
+    if (!gid) return
+    void getGuestQuota(gid).then((q) => setGuestRemaining(q.remaining)).catch(() => {})
+  }, [isGuest])
 
   // ---- session (HTTP poll): which session the account is in, and the way in / out
   const session = useSessionFlow(email ?? '', m.market?.tag)
@@ -173,13 +185,11 @@ export default function TerminalPage() {
             { label: 'Open positions', value: <Num kind="qty" value={obs?.positions.filter((p) => p.qty !== 0).length ?? 0} available={!!obs} /> },
           ]}
           actions={
-            <Button
-              variant="ghost"
-              disabled={!!session.busy}
-              onClick={() => (sess.mode === 'live' ? window.location.assign('/practice') : void session.enter({ kind: 'live' }))}
-            >
-              {sess.mode === 'live' ? 'Start practice' : 'Join live'}
-            </Button>
+            sess.mode === 'live' ? (
+              <Button variant="ghost" disabled={!!session.busy} onClick={() => window.location.assign('/practice')}>
+                Start practice
+              </Button>
+            ) : null
           }
           confirm={exitCopy(sess.mode, closes)}
           exiting={session.busy === 'exit'}
@@ -252,6 +262,7 @@ export default function TerminalPage() {
                 notice={session.notice}
                 onDismiss={session.dismiss}
                 onEnter={(t) => void session.enter(t)}
+                guestRemaining={isGuest ? guestRemaining : undefined}
               />
             ) : (
               <>
