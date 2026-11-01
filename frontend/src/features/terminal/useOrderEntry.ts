@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, getObservation, observationKey, placeOrder, type Observation } from '../../api'
 import type { OrderDraft, TicketFeedback } from '../../components'
+import { httpErrorMessage } from '../../lib/errors'
 import {
   findNewOrder,
   followOrder,
@@ -120,7 +121,7 @@ export function useOrderEntry(accountId: string, obs: Observation | undefined, o
           } else if (err instanceof ApiError && (err.status === 422 || err.status === 409)) {
             setFeedback({ kind: 'rejected', message: reasonText(err.reason) })
           } else {
-            setFeedback({ kind: 'error', message: err instanceof Error ? err.message : 'Something went wrong.' })
+            setFeedback({ kind: 'error', message: httpErrorMessage(err) })
           }
         } finally {
           if (alive.current) setSubmitting(false)

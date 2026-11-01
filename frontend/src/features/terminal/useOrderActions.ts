@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
 import { ApiError, cancelOrder, modifyOrder, observationKey, type ModifyOrderRequest, type OpenOrder } from '../../api'
 import type { BannerTone } from '../../components'
+import { httpErrorMessage } from '../../lib/errors'
 import { isUnknownOutcome, reasonText } from '../../lib/orderFlow'
 
 export interface Notice {
@@ -39,9 +40,9 @@ export function useOrderActions(accountId: string) {
         if (isUnknownOutcome(err)) {
           setNotice({ tone: 'warn', title: 'No answer to the cancel', body: 'We do not know whether it went through. The list below is refreshed — check it before cancelling again.' })
         } else if (err instanceof ApiError) {
-          setNotice({ tone: 'error', title: 'Could not cancel', body: reasonText(err.reason ?? err.message) })
+          setNotice({ tone: 'error', title: 'Could not cancel', body: reasonText(err.reason) })
         } else {
-          setNotice({ tone: 'error', title: 'Could not cancel', body: err instanceof Error ? err.message : undefined })
+          setNotice({ tone: 'error', title: 'Could not cancel', body: httpErrorMessage(err) })
         }
       } finally {
         mark(orderId, false)
@@ -74,7 +75,7 @@ export function useOrderActions(accountId: string) {
         if (isUnknownOutcome(err)) {
           setNotice({ tone: 'warn', title: 'No answer to the modify', body: 'The original order may be cancelled, replaced, or untouched. The list is refreshed — check it before trying again.' })
         } else {
-          setNotice({ tone: 'error', title: 'Could not modify', body: err instanceof Error ? err.message : undefined })
+          setNotice({ tone: 'error', title: 'Could not modify', body: httpErrorMessage(err) })
         }
       } finally {
         mark(req.order_id, false)

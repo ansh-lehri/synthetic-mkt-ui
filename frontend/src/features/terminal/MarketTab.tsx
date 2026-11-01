@@ -32,7 +32,7 @@ export function MarketTab({
   if (book.error)
     return (
       <Banner tone="error" title="Could not load instruments" action={<Button variant="ghost" onClick={book.refetch}>Retry</Button>}>
-        {book.error instanceof Error ? book.error.message : 'Something went wrong.'}
+        Please try again. If the problem continues, try refreshing the page.
       </Banner>
     )
   if (book.isPending) return <Card><SkeletonText lines={3} label="Loading instruments" /></Card>

@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, observationKey, type PracticeCondition, type PracticeLength } from '../../api'
 import type { BannerTone } from '../../components'
+import { httpErrorMessage } from '../../lib/errors'
 import { exitSession as exitSessionCall, isExitSuccess, isMarketNotLive, isSessionConflict, joinLive as joinLiveCall, startPractice } from '../../lib/sessionActions'
 import { resolveCurrentSession, type CurrentSessionState } from '../../lib/sessionRecovery'
 import { isNoAnswer, type SessionMode } from '../../lib/session'
@@ -109,7 +110,7 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
         const where = now === undefined ? 'We could not check either.' : now ? `You are in a ${now.mode} session.` : 'You are not in a session.'
         setNotice({ tone: 'warn', title: `No answer to ${what}`, body: `${where} Nothing was retried — check, then try again if you need to.` })
       } else {
-        setNotice({ tone: 'error', title: `Could not ${what}`, body: err instanceof Error ? err.message : 'Something went wrong.' })
+        setNotice({ tone: 'error', title: `Could not ${what}`, body: httpErrorMessage(err) })
       }
     },
     [reread],
@@ -215,11 +216,10 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
       setActive(info)
       opts.onEntered?.(info)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong.'
       setNotice({
         tone: 'error',
         title: `You left the ${from.mode} session, but could not ${target.kind === 'live' ? 'join live' : 'start practice'}`,
-        body: msg,
+        body: httpErrorMessage(err),
       })
     } finally {
       setBusy(null)

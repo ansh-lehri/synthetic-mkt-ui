@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ApiError } from '../../api/client'
 import { postEarlyAccess } from '../../api/landing'
 import type { EarlyAccessRequest } from '../../api/landing'
 import './landing.css'
@@ -72,10 +73,10 @@ export default function RegisterModal({ source, open, onClose, wallMessage }: Pr
       await postEarlyAccess(req)
       setPhase('success')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'unknown'
-      if (msg === 'invalid_email') {
+      const reason = err instanceof ApiError ? err.reason : undefined
+      if (reason === 'invalid_email') {
         setError('Enter a valid email.')
-      } else if (msg === 'missing_experience') {
+      } else if (reason === 'missing_experience') {
         setError('Please select your experience level.')
       } else {
         setError('Something went wrong. Try again.')

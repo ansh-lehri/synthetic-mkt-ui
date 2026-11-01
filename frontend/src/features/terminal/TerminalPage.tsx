@@ -241,7 +241,7 @@ export default function TerminalPage() {
 
         {m.error ? (
           <Banner tone="error" title="Could not load the market">
-            {m.error instanceof Error ? m.error.message : 'Something went wrong.'}
+            Please try again. If the problem continues, try refreshing the page.
           </Banner>
         ) : !m.market || !activeSymbol ? (
           <Card><SkeletonText lines={4} label="Loading" /></Card>
@@ -253,7 +253,7 @@ export default function TerminalPage() {
                 title="Could not check your session"
                 action={<Button variant="ghost" onClick={session.refetch}>Retry</Button>}
               >
-                {session.loadError instanceof Error ? session.loadError.message : 'Something went wrong.'}
+                Please try again. If the problem continues, try refreshing the page.
               </Banner>
             ) : noSession ? (
               <EnterSession
@@ -294,8 +294,7 @@ export default function TerminalPage() {
                 title="Could not refresh your account"
                 action={<Button variant="ghost" onClick={() => void obsQ.refetch()}>Retry</Button>}
               >
-                {obsQ.error instanceof Error ? obsQ.error.message : 'Something went wrong.'}
-                {obs ? ' Showing the last numbers we had.' : ''}
+                {obs ? 'Showing the last numbers we had.' : 'Please try again.'}
               </Banner>
             )}
 

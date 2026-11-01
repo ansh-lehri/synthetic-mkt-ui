@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Banner, Button, Card, Field } from '../../components'
+import { httpErrorMessage } from '../../lib/errors'
 import { openAccount, storeAccountId, storeEmail } from '../../lib/identity'
 
 const go = (path: string) => window.location.assign(path)
@@ -27,7 +28,7 @@ export default function SignupPage() {
       storeEmail(trimmed)
       go('/app')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')
+      setError(httpErrorMessage(err))
       setBusy(false)
     }
   }

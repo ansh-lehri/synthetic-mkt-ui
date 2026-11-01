@@ -123,12 +123,12 @@ export default function HomePage() {
         {notice && <Banner tone="success" onDismiss={() => setNotice(undefined)}>{notice}</Banner>}
         {marketsQ.error && !marketsQ.data && (
           <Banner tone="error" title="Could not load the markets" action={<Button variant="ghost" onClick={() => void marketsQ.refetch()}>Retry</Button>}>
-            {marketsQ.error instanceof Error ? marketsQ.error.message : 'Something went wrong.'}
+            Please try again. If the problem continues, try refreshing the page.
           </Banner>
         )}
         {session.loadError && (
           <Banner tone="error" title="Could not check your session" action={<Button variant="ghost" onClick={session.refetch}>Retry</Button>}>
-            {session.loadError instanceof Error ? session.loadError.message : 'Something went wrong.'}
+            Please try again. If the problem continues, try refreshing the page.
           </Banner>
         )}
 

@@ -443,7 +443,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
       {history.isError && (
         <div className="p-3">
           <Banner tone="error" title="Could not load chart history" action={<Button variant="ghost" onClick={() => void history.refetch()}>Retry</Button>}>
-            {history.error instanceof Error ? history.error.message : 'Something went wrong.'}
+            Please try again. If the problem continues, try refreshing the page.
           </Banner>
         </div>
       )}

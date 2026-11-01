@@ -189,7 +189,7 @@ export default function PracticePage() {
         )}
         {marketsQ.error && !marketsQ.data && (
           <Banner tone="error" title="Could not load the markets" action={<Button variant="ghost" onClick={() => void marketsQ.refetch()}>Retry</Button>}>
-            {marketsQ.error instanceof Error ? marketsQ.error.message : 'Something went wrong.'}
+            Please try again. If the problem continues, try refreshing the page.
           </Banner>
         )}
 

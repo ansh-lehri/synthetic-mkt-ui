@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { ApiError, transferMoney, type TransferDirection, type TransferResponse } from '../../api'
+import { transferMoney, type TransferDirection, type TransferResponse } from '../../api'
 import { Banner, Button, Field } from '../../components'
+import { httpErrorMessage } from '../../lib/errors'
 import { isNoAnswer } from '../../lib/session'
 import { MONEY_DECIMALS, formatMoney } from '../../lib/ticks'
 import { DIRECTIONS, checkTransfer, type KnownBalances } from '../../lib/transfer'
@@ -84,7 +85,7 @@ function TransferForm({
         setPhase({ kind: 'unknown' })
         onUnknown()
       } else {
-        setPhase({ kind: 'failed', message: err instanceof ApiError || err instanceof Error ? err.message : 'Something went wrong.' })
+        setPhase({ kind: 'failed', message: httpErrorMessage(err) })
       }
     }
   }
