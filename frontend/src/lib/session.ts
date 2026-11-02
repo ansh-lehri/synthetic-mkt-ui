@@ -6,11 +6,9 @@ import { ordinalMs, timePart } from './naive'
 
 /** Conditions are named by what the market does, not by an event. Descriptions are the board's. */
 export const PRACTICE_CONDITIONS: Array<{ value: PracticeCondition; label: string; hint: string }> = [
-  { value: 'normal',     label: 'Normal Day',     hint: 'A typical mix of trading. A good place to start.' },
-  { value: 'calm',       label: 'Calm Day',       hint: 'Prices drift inside a narrow band.' },
-  { value: 'busy',       label: 'Active Market',  hint: 'Elevated flow and tighter spreads throughout.' },
-  { value: 'thin',       label: 'Thin Market',    hint: 'Wide spreads, orders move the price.' },
-  { value: 'dispersion', label: 'Two Camps',      hint: 'Buyers and sellers disagree sharply on fair value.' },
+  { value: 'normal', label: 'Normal Day',    hint: 'A typical mix of trading. A good place to start.' },
+  { value: 'calm',   label: 'Calm Day',      hint: 'Prices drift inside a narrow band.' },
+  { value: 'busy',   label: 'Active Market', hint: 'Elevated flow and tighter spreads throughout.' },
 ]
 export const PRACTICE_LENGTHS: PracticeLength[] = [10, 20, 30, 60]
 export const DEFAULT_CONDITION: PracticeCondition = 'normal'
