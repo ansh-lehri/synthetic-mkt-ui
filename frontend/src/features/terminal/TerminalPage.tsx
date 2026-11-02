@@ -347,6 +347,7 @@ export default function TerminalPage() {
                 sessionOpenAt={chartOpenAt}
                 sessionCloseAt={chartCloseAt}
                 sessionId={sess?.sessionId}
+                phase={phase}
               />
             ) : !sess ? null : !obs ? (
               obsQ.isPending ? <Card><SkeletonText lines={3} label="Loading your account" /></Card> : null

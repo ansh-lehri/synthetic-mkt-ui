@@ -197,6 +197,9 @@ export interface ChartTabProps {
   sessionCloseAt?: string
   /** Session ID used to key the sessionStorage candle cache (hard-refresh recovery). */
   sessionId?: string
+  /** UI-computed phase — candle updates are suppressed during preopen so warmup-period bars
+   * don't appear on the chart before the session opens. */
+  phase?: 'preopen' | 'open' | 'closing' | 'closed'
 }
 
 /**
@@ -205,7 +208,7 @@ export interface ChartTabProps {
  *  - a `candle` frame arrives only when a bucket CLOSES and replaces the tip with the real bar;
  *  - between closes the rightmost bar's tip moves with snapshot.last_price.
  */
-export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe, sessionOpenAt, sessionCloseAt, sessionId }: ChartTabProps) {
+export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe, sessionOpenAt, sessionCloseAt, sessionId, phase }: ChartTabProps) {
   const [type, setType] = useState<ChartType>('candles')
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>([])
   const [settingsFor, setSettingsFor] = useState<string | null>(null)
@@ -256,6 +259,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
   const live = useRef<LiveBar | null>(null)
 
   const pushTip = () => {
+    if (phase === 'preopen') return
     if (!snap || !snap.has_last || (snap.phase !== 'open' && snap.phase !== 'auction')) return
     const last = finals.current[finals.current.length - 1] ?? null
     const start = liveBucketStart(last, openAt)
@@ -267,6 +271,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
   pushTipRef.current = pushTip
 
   const applyFinal = (b: Bar) => {
+    if (phase === 'preopen') return
     const before = finals.current
     const after = mergeFinal(before, b)
     if (after === before) return // already in history
