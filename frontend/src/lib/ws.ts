@@ -149,6 +149,21 @@ export class MarketSocket {
     this.connect()
   }
 
+  /** Forces an immediate reconnect on the same URL — used when the market phase transitions
+   * so fresh subscriptions are registered and the epoch bumps. */
+  reconnect(): void {
+    if (!this.running) return
+    this.attempt = 0
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
+    if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null }
+    this.retryAttempt = 0
+    const old = this.ws
+    this.ws = null
+    this.ready = false
+    old?.close()
+    this.connect()
+  }
+
   stop(): void {
     this.running = false
     this.ready = false

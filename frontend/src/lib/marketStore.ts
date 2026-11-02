@@ -112,6 +112,13 @@ export function setMarketSession(sessionId: string | null): void {
   if (socket) ensureSocket(sessionId) // reconnect any already-wanted subs under the new session
 }
 
+/** Forces the socket to reconnect on the same session (drops + reopens the WS connection).
+ * Bumps `epoch`, which re-fetches chart history and re-sends all subscriptions. Used when
+ * the practice market phase transitions so fresh price snapshots start flowing. */
+export function forceReconnect(): void {
+  socket?.reconnect()
+}
+
 /** Subscribe to streams for as long as the caller wants them; returns the release function.
  * A no-op release when there is no session yet — callers (useSubscriptions) re-run once
  * `sessionId` changes, so this is retried automatically. */

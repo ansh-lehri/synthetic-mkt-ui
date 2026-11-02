@@ -6,8 +6,9 @@ import { logout, requireAccountId, requireEmail } from '../../lib/identity'
 import { getStoredGuestId, isGuestEmail } from '../../lib/guestIdentity'
 import { getGuestQuota } from '../../api/landing'
 import { instantToNaiveLocal, useMarketClock } from '../../lib/marketClock'
+import { ordinalMs } from '../../lib/naive'
 import { marketName, marketTimezone } from '../../lib/marketTimezone'
-import { setMarketSession, useMarketStore } from '../../lib/marketStore'
+import { forceReconnect, setMarketSession, useMarketStore } from '../../lib/marketStore'
 import type { Side } from '../../lib/orderTicket'
 import { clockPhase, fromWirePhase } from '../../lib/liveCard'
 import { clockOf, closeLabel, conditionLabel, exitCopy, orderBlockReason, switchCopy, timeLeft } from '../../lib/session'
@@ -146,6 +147,27 @@ export default function TerminalPage() {
   const left = phase === 'closed' ? '0:00:00' : rawLeft === '0:00:00' ? undefined : rawLeft
   const rawUntilOpen = timeLeft(nowLocal, practiceOpensAtNaive)
   const timeUntilOpen = rawUntilOpen && rawUntilOpen !== '0:00:00' ? rawUntilOpen : undefined
+
+  // Two sub-phases inside preopen (practice only): "joining" while >60s remain, "warmup" in
+  // the last minute. A reconnect at each transition refreshes subscriptions + bumps epoch so
+  // chart history re-fetches and price snapshots start flowing immediately at open.
+  const preOpenStage: 'joining' | 'warmup' | null =
+    phase === 'preopen' && mode === 'practice'
+      ? (nowLocal && practiceOpensAtNaive && (ordinalMs(practiceOpensAtNaive) - ordinalMs(nowLocal)) / 1000 > 60
+          ? 'joining'
+          : 'warmup')
+      : null
+
+  useEffect(() => {
+    if (preOpenStage === 'warmup') forceReconnect()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preOpenStage])
+
+  useEffect(() => {
+    if (phase === 'open' && mode === 'practice') forceReconnect()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
   const realised = obs && !obs.trades_degraded ? obs.recent_trades.reduce((sum, t) => sum + t.net_pnl, 0) : 0
 
   const instrumentOf = (sym: string) => book.instruments.find((i) => i.id === sym)
@@ -267,9 +289,14 @@ export default function TerminalPage() {
             ) : (
               <>
                 {session.notice && <Banner tone={session.notice.tone} title={session.notice.title} onDismiss={session.dismiss}>{session.notice.body}</Banner>}
-                {phase === 'preopen' && mode === 'practice' && (
-                  <Banner tone="info" title="Market warming up.">
-                    Agents are building the order book. Trading opens{timeUntilOpen ? ` in ${timeUntilOpen}` : practiceOpensAtNaive ? ` at ${practiceOpensAtNaive.slice(11, 16)}` : ' shortly'}.
+                {preOpenStage === 'joining' && (
+                  <Banner tone="warn" title="Participants joining.">
+                    Setting up the market. Trading opens{timeUntilOpen ? ` in ${timeUntilOpen}` : practiceOpensAtNaive ? ` at ${practiceOpensAtNaive.slice(11, 16)}` : ' shortly'}.
+                  </Banner>
+                )}
+                {preOpenStage === 'warmup' && (
+                  <Banner tone="warn" title="Order book warming up.">
+                    Almost ready — market opens{timeUntilOpen ? ` in ${timeUntilOpen}` : ' shortly'}.
                   </Banner>
                 )}
                 {phase === 'closed' && (
