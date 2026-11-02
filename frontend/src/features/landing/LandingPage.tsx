@@ -20,11 +20,16 @@ const ICON = (
   </svg>
 )
 
+// Paste the YouTube video ID here once uploaded (e.g. "dQw4w9WgXcQ").
+// Leave empty to keep the static mockup in place during development.
+const YT_VIDEO_ID = ''
+
 type RegisterSource = 'hero' | 'nav' | 'footer' | 'free_limit_wall'
 
 export default function LandingPage() {
   const [registerSource, setRegisterSource] = useState<RegisterSource | null>(null)
   const [trialBusy, setTrialBusy] = useState(false)
+  const [videoPlaying, setVideoPlaying] = useState(false)
 
   async function handleTryFree(e: React.MouseEvent) {
     e.preventDefault()
@@ -160,61 +165,77 @@ export default function LandingPage() {
               <div className="l-sec-eyebrow">See it move</div>
               <h2>Two doors in. Pick your conditions, or take the real session.</h2>
             </div>
-            <p className="l-sec-note">Demo video goes here — the market live, agents moving SYNTH_DEF, fills landing.</p>
           </div>
 
-          <div className="l-app l-app-play">
-            <div className="l-app-bar">
-              <span className="nm">BlindSide</span>
-              <span className="sim-pill">● Simulation</span>
-              <span className="rt">
-                <span className="pill">India (IN)</span>
-                <span className="pill">Lab</span>
-                <span className="pill">SYNTH_DEF</span>
-              </span>
+          {videoPlaying && YT_VIDEO_ID ? (
+            <div className="l-app" style={{ aspectRatio: '16/9', padding: 0, overflow: 'hidden' }}>
+              <iframe
+                src={`https://www.youtube.com/embed/${YT_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1`}
+                title="BlindSide demo"
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+                style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              />
             </div>
-            <div className="l-app-tabs">
-              <span className="on">Market</span>
-              <span>Chart</span>
-              <span>Orders</span>
-              <span>Positions</span>
-              <span>Trades</span>
-              <span>P&amp;L</span>
-            </div>
-            <div className="l-app-body">
-              <div className="l-app-cards">
-                <div className="l-app-card">
-                  <h4>Live session</h4>
-                  <div className="d">Trade the market's real session. Results go to your record. Positions close at the close.</div>
-                  <button className="l-app-join" tabIndex={-1}>Join live session</button>
-                </div>
-                <div className="l-app-card sel">
-                  <h4>Practice</h4>
-                  <div className="d">A scenario of your choice. Nothing from it is recorded.</div>
-                  <div className="l-app-sel">
-                    <label>Scenario</label>
-                    <div className="l-app-drop">
-                      <div className="pick"><span className="ck">✓</span>Normal day</div>
-                      <div>Calm range</div>
-                      <div>Trending day</div>
-                      <div>Whipsaw</div>
-                      <div>Unstable day</div>
+          ) : (
+            <div className="l-app l-app-play">
+              <div className="l-app-bar">
+                <span className="nm">BlindSide</span>
+                <span className="sim-pill">● Simulation</span>
+                <span className="rt">
+                  <span className="pill">India (IN)</span>
+                  <span className="pill">Lab</span>
+                  <span className="pill">SYNTH_DEF</span>
+                </span>
+              </div>
+              <div className="l-app-tabs">
+                <span className="on">Market</span>
+                <span>Chart</span>
+                <span>Orders</span>
+                <span>Positions</span>
+                <span>Trades</span>
+                <span>P&amp;L</span>
+              </div>
+              <div className="l-app-body">
+                <div className="l-app-cards">
+                  <div className="l-app-card">
+                    <h4>Live session</h4>
+                    <div className="d">Trade the market's real session. Results go to your record. Positions close at the close.</div>
+                    <button className="l-app-join" tabIndex={-1}>Join live session</button>
+                  </div>
+                  <div className="l-app-card sel">
+                    <h4>Practice</h4>
+                    <div className="d">A scenario of your choice. Nothing from it is recorded.</div>
+                    <div className="l-app-sel">
+                      <label>Scenario</label>
+                      <div className="l-app-drop">
+                        <div className="pick"><span className="ck">✓</span>Normal day</div>
+                        <div>Calm range</div>
+                        <div>Trending day</div>
+                        <div>Whipsaw</div>
+                        <div>Unstable day</div>
+                      </div>
                     </div>
                   </div>
                 </div>
+                <div className="l-app-inst">
+                  <div className="ih"><span>Instrument</span><span>Last</span><span>Change</span></div>
+                  <div className="ir"><span>SYNTH_DEF</span><span>—</span><span>—</span></div>
+                </div>
               </div>
-              <div className="l-app-inst">
-                <div className="ih"><span>Instrument</span><span>Last</span><span>Change</span></div>
-                <div className="ir"><span>SYNTH_DEF</span><span>—</span><span>—</span></div>
+              <div className="l-app-ov">
+                <button
+                  className="l-play-btn"
+                  onClick={() => { if (YT_VIDEO_ID) setVideoPlaying(true) }}
+                  disabled={!YT_VIDEO_ID}
+                  title={YT_VIDEO_ID ? undefined : 'Demo video coming soon'}
+                >
+                  <span className="l-play-tri" aria-hidden="true" />
+                  Watch the demo
+                </button>
               </div>
             </div>
-            <div className="l-app-ov">
-              <button className="l-play-btn" onClick={(e) => e.preventDefault()}>
-                <span className="l-play-tri" aria-hidden="true" />
-                Watch the demo
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
