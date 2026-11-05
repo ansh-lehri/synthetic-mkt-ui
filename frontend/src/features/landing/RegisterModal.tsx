@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../api/client'
 import { postEarlyAccess } from '../../api/landing'
 import type { EarlyAccessRequest } from '../../api/landing'
+import { track } from '../../lib/analytics'
 import './landing.css'
 
 interface Props {
@@ -30,10 +31,11 @@ export default function RegisterModal({ source, open, onClose, wallMessage }: Pr
     if (open) {
       el.showModal()
       emailRef.current?.focus()
+      track('register_modal_opened', { source, page: window.location.pathname })
     } else {
       el.close()
     }
-  }, [open])
+  }, [open, source])
 
   // Reset form state when opened
   useEffect(() => {
@@ -71,16 +73,22 @@ export default function RegisterModal({ source, open, onClose, wallMessage }: Pr
         source,
       }
       await postEarlyAccess(req)
+      track('register_form_succeeded', { experience: req.experience, market: req.market, source })
       setPhase('success')
     } catch (err: unknown) {
       const reason = err instanceof ApiError ? err.reason : undefined
+      let errorKind: string
       if (reason === 'invalid_email') {
         setError('Enter a valid email.')
+        errorKind = 'invalid_email'
       } else if (reason === 'missing_experience') {
         setError('Please select your experience level.')
+        errorKind = 'missing_experience'
       } else {
         setError('Something went wrong. Try again.')
+        errorKind = 'network'
       }
+      track('register_form_failed', { reason: errorKind, source })
     } finally {
       setLoading(false)
     }

@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, observationKey, type PracticeCondition, type PracticeLength } from '../../api'
 import type { BannerTone } from '../../components'
 import { httpErrorMessage } from '../../lib/errors'
 import { exitSession as exitSessionCall, isExitSuccess, isMarketNotLive, isSessionConflict, joinLive as joinLiveCall, startPractice } from '../../lib/sessionActions'
 import { resolveCurrentSession, type CurrentSessionState } from '../../lib/sessionRecovery'
 import { isNoAnswer, type SessionMode } from '../../lib/session'
+import { track } from '../../lib/analytics'
 
 export type EnterTarget = { kind: 'live' } | { kind: 'practice'; condition: PracticeCondition; length: PracticeLength }
 
@@ -65,6 +66,7 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
   const [busy, setBusy] = useState<'enter' | 'exit' | null>(null)
   const [notice, setNotice] = useState<SessionNotice>()
   const [prompt, setPrompt] = useState<SwitchPrompt | null>(null)
+  const sessionStartedAt = useRef<number | undefined>(undefined)
 
   const setActive = useCallback(
     (a: ActiveInfo | null) => {
@@ -153,6 +155,13 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
           })
           return
         }
+        sessionStartedAt.current = Date.now()
+        track('session_started', {
+          kind: target.kind,
+          condition: target.kind === 'practice' ? target.condition : undefined,
+          length_min: target.kind === 'practice' ? target.length : undefined,
+          market,
+        })
         setActive(info)
         opts.onEntered?.(info)
       } catch (err) {
@@ -182,6 +191,13 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
     setNotice(undefined)
     try {
       await exitSessionCall(active.sessionId)
+      track('session_exited', {
+        mode: active.mode,
+        market: active.market,
+        condition: active.condition,
+        duration_secs: sessionStartedAt.current ? Math.round((Date.now() - sessionStartedAt.current) / 1000) : undefined,
+      })
+      sessionStartedAt.current = undefined
       setActive(null)
       return true
     } catch (err) {
@@ -213,6 +229,13 @@ export function useSessionFlow(userId: string, market: string | undefined, opts:
         })
         return
       }
+      sessionStartedAt.current = Date.now()
+      track('session_started', {
+        kind: target.kind,
+        condition: target.kind === 'practice' ? target.condition : undefined,
+        length_min: target.kind === 'practice' ? target.length : undefined,
+        market,
+      })
       setActive(info)
       opts.onEntered?.(info)
     } catch (err) {

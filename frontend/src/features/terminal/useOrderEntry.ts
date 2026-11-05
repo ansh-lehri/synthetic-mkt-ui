@@ -13,6 +13,7 @@ import {
   type OrderSignature,
   type PlacedOrder,
 } from '../../lib/orderFlow'
+import { track } from '../../lib/analytics'
 
 interface Unconfirmed {
   /** When the unanswered POST gave up; a read newer than this settles it. */
@@ -105,6 +106,7 @@ export function useOrderEntry(accountId: string, obs: Observation | undefined, o
             // the next poll will catch up
           }
           if (!alive.current) return
+          track('order_placed', { instrument: draft.instrument, side: draft.side, type: draft.type, qty: draft.qty })
           setPlaced({ orderId: res.order_id, instrument: draft.instrument, side: draft.side, qty: draft.qty, positionAtPlace, seenFilled: 0 })
           setFeedback({ kind: 'accepted', message: `Order ${res.order_id} is with the exchange.` })
         } catch (err) {

@@ -2,7 +2,8 @@ import { useState } from 'react'
 import './landing.css'
 import { getGuestQuota } from '../../api/landing'
 import { openAccount, storeAccountId, storeEmail, getStoredAccountId } from '../../lib/identity'
-import { guestEmail, mintOrLoadGuestId } from '../../lib/guestIdentity'
+import { guestEmail, getStoredGuestId, mintOrLoadGuestId } from '../../lib/guestIdentity'
+import { identify, setTraits, track } from '../../lib/analytics'
 import RegisterModal from './RegisterModal'
 import Tape from './Tape'
 
@@ -34,6 +35,7 @@ export default function LandingPage() {
   async function handleTryFree(e: React.MouseEvent) {
     e.preventDefault()
     if (trialBusy) return
+    track('landing_cta_clicked', { cta: 'try_free' })
 
     // If the user already has a stored identity (returning visitor), take them
     // straight to the app — no quota check, no account open needed.
@@ -44,11 +46,16 @@ export default function LandingPage() {
 
     setTrialBusy(true)
     try {
+      const isNew = !getStoredGuestId()
       const guestId = mintOrLoadGuestId()
       const email = guestEmail(guestId)
+      // Pin identity as soon as we have a stable ID.
+      identify(guestId, { is_guest: true })
+      track(isNew ? 'guest_identity_minted' : 'guest_identity_loaded')
       // Check quota before touching the account — consume happens at practice start.
       const quota = await getGuestQuota(guestId)
       if (quota.remaining <= 0) {
+        track('guest_quota_exhausted', { source: 'landing' })
         setRegisterSource('free_limit_wall')
         return
       }
@@ -56,6 +63,7 @@ export default function LandingPage() {
       const res = await openAccount(email)
       storeAccountId(res.account_id)
       storeEmail(email)
+      setTraits({ account_id: res.account_id })
       window.location.assign('/app')
     } catch {
       // Any network error: unblock the button so the user can retry.
@@ -84,7 +92,7 @@ export default function LandingPage() {
           <span className="l-nav-sp" />
           <a className="l-navlink" href="#how">How it works</a>
           <button className="l-btn l-btn-ghost l-btn-nav"
-            onClick={() => setRegisterSource('nav')}>
+            onClick={() => { track('landing_cta_clicked', { cta: 'register_nav' }); setRegisterSource('nav') }}>
             Register as early tester →
           </button>
         </div>
@@ -105,7 +113,7 @@ export default function LandingPage() {
                 {trialBusy ? 'Starting…' : 'Try a session free'}
               </button>
               <button className="l-btn l-btn-ghost"
-                onClick={() => setRegisterSource('hero')}>
+                onClick={() => { track('landing_cta_clicked', { cta: 'register_hero' }); setRegisterSource('hero') }}>
                 Register as early tester →
               </button>
             </div>
@@ -290,7 +298,7 @@ export default function LandingPage() {
               {trialBusy ? 'Starting…' : 'Try a session free'}
             </button>
             <button className="l-btn l-btn-ghost"
-              onClick={() => setRegisterSource('footer')}>
+              onClick={() => { track('landing_cta_clicked', { cta: 'register_footer' }); setRegisterSource('footer') }}>
               Register as early tester →
             </button>
           </div>

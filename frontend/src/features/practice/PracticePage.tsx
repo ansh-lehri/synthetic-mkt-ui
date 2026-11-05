@@ -8,6 +8,7 @@ import { marketName } from '../../lib/marketTimezone'
 import { pickMarket, useSelectedMarket } from '../../lib/selectedMarket'
 import { DEFAULT_CONDITION, DEFAULT_LENGTH, PRACTICE_CONDITIONS, PRACTICE_LENGTHS, conditionLabel } from '../../lib/session'
 import { resolveCurrentSession } from '../../lib/sessionRecovery'
+import { track } from '../../lib/analytics'
 import RegisterModal from '../landing/RegisterModal'
 import { TransferDialog } from '../home/TransferDialog'
 import { SwitchConfirm } from '../session/SwitchConfirm'
@@ -109,6 +110,7 @@ export default function PracticePage() {
         await postGuestConsume(guestId)
       } catch (err: unknown) {
         if ((err as { status?: number }).status === 409) {
+          track('guest_quota_exhausted', { source: 'practice' })
           setGuestLimitReached(true)
           return
         }

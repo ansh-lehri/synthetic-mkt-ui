@@ -24,6 +24,7 @@ import { OrderDrawer, type OrderDrawerState } from './OrderDrawer'
 import { useOrderActions } from './useOrderActions'
 import { useOrderEntry } from './useOrderEntry'
 import { useSessionFlow } from '../session/useSessionFlow'
+import { track } from '../../lib/analytics'
 
 type Tab = 'market' | 'chart' | 'orders' | 'positions' | 'trades' | 'pnl'
 
@@ -101,6 +102,7 @@ export default function TerminalPage() {
   const [drawer, setDrawer] = useState<OrderDrawerState | null>(null)
   const [modifying, setModifying] = useState<OpenOrder | null>(null)
   const openDrawer = (side: Side, sym: string) => {
+    track('order_drawer_opened', { side, instrument: sym })
     entry.reset()
     setDrawer((d) => ({ side, symbol: sym, n: (d?.n ?? 0) + 1 }))
   }
@@ -230,7 +232,7 @@ export default function TerminalPage() {
                 key={t.id}
                 type="button"
                 aria-current={tab === t.id ? 'page' : undefined}
-                onClick={() => setTab(t.id)}
+                onClick={() => { setTab(t.id); track('terminal_tab_viewed', { tab: t.id }) }}
                 className={`relative min-h-[56px] whitespace-nowrap px-4 ${tab === t.id ? 'font-semibold text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t-sm after:bg-accent' : 'font-medium text-muted hover:text-ink'}`}
               >
                 {t.label}
@@ -333,6 +335,7 @@ export default function TerminalPage() {
                 onOpenChart={(s) => {
                   setSymbol(s)
                   setTab('chart')
+                  track('terminal_tab_viewed', { tab: 'chart', via: 'market_row' })
                 }}
               />
             ) : tab === 'chart' ? (

@@ -4,6 +4,7 @@ import { ApiError, cancelOrder, modifyOrder, observationKey, type ModifyOrderReq
 import type { BannerTone } from '../../components'
 import { httpErrorMessage } from '../../lib/errors'
 import { isUnknownOutcome, reasonText } from '../../lib/orderFlow'
+import { track } from '../../lib/analytics'
 
 export interface Notice {
   tone: BannerTone
@@ -35,6 +36,7 @@ export function useOrderActions(accountId: string) {
       mark(orderId, true)
       try {
         await cancelOrder(accountId, orderId)
+        track('order_cancelled', { order_id: orderId })
         setNotice(undefined) // accepted: the row now shows "Cancelling…" from the poll
       } catch (err) {
         if (isUnknownOutcome(err)) {
@@ -64,6 +66,7 @@ export function useOrderActions(accountId: string) {
       mark(req.order_id, true)
       try {
         const res = await modifyOrder(accountId, req)
+        track('order_modified', { order_id: req.order_id, result: res.modify_status })
         if (res.modify_status === 'ok') {
           setNotice({ tone: 'success', title: 'Order replaced', body: `The new order${res.replace?.order_id ? ` (${res.replace.order_id})` : ''} is with the exchange.` })
         } else if (res.modify_status === 'partial') {
