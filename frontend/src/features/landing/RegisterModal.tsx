@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../api/client'
 import { postEarlyAccess } from '../../api/landing'
 import type { EarlyAccessRequest } from '../../api/landing'
+import { Button } from '../../components'
 import { track } from '../../lib/analytics'
-import './landing.css'
 
 interface Props {
   source: 'hero' | 'footer' | 'nav' | 'free_limit_wall'
@@ -13,6 +13,8 @@ interface Props {
 }
 
 type Phase = 'form' | 'success'
+
+const fieldClass = 'w-full rounded-lg border border-line bg-raised px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none'
 
 export default function RegisterModal({ source, open, onClose, wallMessage }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -37,7 +39,6 @@ export default function RegisterModal({ source, open, onClose, wallMessage }: Pr
     }
   }, [open, source])
 
-  // Reset form state when opened
   useEffect(() => {
     if (open) {
       setEmail('')
@@ -97,38 +98,44 @@ export default function RegisterModal({ source, open, onClose, wallMessage }: Pr
   return (
     <dialog
       ref={dialogRef}
-      className="l-modal"
+      className="fixed inset-0 !m-auto h-fit w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-panel p-0 text-ink shadow-card backdrop:bg-[var(--scrim)]"
       onClose={onClose}
       aria-label="Register as early tester"
     >
-      <div className="l-modal-inner">
-        <button className="l-modal-x" onClick={handleClose} aria-label="Close">✕</button>
+      <div className="relative p-6">
+        <button
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-raised hover:text-ink"
+          onClick={handleClose}
+          aria-label="Close"
+        >
+          ✕
+        </button>
 
         {phase === 'success' ? (
-          <div className="l-modal-ok">
-            <div className="l-modal-ok-icon" aria-hidden="true">✓</div>
-            <h3>You're on the list</h3>
-            <p>We'll be in touch.</p>
-            <button className="l-btn l-btn-primary l-modal-close-btn" onClick={handleClose}>
-              Close
-            </button>
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-soft text-2xl text-accent" aria-hidden="true">✓</div>
+            <h3 className="text-lg font-semibold">You're on the list</h3>
+            <p className="text-sm text-muted">We'll be in touch.</p>
+            <Button variant="primary" onClick={handleClose}>Close</Button>
           </div>
         ) : (
           <>
             {wallMessage && (
-              <div className="l-modal-wall">{wallMessage}</div>
+              <div className="mb-4 rounded-lg border border-line bg-soft px-4 py-3 text-sm font-medium text-accent">
+                {wallMessage}
+              </div>
             )}
-            <h3 className="l-modal-title">Register as early tester</h3>
-            <p className="l-modal-sub">Free during early access. No real money, ever.</p>
+            <h3 className="pr-8 text-lg font-semibold">Register as early tester</h3>
+            <p className="mb-5 mt-1 text-sm text-muted">Free during early access. No real money, ever.</p>
 
-            <form className="l-modal-form" onSubmit={handleSubmit} noValidate>
-              <div className="l-field">
-                <label htmlFor="rm-email" className="l-label">Email</label>
+            <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="rm-email" className="text-sm font-medium">Email</label>
                 <input
                   id="rm-email"
                   ref={emailRef}
                   type="email"
-                  className="l-input"
+                  className={fieldClass}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -136,15 +143,15 @@ export default function RegisterModal({ source, open, onClose, wallMessage }: Pr
                   autoComplete="email"
                 />
                 {error && error.toLowerCase().includes('email') && (
-                  <span className="l-field-err">{error}</span>
+                  <span className="text-xs text-loss">{error}</span>
                 )}
               </div>
 
-              <div className="l-field">
-                <label htmlFor="rm-exp" className="l-label">Experience</label>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="rm-exp" className="text-sm font-medium">Experience</label>
                 <select
                   id="rm-exp"
-                  className="l-select"
+                  className={fieldClass}
                   value={experience}
                   onChange={(e) => setExperience(e.target.value as '' | 'new' | 'some' | 'active')}
                   required
@@ -155,15 +162,17 @@ export default function RegisterModal({ source, open, onClose, wallMessage }: Pr
                   <option value="active">Active trader</option>
                 </select>
                 {error && error.toLowerCase().includes('experience') && (
-                  <span className="l-field-err">{error}</span>
+                  <span className="text-xs text-loss">{error}</span>
                 )}
               </div>
 
-              <div className="l-field">
-                <label htmlFor="rm-mkt" className="l-label">Market <span className="l-label-opt">(optional)</span></label>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="rm-mkt" className="text-sm font-medium">
+                  Market <span className="font-normal text-muted">(optional)</span>
+                </label>
                 <select
                   id="rm-mkt"
-                  className="l-select"
+                  className={fieldClass}
                   value={market}
                   onChange={(e) => setMarket(e.target.value as '' | 'india' | 'us')}
                 >
@@ -174,16 +183,12 @@ export default function RegisterModal({ source, open, onClose, wallMessage }: Pr
               </div>
 
               {error && !error.toLowerCase().includes('email') && !error.toLowerCase().includes('experience') && (
-                <div className="l-modal-err">{error}</div>
+                <div className="rounded-lg border border-line bg-raised px-3 py-2 text-sm text-loss">{error}</div>
               )}
 
-              <button
-                type="submit"
-                className="l-btn l-btn-primary l-modal-submit"
-                disabled={!canSubmit || loading}
-              >
-                {loading ? 'Submitting…' : 'Register'}
-              </button>
+              <Button type="submit" variant="primary" fullWidth disabled={!canSubmit} loading={loading}>
+                Register
+              </Button>
             </form>
           </>
         )}
