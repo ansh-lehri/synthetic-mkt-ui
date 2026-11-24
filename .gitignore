@@ -24,3 +24,4 @@ coverage/
 
 # NOTE: contract/generated/ is COMMITTED on purpose — never ignore it.
 build_versions
+mock/mockserver
