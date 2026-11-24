@@ -1,0 +1,316 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>BlindSide</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* ============================================================
+   LAYOUT CONCEPT — committed "hybrid" look (authored, single-theme):
+   a light, welcoming page with the MARKET surfaces (live tape, app
+   preview) kept dark, so the product reads as alive while the page
+   stays approachable. Colors all explicit; page does not follow the
+   viewer's OS theme on purpose — a landing sets its own lighting.
+   ============================================================ */
+:root{
+  color-scheme:light;
+  --bg:#f6f7f9; --panel:#ffffff; --panel2:#eef0f3; --line:#e2e6ec;
+  --fg:#12161c; --muted:#596070; --dim:#8b92a0;
+  --accent:#3350dd; --accent-ink:#ffffff; --up:#0f9d63; --down:#d6443c;
+  /* dark market surfaces */
+  --m-bg:#0a0d13; --m-panel:#10151f; --m-line:#1d2534; --m-fg:#e7ecf5;
+  --m-mut:#8894a8; --m-dim:#5a647a; --m-acc:#5b7cfa; --m-up:#45d19a; --m-down:#ff6b6b;
+  --font-display:"Archivo",system-ui,sans-serif;
+  --font-body:"Archivo",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);line-height:1.5;-webkit-font-smoothing:antialiased}
+img{max-width:100%}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.05;font-weight:800;letter-spacing:-.02em}
+p{margin:0}
+a{color:inherit}
+.mono{font-family:var(--font-mono)}
+.tnum{font-variant-numeric:tabular-nums}
+
+.wrap{max-width:1120px;margin:0 auto;
+  padding-left:max(20px,env(safe-area-inset-left,0px));
+  padding-right:max(20px,env(safe-area-inset-right,0px))}
+.eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;font-weight:700;font-size:15px;letter-spacing:-.01em;
+  padding:14px 24px;border-radius:10px;border:1px solid transparent;cursor:pointer;text-decoration:none;transition:transform .12s,filter .15s}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{filter:brightness(1.07)}
+.btn-ghost{background:transparent;color:var(--fg);border-color:var(--line)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.reassure{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+
+/* top bar */
+.nav{border-bottom:1px solid var(--line)}
+.nav-in{max-width:1120px;margin:0 auto;display:flex;align-items:center;gap:14px;
+  padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));padding-block:16px}
+.nav .brand{font-weight:800;letter-spacing:-.035em;font-size:17px}
+.nav .sim{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:999px;padding:3px 9px}
+.nav .sp{margin-left:auto}
+.nav a.navlink{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-decoration:none}
+.nav a.navlink:hover{color:var(--fg)}
+@media(max-width:560px){.nav a.navlink{display:none}}
+
+/* hero */
+.hero{padding-block:clamp(44px,7vw,92px)}
+.hterm{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(28px,5vw,64px);align-items:center}
+@media(max-width:860px){.hterm{grid-template-columns:1fr;gap:34px}}
+.hterm h1{font-size:clamp(34px,5.4vw,62px);margin-top:20px}
+.hterm .sub{margin-top:22px;font-size:clamp(16px,1.9vw,21px);color:var(--muted);max-width:32ch}
+.hterm .sub b{color:var(--fg);font-weight:600}
+.hterm .cta{margin-top:30px;display:flex;gap:12px;flex-wrap:wrap}
+.hterm .reassure{margin-top:16px}
+
+/* dark market tape */
+.tape{background:var(--m-bg);border:1px solid var(--m-line);border-radius:14px;overflow:hidden;box-shadow:0 30px 70px -36px rgba(10,14,25,.45)}
+.tape-top{display:flex;align-items:center;gap:10px;padding:12px 15px;border-bottom:1px solid var(--m-line);font-family:var(--font-mono);font-size:12px;color:var(--m-dim)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--m-up);box-shadow:0 0 0 3px color-mix(in srgb,var(--m-up) 22%,transparent)}
+.tape-top .pair{color:var(--m-fg);letter-spacing:.04em}
+.tape-top .ph{margin-left:auto;color:var(--m-acc)}
+.tape-rows{font-family:var(--font-mono);font-size:13px}
+.trow{display:grid;grid-template-columns:54px 1fr auto;gap:10px;padding:8px 15px;border-bottom:1px solid color-mix(in srgb,var(--m-line) 60%,transparent);align-items:center;color:var(--m-fg)}
+.trow:last-child{border-bottom:0}
+.trow .side{font-size:11px;letter-spacing:.1em}
+.trow .px{text-align:right}
+.trow .qty-bar{height:14px;border-radius:3px;position:relative;overflow:hidden;background:color-mix(in srgb,var(--m-line) 70%,transparent)}
+.trow .qty-bar i{position:absolute;inset:0 auto 0 0;display:block;border-radius:3px;transition:width .5s ease}
+.buy .side{color:var(--m-up)} .buy .qty-bar i{background:color-mix(in srgb,var(--m-up) 55%,transparent)}
+.sell .side{color:var(--m-down)} .sell .qty-bar i{background:color-mix(in srgb,var(--m-down) 50%,transparent)}
+.tape-foot{display:flex;justify-content:space-between;padding:11px 15px;border-top:1px solid var(--m-line);font-family:var(--font-mono);font-size:12px;color:var(--m-dim)}
+.tape-foot b{color:var(--m-fg)}
+
+/* sections */
+section.block{padding-block:clamp(48px,8vw,92px);border-top:1px solid var(--line)}
+.sec-eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:22px}
+
+.problem h2{font-size:clamp(26px,4.4vw,46px);max-width:20ch}
+.problem .lead{margin-top:22px;font-size:clamp(18px,2.2vw,24px);color:var(--muted);max-width:30ch;line-height:1.3}
+.vignette{margin-top:44px;border-left:3px solid var(--accent);padding:4px 0 4px 26px;max-width:640px}
+.vignette p{font-size:clamp(18px,2.3vw,24px);line-height:1.4}
+.vignette .by{margin-top:14px;font-family:var(--font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.stat{margin-top:40px;font-family:var(--font-mono);font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.stat sup{color:var(--accent)} .stat .note{color:var(--dim)}
+
+.reveal{background:var(--panel2)}
+.rev-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,4vw,48px)}
+@media(max-width:760px){.rev-grid{grid-template-columns:1fr}}
+.rev-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:clamp(22px,3vw,34px)}
+.rev-tag{font-family:var(--font-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+.rev-card.us .rev-tag{color:var(--accent)}
+.rev-card p{font-size:clamp(16px,1.9vw,19px);line-height:1.45;color:var(--fg)}
+.rev-card.them p{color:var(--muted)}
+.rev-punch{margin-top:clamp(36px,5vw,56px);text-align:center}
+.rev-punch h2{font-size:clamp(28px,5.2vw,58px)}
+.rev-punch h2 em{font-style:normal;color:var(--accent)}
+
+.seeit .sec-head{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:30px}
+.seeit h2{font-size:clamp(24px,3.6vw,38px)}
+.seeit .sec-note{font-family:var(--font-mono);font-size:12px;color:var(--muted);max-width:30ch}
+.app{background:var(--m-bg);border:1px solid var(--m-line);border-radius:14px;overflow:hidden;color:var(--m-fg);box-shadow:0 34px 90px -46px rgba(10,14,25,.5)}
+.app-bar{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--m-line);flex-wrap:wrap}
+.app-bar .nm{font-weight:700}
+.app-bar .sim{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--m-acc);border:1px solid color-mix(in srgb,var(--m-acc) 40%,transparent);border-radius:999px;padding:3px 10px}
+.app-bar .rt{margin-left:auto;display:flex;gap:8px;font-family:var(--font-mono);font-size:11px;color:var(--m-mut)}
+.app-bar .pill{border:1px solid var(--m-line);border-radius:7px;padding:4px 9px}
+.app-tabs{display:flex;gap:4px;padding:10px 16px 0;border-bottom:1px solid var(--m-line);overflow-x:auto}
+.app-tabs span{font-family:var(--font-mono);font-size:12px;color:var(--m-mut);padding:8px 12px;white-space:nowrap;border-bottom:2px solid transparent}
+.app-tabs span.on{color:var(--m-fg);border-bottom-color:var(--m-acc)}
+.app-body{padding:18px}
+.app-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:620px){.app-cards{grid-template-columns:1fr}}
+.app-card{border:1px solid var(--m-line);border-radius:10px;padding:16px;background:var(--m-panel)}
+.app-card.sel{border-color:color-mix(in srgb,var(--m-acc) 55%,transparent)}
+.app-card h4{margin:0 0 7px;font-size:15px;font-weight:700}
+.app-card .d{font-size:12.5px;color:var(--m-mut);line-height:1.4;min-height:34px}
+.app-join{margin-top:14px;background:var(--m-acc);color:#fff;border:0;border-radius:8px;padding:11px;width:100%;font-family:var(--font-body);font-weight:700;font-size:13px;cursor:pointer}
+.app-sel{margin-top:14px}
+.app-sel label{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--m-mut)}
+.app-drop{margin-top:6px;border:1px solid color-mix(in srgb,var(--m-acc) 50%,transparent);border-radius:8px;background:color-mix(in srgb,var(--m-bg) 70%,var(--m-panel));overflow:hidden}
+.app-drop div{padding:8px 12px;font-family:var(--font-mono);font-size:12.5px;color:var(--m-fg);border-bottom:1px solid var(--m-line)}
+.app-drop div:last-child{border-bottom:0}
+.app-drop div.pick{color:var(--m-acc)}
+.app-drop .ck{color:var(--m-acc);margin-right:6px}
+.app-inst{margin-top:16px;border:1px solid var(--m-line);border-radius:10px;overflow:hidden}
+.app-inst .ih,.app-inst .ir{display:grid;grid-template-columns:1fr auto auto;gap:14px;padding:11px 14px;font-family:var(--font-mono);font-size:12px}
+.app-inst .ih{color:var(--m-dim);border-bottom:1px solid var(--m-line)}
+.app-inst .ir{color:var(--m-fg)}
+.app-play{position:relative}
+.app-play .ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,#06080c 22%,transparent)}
+.play-btn{display:flex;align-items:center;gap:10px;background:rgba(10,13,19,.82);border:1px solid #1d2534;color:#fff;border-radius:999px;padding:11px 20px;font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;cursor:pointer}
+.play-btn .tri{width:0;height:0;border-left:11px solid #5b7cfa;border-top:7px solid transparent;border-bottom:7px solid transparent}
+
+.how ol{list-style:none;counter-reset:s;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:820px){.how ol{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.how ol{grid-template-columns:1fr}}
+.how li{counter-increment:s;border:1px solid var(--line);border-radius:12px;padding:20px;background:var(--panel)}
+.how li::before{content:counter(s,decimal-leading-zero);font-family:var(--font-mono);font-size:13px;color:var(--accent);letter-spacing:.1em}
+.how li h4{margin:14px 0 8px;font-size:17px;font-weight:700;letter-spacing:-.01em}
+.how li p{font-size:14px;color:var(--muted);line-height:1.45}
+.how .flag{margin-top:26px;font-family:var(--font-mono);font-size:12px;color:var(--dim);max-width:60ch}
+
+.newb{display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.newb .t{max-width:40ch}
+.newb h3{font-size:clamp(20px,2.8vw,30px)}
+.newb p{margin-top:12px;color:var(--muted);font-size:16px}
+.newb .tag{font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+
+.fin{text-align:center}
+.fin h2{font-size:clamp(28px,5vw,56px);max-width:18ch;margin:0 auto}
+.fin .cta{margin-top:30px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.fin .reassure{margin-top:18px}
+
+.foot{border-top:1px solid var(--line);padding-block:30px}
+.foot-in{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;align-items:center}
+.foot .brand{font-weight:700}
+.foot .comp{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.foot .lk{font-family:var(--font-mono);font-size:12px;color:var(--dim);display:flex;gap:18px;flex-wrap:wrap}
+.foot a{text-decoration:none}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<nav class="nav">
+  <div class="nav-in">
+    <span class="brand" style="display:inline-flex;align-items:center;gap:8px"><svg viewBox="0 0 100 100" width="24" height="24" style="flex:none" aria-label="BlindSide"><rect x="6" y="6" width="88" height="88" rx="22" fill="#3350DD"/><g transform="translate(50 50) scale(0.82) translate(-50 -50)"><g fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M37 22 V78"/><path d="M37 22 H49 A14 14 0 0 1 49 50 H37"/><path d="M37 50 H51 A14.5 14.5 0 0 1 51 78 H37"/></g><line x1="37" y1="7" x2="37" y2="93" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/></g></svg><span style="color:var(--ink)">BlindSide</span></span>
+    <span class="sim">● Simulation</span>
+    <span class="sp"></span>
+    <a class="navlink" href="#how">How it works</a>
+    <a class="btn btn-ghost" href="#" style="padding:9px 16px">Register as early tester</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="wrap hterm">
+    <div>
+      <span class="eyebrow">Synthetic market · live order book</span>
+      <h1>Face the market you're not ready for — before it's the real one.</h1>
+      <p class="sub">A synthetic stock market, <b>run by agents</b>, that you can trade inside.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="#">Try a session free</a>
+        <a class="btn btn-ghost" href="#">Register as early tester</a>
+      </div>
+      <p class="reassure">Free during early access. No real money, ever.</p>
+    </div>
+    <div class="tape" aria-hidden="true">
+      <div class="tape-top"><span class="dot"></span><span class="pair">SYNTH_DEF</span><span>· India</span><span class="ph">CONTINUOUS</span></div>
+      <div class="tape-rows" id="taperows"></div>
+      <div class="tape-foot"><span>last <b id="t-last">—</b></span><span>spread <b id="t-spr">—</b></span><span>agents <b>62</b></span></div>
+    </div>
+  </div>
+</section>
+
+<section class="block problem">
+  <div class="wrap">
+    <div class="sec-eyebrow">The problem</div>
+    <h2>The market only lets you learn live — with your money already in it.</h2>
+    <p class="lead">Every new kind of day, you meet it for the first time when it's real.</p>
+    <div class="vignette">
+      <p>In 2024 I was long into the election result, certain how it would land. The market did something I'd never rehearsed — and I paid for it with real money.</p>
+      <div class="by">— Why this exists</div>
+    </div>
+    <div class="stat"><span>Most active retail traders lose money — in every market that's been studied.<sup>1</sup></span><span class="note">¹ add a global citation before launch — placeholder</span></div>
+  </div>
+</section>
+
+<section class="block reveal">
+  <div class="wrap">
+    <div class="sec-eyebrow">This isn't paper trading</div>
+    <div class="rev-grid">
+      <div class="rev-card them">
+        <div class="rev-tag">Paper trading · backtesting</div>
+        <p>You trade against a chart — a recording, with nobody on the other side. Your order always fills at your price. Nothing front-runs you. Nothing reacts.</p>
+      </div>
+      <div class="rev-card us">
+        <div class="rev-tag">Here</div>
+        <p>There's a market on the other side: agents with their own strategies, a real order book, orders that don't always fill. It reacts to you.</p>
+      </div>
+    </div>
+    <div class="rev-punch"><h2>A chart can't push back. <em>A market does.</em></h2></div>
+  </div>
+</section>
+
+<section class="block seeit">
+  <div class="wrap">
+    <div class="sec-head">
+      <div><div class="sec-eyebrow">See it move</div><h2>Two doors in. Pick your conditions, or take the real session.</h2></div>
+      <p class="sec-note">Demo video goes here — the market live, agents moving SYNTH_DEF, fills landing.</p>
+    </div>
+    <div class="app app-play">
+      <div class="app-bar"><span class="nm">BlindSide</span><span class="sim">● Simulation</span><span class="rt"><span class="pill">India (IN)</span><span class="pill">Lab</span><span class="pill">SYNTH_DEF</span></span></div>
+      <div class="app-tabs"><span class="on">Market</span><span>Chart</span><span>Orders</span><span>Positions</span><span>Trades</span><span>P&amp;L</span></div>
+      <div class="app-body">
+        <div class="app-cards">
+          <div class="app-card"><h4>Live session</h4><div class="d">Trade the market's real session. Results go to your record. Positions close at the close.</div><button class="app-join">Join live session</button></div>
+          <div class="app-card sel"><h4>Practice</h4><div class="d">A scenario of your choice. Nothing from it is recorded.</div>
+            <div class="app-sel"><label>Scenario</label>
+              <div class="app-drop"><div class="pick"><span class="ck">✓</span>Normal day</div><div>Calm range</div><div>Trending day</div><div>Whipsaw</div><div>Unstable day</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="app-inst"><div class="ih"><span>Instrument</span><span>Last</span><span>Change</span></div><div class="ir"><span>SYNTH_DEF</span><span>—</span><span>—</span></div></div>
+      </div>
+      <div class="ov"><span class="play-btn"><span class="tri"></span>Watch the demo</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="block how" id="how">
+  <div class="wrap">
+    <div class="sec-eyebrow">How it works</div>
+    <ol>
+      <li><h4>Pick your conditions</h4><p>Calm, trending, whippy, unstable — choose the kind of market you face.</p></li>
+      <li><h4>Step into a live book</h4><p>A real order book against agents with their own strategies.</p></li>
+      <li><h4>Place real orders</h4><p>Limit and market. They don't always fill — same as the real thing.</p></li>
+      <li><h4>Trade it out</h4><p>Work the position, close it, and read your P&amp;L.</p></li>
+    </ol>
+    <p class="flag">Conditions shown are what's live today. Building your own scenarios is on the way.</p>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap newb">
+    <div class="t"><div class="tag">New to markets?</div><h3>Start from zero.</h3><p>Learn how a market actually moves by being inside one — not by reading about it.</p></div>
+    <a class="btn btn-ghost" href="#">Start a first session</a>
+  </div>
+</section>
+
+<section class="block fin">
+  <div class="wrap">
+    <h2>Face the market you're not ready for — before it's the real one.</h2>
+    <div class="cta"><a class="btn btn-primary" href="#">Try a session free</a><a class="btn btn-ghost" href="#">Register as early tester</a></div>
+    <p class="reassure">Free during early access. No real money, ever.</p>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap foot-in"><span class="brand" style="display:inline-flex;align-items:center;gap:8px"><svg viewBox="0 0 100 100" width="24" height="24" style="flex:none" aria-label="BlindSide"><rect x="6" y="6" width="88" height="88" rx="22" fill="#3350DD"/><g transform="translate(50 50) scale(0.82) translate(-50 -50)"><g fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M37 22 V78"/><path d="M37 22 H49 A14 14 0 0 1 49 50 H37"/><path d="M37 50 H51 A14.5 14.5 0 0 1 51 78 H37"/></g><line x1="37" y1="7" x2="37" y2="93" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/></g></svg><span style="color:var(--ink)">BlindSide</span></span><span class="comp">Analytical and educational. Not investment advice.</span><span class="lk"><a href="#">Contact</a><a href="#">Privacy</a></span></div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function seedTape(){var base=1420,out=[];for(var i=0;i<7;i++){if(i===3){out.push({mid:true,px:base});continue;}var side=i<3?"sell":"buy";out.push({side:side,px:base+(side==="sell"?(4-i)*2+6:(i-2)*-2-6),qty:20+Math.round(Math.random()*120)});}return out;}
+  function renderTape(){
+    var el=document.getElementById("taperows");if(!el)return;var rows=seedTape();var maxq=1;rows.forEach(function(r){if(r.qty&&r.qty>maxq)maxq=r.qty;});
+    var html="";rows.forEach(function(r){
+      if(r.mid){html+='<div class="trow" style="background:color-mix(in srgb,var(--m-acc) 12%,transparent)"><span class="side mono" style="color:var(--m-acc)">MID</span><span class="qty-bar"><i style="width:0"></i></span><span class="px mono" style="color:var(--m-acc)">'+r.px.toFixed(0)+'</span></div>';return;}
+      var w=Math.round((r.qty/maxq)*100);
+      html+='<div class="trow '+r.side+'"><span class="side">'+(r.side==="buy"?"BID":"ASK")+'</span><span class="qty-bar"><i style="width:'+w+'%"></i></span><span class="px">'+r.px.toFixed(0)+'</span></div>';
+    });
+    el.innerHTML=html;
+    var last=document.getElementById("t-last"),spr=document.getElementById("t-spr");
+    if(last)last.textContent=(1418+Math.round(Math.random()*6)).toFixed(0);
+    if(spr)spr.textContent=(2+Math.round(Math.random()*3)).toFixed(0);
+  }
+  renderTape(); if(!reduce)setInterval(renderTape,1300);
+})();
+</script>
+
+</body></html>
