@@ -23,7 +23,7 @@ const ICON = (
 
 // Paste the YouTube video ID here once uploaded (e.g. "dQw4w9WgXcQ").
 // Leave empty to keep the static mockup in place during development.
-const YT_VIDEO_ID = ''
+const YT_VIDEO_ID = 'o56haH6AIXw'
 
 type RegisterSource = 'hero' | 'nav' | 'footer' | 'free_limit_wall'
 
