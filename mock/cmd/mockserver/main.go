@@ -15,6 +15,8 @@ import (
 
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/broker"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/catalog"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/earlyaccess"
+	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/guest"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/httpx"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/identity"
 	"github.com/ansh-2505-lehri/synthetic-mkt-ui/mock/internal/market"
@@ -60,6 +62,11 @@ func newHandlerWith(clock *market.Clock, brokerCfg ...broker.Config) http.Handle
 	identity.Register(mux, identities)
 	marketdata.Register(mux, clock, sessions)
 	session.Register(mux, sessions, clock, accounts.Available)
+	ea := earlyaccess.NewStore()
+	mux.HandleFunc("/api/early-access/register", ea.HandleRegister)
+	g := guest.NewStore()
+	mux.HandleFunc("/api/guest/quota", g.HandleQuota)
+	mux.HandleFunc("/api/guest/consume", g.HandleConsume)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "not found")
 	})

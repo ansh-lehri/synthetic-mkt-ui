@@ -37,3 +37,10 @@ export function addDaysNaive(naive: string, days: number): string {
   const t = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + days))
   return `${t.toISOString().slice(0, 10)}T${m[4]}:${m[5]}:${m[6]}`
 }
+
+/** Shift a naive-local timestamp by whole hours (no timezone involved; crosses day/month fine). */
+export function addHoursNaive(naive: string, hours: number): string {
+  const t = new Date(ordinalMs(naive) + hours * 3_600_000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}T${pad(t.getUTCHours())}:${pad(t.getUTCMinutes())}:${pad(t.getUTCSeconds())}`
+}

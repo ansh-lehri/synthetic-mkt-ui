@@ -27,7 +27,10 @@ export function useObservation(accountId: string, enabled = true) {
     queryKey: observationKey(accountId),
     queryFn: () => getObservation(accountId),
     enabled,
-    refetchInterval: OBSERVATION_POLL_MS,
+    refetchInterval: (query) =>
+      query.state.error instanceof ApiError && query.state.error.status === 409
+        ? false
+        : OBSERVATION_POLL_MS,
     retry: (failures, error) => !(error instanceof ApiError && error.status === 409) && failures < 1,
   })
 }

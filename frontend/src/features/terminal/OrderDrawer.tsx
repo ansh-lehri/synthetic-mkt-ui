@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { Instrument, Observation } from '../../api'
 import { Banner, Num, OrderTicket } from '../../components'
 import { marketOrdersCapability } from '../../lib/capabilities'
+import { instrumentName, ticketInstrumentOf } from '../../lib/instrumentDefaults'
 import type { Side } from '../../lib/orderTicket'
 import { useMarketStore } from '../../lib/marketStore'
 import type { OrderProgress } from '../../lib/orderFlow'
@@ -70,8 +71,8 @@ export function OrderDrawer({
   }, [open])
 
   const snap = useMarketStore((s) => (state ? s.snapshots[state.symbol] : undefined))
-  const inst = state ? instruments.find((i) => i.instrument === state.symbol) : undefined
-  const fmt = inst ? { tick_size: inst.tick_size, price_decimals: inst.price_decimals } : null
+  const inst = state ? instruments.find((i) => i.id === state.symbol) : undefined
+  const fmt = inst ? { tick_size: inst.tick_size, price_decimals: inst.price_decimals ?? 2 } : null
   const progress = entry.progress && PROGRESS_COPY(entry.progress)
 
   return (
@@ -110,7 +111,7 @@ export function OrderDrawer({
                 className="min-h-[44px] w-full rounded-md border border-line bg-raised px-3 text-sm text-ink"
               >
                 {instruments.map((i) => (
-                  <option key={i.instrument} value={i.instrument}>{i.instrument}  {i.name}</option>
+                  <option key={i.id} value={i.id}>{i.id}  {instrumentName(i)}</option>
                 ))}
               </select>
             </div>
@@ -128,7 +129,7 @@ export function OrderDrawer({
 
             <OrderTicket
               key={`${state.n}-${state.symbol}`}
-              instrument={{ symbol: inst.instrument, tick_size: inst.tick_size, price_decimals: inst.price_decimals, lot_size: inst.lot_size }}
+              instrument={ticketInstrumentOf(inst)}
               marketOrders={marketOrdersCapability}
               buyingPower={obs?.balance.available ?? 0}
               lastPrice={snap?.last_price}

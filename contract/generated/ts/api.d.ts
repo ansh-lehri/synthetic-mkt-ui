@@ -929,12 +929,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Spin up a one-user ephemeral market instance. A HELD request — does not return until the full setup pipeline completes or fails (SetupTimeout 90s default). No condition field exists on this endpoint; the scenario picker is frontend-only state (BACKEND-INTEGRATION-PLAN.md §4). */
+        /** Spin up a one-user ephemeral market instance. A HELD request — does not return until the full setup pipeline completes or fails (SetupTimeout 90s default). Request body carries an optional `condition` (the scenario picker) ahead of backend support — see OnDemandRequest/PracticeCondition; it is a documented no-op until the backend reads it (BACKEND-INTEGRATION-PLAN.md §4/§6). */
         post: {
             parameters: {
                 query: {
                     market: string;
-                    /** @description Minutes. Absent/empty defaults to 60. Non-integer or outside [5,120] → 400. */
+                    /** @description Minutes. Absent/empty defaults to 30. Non-integer or outside [5,60] → 400. */
                     duration?: number;
                 };
                 header?: never;
@@ -1551,8 +1551,15 @@ export interface components {
              */
             status: "active";
         };
+        /**
+         * @description The Practice setup screen's market-scenario picker. Values map to simulation-agents scenario names: normal=Normal Day, calm=Calm Day, busy=Active Market, thin=Thin Market, dispersion=Two Camps. See BACKEND-INTEGRATION-PLAN.md §4/§6.
+         * @enum {string}
+         */
+        PracticeCondition: "normal" | "calm" | "busy" | "thin" | "dispersion";
         OnDemandRequest: {
             user: components["schemas"]["Identity"];
+            /** @description Optional. See PracticeCondition — currently a no-op everywhere it's read. */
+            condition?: components["schemas"]["PracticeCondition"];
         };
         OnDemandWarmingUpBody: {
             /** @enum {string} */
@@ -1606,6 +1613,8 @@ export interface components {
             warmup_ends_at?: string | null;
             /** @description RFC3339Nano. Populated ONLY when mode=="ondemand". */
             session_ends_at?: string | null;
+            /** @description Non-null only when status=="starting" (on-demand spinup in flight). Values: "agents" (BringUp call in flight), "exchange" (exchange construction in flight). Null/absent in all other states. */
+            spinup_phase?: string | null;
         };
         SessionExitResponse: {
             /** @enum {string} */

@@ -1,14 +1,23 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Bar, CandleTimeframe, Instrument, Market } from '../../api'
 import { getAllCandles } from '../../api'
-import { Banner, Button, Card, Chip, Num, SegmentedToggle, Spinner } from '../../components'
+import { Banner, Button, Card, Num, SegmentedToggle, Spinner, Tooltip } from '../../components'
+import { instrumentName } from '../../lib/instrumentDefaults'
+import { cx } from '../../lib/cx'
 import { barKey, useMarketStore } from '../../lib/marketStore'
+import { instantToNaiveLocal } from '../../lib/marketClock'
+import { marketTimezone } from '../../lib/marketTimezone'
 import type { PriceFormat } from '../../lib/ticks'
-import { advanceLive, historyWindow, liveBucketStart, liveToKLine, mergeFinal, TIMEFRAMES, toKLine, type LiveBar } from './bars'
+import { advanceLive, historyWindow, liveBucketStart, liveToKLine, mergeFinal, mergeSessionCandles, TIMEFRAMES, toKLine, type LiveBar } from './bars'
+import { loadIndicatorPrefs, saveIndicatorPrefs, type ActiveIndicator } from './chartIndicatorPrefs'
 import type { ChartType } from './chartTheme'
 import { DepthPanel } from './DepthPanel'
+import { TOOL_INFO } from './formationInfo'
+import { IndicatorMenu } from './IndicatorMenu'
+import { IndicatorSettings } from './IndicatorSettings'
 import { PriceChart, type DrawTool, type PriceChartHandle } from './PriceChart'
+import { SymbolSearch } from './SymbolSearch'
 import { useSnapshot, useSubscriptions } from './hooks'
 
 const TYPES = [
@@ -16,21 +25,95 @@ const TYPES = [
   { value: 'line' as const, label: 'Line' },
 ]
 
+// Module-level cache: survives tab switches and TF changes within a session.
+// Key: "symbol|timeframe". Saved on TF-switch cleanup and on unmount cleanup.
+type ChartCacheEntry = { finals: Bar[]; live: LiveBar | null }
+const chartDataCache = new Map<string, ChartCacheEntry>()
+function cacheKey(sym: string, tf: string) { return `${sym}|${tf}` }
+
+// sessionStorage helpers: persist finalized bars across hard refreshes, keyed by
+// sessionId so data from a previous session never bleeds into a new one.
+function ssKey(sessionId: string, sym: string, tf: string) { return `chart:${sessionId}:${sym}:${tf}` }
+function saveToSession(sessionId: string, sym: string, tf: string, bars: Bar[]): void {
+  try { sessionStorage.setItem(ssKey(sessionId, sym, tf), JSON.stringify(bars)) } catch { /* quota / unavailable */ }
+}
+function loadFromSession(sessionId: string, sym: string, tf: string): Bar[] {
+  try {
+    const raw = sessionStorage.getItem(ssKey(sessionId, sym, tf))
+    return raw ? (JSON.parse(raw) as Bar[]) : []
+  } catch { return [] }
+}
+
 const ICON = 'h-5 w-5 fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.9]'
 
-const TOOLS: Array<{ id: DrawTool | 'cursor'; label: string; icon: React.ReactNode }> = [
-  { id: 'cursor', label: 'Cursor', icon: <path d="M5 3l14 7-6 2-2 7z" /> },
-  { id: 'trend', label: 'Trend line', icon: (<><path d="M5 18L19 6" /><circle cx="5" cy="18" r="2" /><circle cx="19" cy="6" r="2" /></>) },
-  { id: 'horizontal', label: 'Horizontal line', icon: (<><path d="M3 12h18" /><circle cx="12" cy="12" r="2" /></>) },
-  { id: 'rect', label: 'Rectangle', icon: <rect x="4" y="6" width="16" height="12" rx="1" /> },
-]
+type ToolId = DrawTool | 'cursor'
 
-const HELP: Record<string, string> = {
-  cursor: 'Pick a drawing tool on the left, then click on the chart.',
-  trend: 'Click twice on the chart to draw a trend line.',
-  horizontal: 'Click once on the chart to place a horizontal line.',
-  rect: 'Click twice on the chart to draw a rectangle.',
+interface RailSingle {
+  kind: 'single'
+  id: ToolId
+  label: string
+  icon: ReactNode
 }
+interface RailGroup {
+  kind: 'group'
+  label: string
+  icon: ReactNode
+  items: Array<{ id: DrawTool; label: string }>
+}
+type RailItem = RailSingle | RailGroup
+
+const CURSOR_HELP = 'Pick a drawing tool on the left, then click on the chart.'
+
+const RAIL: RailItem[] = [
+  { kind: 'single', id: 'cursor', label: 'Cursor', icon: <path d="M5 3l14 7-6 2-2 7z" /> },
+  {
+    kind: 'group',
+    label: 'Lines',
+    icon: <><path d="M5 18L19 6" /><circle cx="5" cy="18" r="2" /><circle cx="19" cy="6" r="2" /></>,
+    items: [
+      { id: 'trend', label: 'Trend line' },
+      { id: 'ray', label: 'Ray' },
+      { id: 'horizontal', label: 'Horizontal line' },
+      { id: 'horizontalRay', label: 'Horizontal ray' },
+      { id: 'parallelChannel', label: 'Parallel channel' },
+      { id: 'priceChannel', label: 'Price channel' },
+    ],
+  },
+  { kind: 'single', id: 'fib', label: 'Fibonacci retracement', icon: <><path d="M4 6h16M4 10h16M4 14h16M4 18h16" /></> },
+  {
+    kind: 'group',
+    label: 'Shapes',
+    icon: <rect x="4" y="6" width="16" height="12" rx="1" />,
+    items: [
+      { id: 'rect', label: 'Rectangle' },
+      { id: 'circle', label: 'Circle' },
+      { id: 'polygon', label: 'Polygon' },
+      { id: 'arc', label: 'Arc' },
+    ],
+  },
+  {
+    kind: 'group',
+    label: 'Patterns',
+    icon: <path d="M3 18l5-9 4 5 3-7 6 11z" />,
+    items: [
+      { id: 'headShoulders', label: 'Head & Shoulders' },
+      { id: 'invHeadShoulders', label: 'Inverse Head & Shoulders' },
+      { id: 'doubleTop', label: 'Double Top' },
+      { id: 'doubleBottom', label: 'Double Bottom' },
+      { id: 'triangleAsc', label: 'Triangle Ascending' },
+      { id: 'triangleDesc', label: 'Triangle Descending' },
+      { id: 'triangleSym', label: 'Triangle Symmetric' },
+      { id: 'wedgeRising', label: 'Wedge Rising' },
+      { id: 'wedgeFalling', label: 'Wedge Falling' },
+      { id: 'flagBull', label: 'Flag Bullish' },
+      { id: 'flagBear', label: 'Flag Bearish' },
+      { id: 'cupHandle', label: 'Cup & Handle' },
+      { id: 'harmonicXABCD', label: 'Harmonic (XABCD)' },
+      { id: 'harmonicABCD', label: 'Harmonic (ABCD)' },
+    ],
+  },
+  { kind: 'single', id: 'text', label: 'Text annotation', icon: <><path d="M5 6h14M12 6v12" /></> },
+]
 
 function IconButton({ label, disabled, pressed, onClick, children, className = '' }: { label: string; disabled?: boolean; pressed?: boolean; onClick: () => void; children: React.ReactNode; className?: string }) {
   return (
@@ -48,6 +131,55 @@ function IconButton({ label, disabled, pressed, onClick, children, className = '
   )
 }
 
+/** A rail icon that opens a flyout list of tools to its right (TradingView's grouped-icon pattern). */
+function RailGroupButton({ group, current, onPick }: { group: RailGroup; current: ToolId; onPick: (id: DrawTool) => void }) {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const pressed = group.items.some((i) => i.id === current)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  return (
+    <div ref={root} className="relative">
+      <IconButton label={group.label} pressed={pressed} onClick={() => setOpen((o) => !o)}>
+        {group.icon}
+      </IconButton>
+      {open && (
+        <div role="menu" aria-label={group.label} className="absolute left-full top-0 z-30 ml-1 flex w-56 flex-col rounded-md border border-line bg-panel p-1 shadow-card">
+          {group.items.map((item) => (
+            <Tooltip key={item.id} text={TOOL_INFO[item.id]}>
+              {(describedBy) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-describedby={describedBy}
+                  onClick={() => {
+                    onPick(item.id)
+                    setOpen(false)
+                  }}
+                  className={cx(
+                    'flex min-h-[40px] w-full items-center rounded-sm px-3 text-left text-sm',
+                    current === item.id ? 'bg-soft font-semibold text-ink' : 'text-ink hover:bg-raised',
+                  )}
+                >
+                  {item.label}
+                </button>
+              )}
+            </Tooltip>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export interface ChartTabProps {
   market: Market
   instruments: Instrument[]
@@ -56,6 +188,18 @@ export interface ChartTabProps {
   onSymbol: (s: string) => void
   timeframe: CandleTimeframe
   onTimeframe: (t: CandleTimeframe) => void
+  /**
+   * When set, these override the canonical market.session.opens_at/closes_at for the candle
+   * history query and the live-bar bucket calculation. Required for practice (on-demand)
+   * sessions, which run outside the canonical market schedule.
+   */
+  sessionOpenAt?: string
+  sessionCloseAt?: string
+  /** Session ID used to key the sessionStorage candle cache (hard-refresh recovery). */
+  sessionId?: string
+  /** UI-computed phase — candle updates are suppressed during preopen so warmup-period bars
+   * don't appear on the chart before the session opens. */
+  phase?: 'preopen' | 'open' | 'closing' | 'closed'
 }
 
 /**
@@ -64,12 +208,24 @@ export interface ChartTabProps {
  *  - a `candle` frame arrives only when a bucket CLOSES and replaces the tip with the real bar;
  *  - between closes the rightmost bar's tip moves with snapshot.last_price.
  */
-export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe }: ChartTabProps) {
+export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timeframe, onTimeframe, sessionOpenAt, sessionCloseAt, sessionId, phase }: ChartTabProps) {
   const [type, setType] = useState<ChartType>('candles')
-  const [ma, setMa] = useState(false)
-  const [tool, setTool] = useState<DrawTool | 'cursor'>('cursor')
+  const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>([])
+  const [settingsFor, setSettingsFor] = useState<string | null>(null)
+  const [tool, setTool] = useState<ToolId>('cursor')
   const [undo, setUndo] = useState({ undo: 0, redo: 0 })
   const chart = useRef<PriceChartHandle>(null)
+
+  // Restore indicators saved from a previous visit (browser-local, see chartIndicatorPrefs.ts).
+  // Runs once: PriceChart's own mount effect (a child) has already set its chart ref by the
+  // time this fires, since child effects run before the parent's.
+  useEffect(() => {
+    const saved = loadIndicatorPrefs()
+    if (saved.length === 0) return
+    saved.forEach((ind) => chart.current?.addIndicator(ind.name, ind.calcParams))
+    setActiveIndicators(saved)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const epoch = useMarketStore((s) => s.epoch)
   const status = useMarketStore((s) => s.status)
@@ -81,17 +237,20 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
     { stream: 'candle', instrument: symbol, timeframe },
   ])
 
-  const openAt = market.live_session.opens_at
-  const closeAt = market.live_session.closes_at
+  const tz = marketTimezone(market.tag)
+  // sessionOpenAt/sessionCloseAt override the canonical market schedule for practice sessions,
+  // which run outside the canonical market window. For live sessions the canonical times apply.
+  const openAt = sessionOpenAt ?? instantToNaiveLocal(market.session.opens_at, tz)
+  const closeAt = sessionCloseAt ?? instantToNaiveLocal(market.session.closes_at, tz)
   const fmt = fmtFor(symbol)
 
   // History. The query key carries the socket epoch, so a reconnect RE-FETCHES it (the server
   // does no backfill). It waits for the first connect (or a failed one) to avoid loading twice.
   const history = useQuery({
-    queryKey: ['candles', market.code, symbol, timeframe, openAt, epoch],
-    queryFn: () => getAllCandles({ market: market.code, instrument: symbol, timeframe, ...historyWindow(timeframe, openAt, closeAt) }),
+    queryKey: ['candles', market.tag, symbol, timeframe, openAt, epoch],
+    queryFn: () => getAllCandles({ market: market.tag, instrument: symbol, timeframe, ...historyWindow(timeframe, openAt, closeAt) }),
     enabled: epoch > 0 || status === 'reconnecting',
-    gcTime: 0,
+    gcTime: Infinity,
     staleTime: 0,
     retry: 1,
   })
@@ -100,7 +259,8 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
   const live = useRef<LiveBar | null>(null)
 
   const pushTip = () => {
-    if (!snap || !snap.has_last || (snap.phase !== 'open' && snap.phase !== 'closing')) return
+    if (phase === 'preopen') return
+    if (!snap || !snap.has_last || (snap.phase !== 'open' && snap.phase !== 'auction')) return
     const last = finals.current[finals.current.length - 1] ?? null
     const start = liveBucketStart(last, openAt)
     if (!start) return
@@ -111,21 +271,35 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
   pushTipRef.current = pushTip
 
   const applyFinal = (b: Bar) => {
+    if (phase === 'preopen') return
     const before = finals.current
     const after = mergeFinal(before, b)
     if (after === before) return // already in history
     finals.current = after
     live.current = null // the closed bar replaces the tip
     chart.current?.update(toKLine(b))
+    if (sessionId) saveToSession(sessionId, symbol, timeframe, finals.current)
   }
 
-  // 1. History arrived (first load or after a reconnect): replace everything, then catch up
-  //    on any bar that closed while it was loading.
+  // 1. History arrived (first load or after a reconnect): merge server bars with any
+  //    locally-cached live-session bars (module cache = tab-switch survival;
+  //    sessionStorage = hard-refresh survival), then catch up on any bar that closed
+  //    while loading.
   useEffect(() => {
     if (!history.data) return
-    finals.current = history.data
+    const key = cacheKey(symbol, timeframe)
+    const cached = chartDataCache.get(key)
+    const persisted = sessionId ? loadFromSession(sessionId, symbol, timeframe) : []
+    // Deduplicate local sources by bar start time, prefer the most recent value.
+    const localMap = new Map<string, Bar>()
+    for (const b of [...(cached?.finals ?? []), ...persisted]) localMap.set(b.start, b)
+    const local = [...localMap.values()].sort((a, b) => (a.start < b.start ? -1 : 1))
+    // Server is authoritative for historical candles; local supplies live-session
+    // candles the server hasn't persisted yet.
+    const merged = mergeSessionCandles(history.data, local)
+    finals.current = merged
     live.current = null
-    chart.current?.reset(history.data.map(toKLine))
+    chart.current?.reset(merged.map(toKLine))
     if (pushed) applyFinal(pushed.bar)
     pushTipRef.current()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -146,39 +320,76 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap])
 
-  // New instrument / timeframe: forget the old series immediately.
+  // Instrument / timeframe changed (or component mounted / remounted):
+  //   - If history hasn't arrived from TQ yet, seed the chart immediately from the module
+  //     cache so the user never sees a blank while waiting for the network.
+  //   - If TQ already has cached data (gcTime: Infinity), Effect 1 fires in the same batch
+  //     and takes over — we skip the module-cache seed to avoid a double reset.
+  //   - Cleanup fires on every TF-switch AND on unmount, saving the latest state to the
+  //     cache so a return visit or a tab-switch back is instant.
   useEffect(() => {
-    finals.current = []
-    live.current = null
+    const key = cacheKey(symbol, timeframe)
+    if (!history.data) {
+      const cached = chartDataCache.get(key)
+      if (cached && cached.finals.length > 0) {
+        finals.current = cached.finals
+        live.current = null
+        chart.current?.reset(cached.finals.map(toKLine))
+        pushTipRef.current() // rebuild live bar from current snapshot
+      } else {
+        finals.current = []
+        live.current = null
+      }
+    }
     setTool('cursor')
     setUndo({ undo: 0, redo: 0 })
+    return () => {
+      chartDataCache.set(key, { finals: finals.current, live: live.current })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, timeframe])
 
-  const selectTool = (t: DrawTool | 'cursor') => {
+  const selectTool = (t: ToolId) => {
     setTool(t)
     if (t === 'cursor') chart.current?.stopDraw()
     else chart.current?.startDraw(t)
   }
 
-  const instrument = instruments.find((i) => i.instrument === symbol)
+  const addIndicator = (name: string, calcParams?: number[]) => {
+    chart.current?.addIndicator(name, calcParams)
+    setActiveIndicators((prev) => {
+      const next = prev.some((i) => i.name === name) ? prev : [...prev, { name, calcParams }]
+      saveIndicatorPrefs(next)
+      return next
+    })
+  }
+  const removeIndicator = (name: string) => {
+    chart.current?.removeIndicator(name)
+    setActiveIndicators((prev) => {
+      const next = prev.filter((i) => i.name !== name)
+      saveIndicatorPrefs(next)
+      return next
+    })
+  }
+  const updateIndicator = (name: string, calcParams: number[]) => {
+    chart.current?.addIndicator(name, calcParams) // addIndicator replaces an already-active name
+    setActiveIndicators((prev) => {
+      const next = prev.map((i) => (i.name === name ? { name, calcParams } : i))
+      saveIndicatorPrefs(next)
+      return next
+    })
+  }
+
+  const instrument = instruments.find((i) => i.id === symbol)
   const loading = history.isFetching && !history.data
   const empty = !!history.data && history.data.length === 0 && !snap?.has_last
+  const help = tool === 'cursor' ? CURSOR_HELP : TOOL_INFO[tool]
 
   return (
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
     <Card as="section" aria-label="Chart" flush className="min-w-0 overflow-hidden">
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-b border-line px-4 py-3">
-        <label className="sr-only" htmlFor="ch-sym">Instrument</label>
-        <select
-          id="ch-sym"
-          value={symbol}
-          onChange={(e) => onSymbol(e.target.value)}
-          className="min-h-[44px] rounded-md border border-line bg-raised px-3 text-sm text-ink"
-        >
-          {instruments.map((i) => (
-            <option key={i.instrument} value={i.instrument}>{i.instrument}  {i.name}</option>
-          ))}
-        </select>
+        <SymbolSearch instruments={instruments} value={symbol} onChange={onSymbol} />
         <span className="text-2xl font-semibold">
           <Num kind="price" value={snap?.last_price ?? 0} fmt={fmt ?? { tick_size: 1, price_decimals: 0 }} available={!!snap && snap.has_last && !!fmt} size="xl" />
         </span>
@@ -188,7 +399,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
         <div className="flex-1" />
         <SegmentedToggle<CandleTimeframe> label="Timeframe" options={TIMEFRAMES.map((t) => ({ value: t, label: t }))} value={timeframe} onChange={onTimeframe} />
         <SegmentedToggle<ChartType> label="Chart type" options={TYPES} value={type} onChange={setType} />
-        <Chip selected={ma} onClick={() => setMa((v) => !v)}>MA 20</Chip>
+        <IndicatorMenu active={activeIndicators.map((i) => i.name)} onAdd={addIndicator} onRemove={removeIndicator} />
         <IconButton label="Undo" disabled={undo.undo === 0} onClick={() => chart.current?.undo()}>
           <><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></>
         </IconButton>
@@ -197,19 +408,62 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
         </IconButton>
       </div>
 
+      {activeIndicators.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 border-b border-line px-4 py-2">
+          {activeIndicators.map(({ name, calcParams }) => (
+            <span key={name} className="relative inline-flex items-center gap-0.5 rounded-pill border border-line bg-soft pl-2.5 text-xs font-semibold text-ink">
+              {name}
+              {calcParams && calcParams.length > 0 && (
+                <button
+                  type="button"
+                  aria-label={`${name} settings`}
+                  title="Settings"
+                  onClick={() => setSettingsFor((cur) => (cur === name ? null : name))}
+                  className="flex min-h-[28px] items-center px-1 text-muted hover:text-ink"
+                >
+                  ⚙
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => removeIndicator(name)}
+                className="flex min-h-[28px] items-center px-1.5 pr-2.5 text-muted hover:text-ink"
+              >
+                <span aria-hidden="true">×</span>
+                <span className="sr-only">Remove {name}</span>
+              </button>
+              {settingsFor === name && calcParams && (
+                <IndicatorSettings
+                  name={name}
+                  calcParams={calcParams}
+                  onApply={(next) => updateIndicator(name, next)}
+                  onClose={() => setSettingsFor(null)}
+                />
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
       {history.isError && (
         <div className="p-3">
           <Banner tone="error" title="Could not load chart history" action={<Button variant="ghost" onClick={() => void history.refetch()}>Retry</Button>}>
-            {history.error instanceof Error ? history.error.message : 'Something went wrong.'}
+            Please try again. If the problem continues, try refreshing the page.
           </Banner>
         </div>
       )}
 
       <div className="flex min-h-[444px]">
         <div role="toolbar" aria-label="Drawing tools" className="flex w-14 flex-none flex-col items-center gap-1.5 border-r border-line py-2.5">
-          {TOOLS.map((t) => (
-            <IconButton key={t.id} label={t.label} pressed={tool === t.id} onClick={() => selectTool(t.id)}>{t.icon}</IconButton>
-          ))}
+          {RAIL.map((item) =>
+            item.kind === 'single' ? (
+              <IconButton key={item.id} label={item.label} pressed={tool === item.id} onClick={() => selectTool(item.id)}>
+                {item.icon}
+              </IconButton>
+            ) : (
+              <RailGroupButton key={item.label} group={item} current={tool} onPick={selectTool} />
+            ),
+          )}
           <span className="my-1 h-px w-7 bg-line" aria-hidden="true" />
           <IconButton label="Remove all drawings" disabled={undo.undo === 0 && undo.redo === 0} onClick={() => { chart.current?.clearDrawings(); setTool('cursor') }}>
             <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
@@ -222,7 +476,6 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
             timeframe={timeframe}
             fmt={fmt ?? { tick_size: 1, price_decimals: 0 }}
             type={type}
-            ma={ma}
             onDrawingsChange={(u, r) => setUndo({ undo: u, redo: r })}
             className="h-[420px] w-full lg:h-[calc(100vh-20rem)] lg:min-h-[420px]"
           />
@@ -239,8 +492,7 @@ export function ChartTab({ market, instruments, fmtFor, symbol, onSymbol, timefr
 
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-line px-4 py-2.5 text-sm text-muted">
         <span>
-          {symbol}{instrument ? ` · ${instrument.name}` : ''}, {timeframe}, {type === 'candles' ? 'candles' : 'line'}
-          {ma ? ', MA 20 on' : ''}. {HELP[tool]}
+          {symbol}{instrument ? ` · ${instrumentName(instrument)}` : ''}, {timeframe}, {type === 'candles' ? 'candles' : 'line'}. {help}
         </span>
       </div>
     </Card>

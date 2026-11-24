@@ -109,7 +109,7 @@ export function TopBar({ markets, market, onMarketChange, accountLabel, accountI
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-panel px-4 py-2">
       <div className="flex items-center gap-3">
-        <span className="text-base font-semibold">Market Simulator</span>
+        <span className="text-base font-bold tracking-tight">BlindSide</span>
         <span className="inline-flex items-center gap-1 rounded-pill border border-accent bg-raised px-2 py-0.5 text-xs font-medium text-ink">
           <span aria-hidden="true" className="h-1.5 w-1.5 rounded-pill bg-accent" />
           Simulation

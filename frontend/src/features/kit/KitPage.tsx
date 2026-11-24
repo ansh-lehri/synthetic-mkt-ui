@@ -26,7 +26,7 @@ import type { PriceFormat } from '../../lib/ticks'
 // Static props only — this page makes no API calls. Values mirror contract examples
 // (raw int64; ACME tick_size 5, 2 decimals; money raw minor units).
 const FMT: PriceFormat = { tick_size: 5, price_decimals: 2 }
-const INSTRUMENT = { symbol: 'ACME', tick_size: 5, price_decimals: 2, lot_size: 1 }
+const INSTRUMENT = { symbol: 'SYNTH_DEF', tick_size: 5, price_decimals: 2, lot_size: 1 }
 const MARKETS = [
   { code: 'IN', name: 'India' },
   { code: 'US', name: 'United States' },
@@ -137,7 +137,7 @@ function KitSections() {
 
       <Section title="Chip">
         <Row>
-          {['normal_day', 'calm_range', 'whipsaw', 'thin_liquidity'].map((c) => (
+          {['normal', 'thin', 'calm', 'busy', 'dispersion'].map((c) => (
             <Chip key={c} selected={chip === c} onClick={() => setChip(c)}>
               {c.replace('_', ' ')}
             </Chip>
@@ -189,7 +189,7 @@ function KitSections() {
           >
             {tab === 'positions' && (
               <div className="p-4 text-sm">
-                <div className="flex justify-between"><span>ACME · qty <Num kind="qty" value={10} /></span><span className="text-muted">avg <Num kind="price" value={10050} fmt={FMT} /></span></div>
+                <div className="flex justify-between"><span>SYNTH_DEF · qty <Num kind="qty" value={10} /></span><span className="text-muted">avg <Num kind="price" value={10050} fmt={FMT} /></span></div>
               </div>
             )}
             {tab === 'orders' && <EmptyState title="No open orders" description="Orders you place appear here while they work." />}

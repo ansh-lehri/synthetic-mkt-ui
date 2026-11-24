@@ -21,8 +21,9 @@ export default defineConfig({
     // deployment). With this proxy active, set VITE_API_BASE="" and
     // VITE_WS_BASE="ws://localhost:5173" in frontend/.env so requests go through it.
     proxy: {
-      '/v1': { target: 'http://localhost:8080', changeOrigin: true, ws: true },
-      '/session': { target: 'http://localhost:8080', changeOrigin: true },
+      '/v1': { target: 'http://localhost:8000', changeOrigin: true, ws: true },
+      '/session': { target: 'http://localhost:8000', changeOrigin: true },
+      '/api': { target: 'http://localhost:8000', changeOrigin: true },
     },
   },
   test: {

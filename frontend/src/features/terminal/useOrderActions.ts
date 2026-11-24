@@ -2,7 +2,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
 import { ApiError, cancelOrder, modifyOrder, observationKey, type ModifyOrderRequest, type OpenOrder } from '../../api'
 import type { BannerTone } from '../../components'
+import { httpErrorMessage } from '../../lib/errors'
 import { isUnknownOutcome, reasonText } from '../../lib/orderFlow'
+import { track } from '../../lib/analytics'
 
 export interface Notice {
   tone: BannerTone
@@ -34,14 +36,15 @@ export function useOrderActions(accountId: string) {
       mark(orderId, true)
       try {
         await cancelOrder(accountId, orderId)
+        track('order_cancelled', { order_id: orderId })
         setNotice(undefined) // accepted: the row now shows "Cancelling…" from the poll
       } catch (err) {
         if (isUnknownOutcome(err)) {
           setNotice({ tone: 'warn', title: 'No answer to the cancel', body: 'We do not know whether it went through. The list below is refreshed — check it before cancelling again.' })
         } else if (err instanceof ApiError) {
-          setNotice({ tone: 'error', title: 'Could not cancel', body: reasonText(err.reason ?? err.message) })
+          setNotice({ tone: 'error', title: 'Could not cancel', body: reasonText(err.reason) })
         } else {
-          setNotice({ tone: 'error', title: 'Could not cancel', body: err instanceof Error ? err.message : undefined })
+          setNotice({ tone: 'error', title: 'Could not cancel', body: httpErrorMessage(err) })
         }
       } finally {
         mark(orderId, false)
@@ -63,6 +66,7 @@ export function useOrderActions(accountId: string) {
       mark(req.order_id, true)
       try {
         const res = await modifyOrder(accountId, req)
+        track('order_modified', { order_id: req.order_id, result: res.modify_status })
         if (res.modify_status === 'ok') {
           setNotice({ tone: 'success', title: 'Order replaced', body: `The new order${res.replace?.order_id ? ` (${res.replace.order_id})` : ''} is with the exchange.` })
         } else if (res.modify_status === 'partial') {
@@ -74,7 +78,7 @@ export function useOrderActions(accountId: string) {
         if (isUnknownOutcome(err)) {
           setNotice({ tone: 'warn', title: 'No answer to the modify', body: 'The original order may be cancelled, replaced, or untouched. The list is refreshed — check it before trying again.' })
         } else {
-          setNotice({ tone: 'error', title: 'Could not modify', body: err instanceof Error ? err.message : undefined })
+          setNotice({ tone: 'error', title: 'Could not modify', body: httpErrorMessage(err) })
         }
       } finally {
         mark(req.order_id, false)

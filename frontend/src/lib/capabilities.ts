@@ -3,8 +3,8 @@
 import type { Capability } from '../components/Button'
 
 export const capabilities = {
-  /** Market orders reject with `no_market_price` on the real backend until Phase 7. */
-  marketOrders: false,
+  /** Market orders are available once Phase 7 market-data is live (price moves in real time). */
+  marketOrders: true,
   /** Positions carry a live mark (`mark_available`) — LTP and unrealised P&L. Phase 7. */
   positionMarks: false,
 } as const

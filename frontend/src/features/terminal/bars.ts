@@ -11,8 +11,9 @@ export const TIMEFRAMES: CandleTimeframe[] = ['1m', '5m', '30m', '60m']
 
 export const TIMEFRAME_MINUTES: Record<CandleTimeframe, number> = { '1m': 1, '5m': 5, '30m': 30, '60m': 60 }
 
-/** Sessions of history to load per timeframe (coarser bars span more days). */
-export const LOOKBACK_SESSIONS: Record<CandleTimeframe, number> = { '1m': 1, '5m': 3, '30m': 10, '60m': 20 }
+/** Calendar days of history to load per timeframe. Coarser timeframes fetch more days because
+ * fewer candles per day makes a wider window cheap; 1m already yields ~375 candles/day. */
+export const LOOKBACK_SESSIONS: Record<CandleTimeframe, number> = { '1m': 30, '5m': 30, '30m': 60, '60m': 90 }
 
 /** A bar as the chart library wants it. Prices stay raw int64; labels are formatted later. */
 export function toKLine(b: Bar): KLineData {
@@ -78,4 +79,18 @@ export function historyWindow(tf: CandleTimeframe, sessionOpenAt: string, sessio
 /** Is an ISO timestamp on the same market day as another? */
 export function sameDay(a: string, b: string): boolean {
   return datePart(a) === datePart(b)
+}
+
+/**
+ * Append local bars (module cache or sessionStorage) that are strictly after
+ * the last server-returned bar. Server bars are authoritative; local bars fill
+ * in live-session candles the OHLCV endpoint hasn't persisted yet (on-demand
+ * sessions run on an ephemeral exchange whose candles may not reach the history
+ * endpoint before the session ends).
+ */
+export function mergeSessionCandles(server: Bar[], local: Bar[]): Bar[] {
+  if (local.length === 0) return server
+  const cutoff = server.length > 0 ? server[server.length - 1].start : ''
+  const extra = local.filter(b => b.start > cutoff)
+  return extra.length > 0 ? [...server, ...extra] : server
 }

@@ -1,12 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { useObservation, type CandleTimeframe, type OpenOrder } from '../../api'
+import { ApiError, useObservation, type CandleTimeframe, type OpenOrder } from '../../api'
 import { Banner, Button, Card, ConfirmDialog, Num, SessionBar, SkeletonText, TopBar } from '../../components'
-import { getAccountId } from '../../lib/account'
-import { useMarketClock } from '../../lib/marketClock'
-import { useMarketStore } from '../../lib/marketStore'
+import { logout, requireAccountId, requireEmail } from '../../lib/identity'
+import { getStoredGuestId, isGuestEmail } from '../../lib/guestIdentity'
+import { getGuestQuota } from '../../api/landing'
+import { instantToNaiveLocal, useMarketClock } from '../../lib/marketClock'
+import { ordinalMs } from '../../lib/naive'
+import { marketName, marketTimezone } from '../../lib/marketTimezone'
+import { forceReconnect, setMarketSession, useMarketStore } from '../../lib/marketStore'
 import type { Side } from '../../lib/orderTicket'
-import { clockPhase } from '../../lib/liveCard'
+import { clockPhase, fromWirePhase } from '../../lib/liveCard'
 import { clockOf, closeLabel, conditionLabel, exitCopy, orderBlockReason, switchCopy, timeLeft } from '../../lib/session'
 import { AccountStrip } from './AccountStrip'
 import { OrdersTab, PnlTab, PositionsTab, TradesTab } from './AccountTabs'
@@ -20,6 +24,7 @@ import { OrderDrawer, type OrderDrawerState } from './OrderDrawer'
 import { useOrderActions } from './useOrderActions'
 import { useOrderEntry } from './useOrderEntry'
 import { useSessionFlow } from '../session/useSessionFlow'
+import { track } from '../../lib/analytics'
 
 type Tab = 'market' | 'chart' | 'orders' | 'positions' | 'trades' | 'pnl'
 
@@ -55,107 +60,162 @@ export default function TerminalPage() {
   const [symbol, setSymbol] = useState<string | null>(init.sym)
   const [timeframe, setTimeframe] = useState<CandleTimeframe>(init.tf)
   const queryClient = useQueryClient()
-  const accountId = getAccountId()
+  const accountId = requireAccountId()
+  const email = requireEmail()
 
   const m = useTerminalMarket()
-  const book = useInstrumentBook(m.market?.code)
+  const tz = m.market ? marketTimezone(m.market.tag) : undefined
+  const book = useInstrumentBook(m.market?.tag)
   const status = useMarketStore((s) => s.status)
   const snapshots = useMarketStore((s) => s.snapshots)
 
   // Keep a live price for every instrument in the list (the watchlist), on one socket.
-  useSubscriptions(book.instruments.map((i) => ({ stream: 'snapshot' as const, instrument: i.instrument })))
+  useSubscriptions(book.instruments.map((i) => ({ stream: 'snapshot' as const, instrument: i.id })))
+
+  // ---- guest quota: only relevant when the identity is a guest account
+  const isGuest = email ? isGuestEmail(email) : false
+  const [guestRemaining, setGuestRemaining] = useState<number | undefined>(undefined)
+  useEffect(() => {
+    if (!isGuest) return
+    const gid = getStoredGuestId()
+    if (!gid) return
+    void getGuestQuota(gid).then((q) => setGuestRemaining(q.remaining)).catch(() => {})
+  }, [isGuest])
 
   // ---- session (HTTP poll): which session the account is in, and the way in / out
-  const session = useSessionFlow(accountId, m.market?.code)
+  const session = useSessionFlow(email ?? '', m.market?.tag)
   const sess = session.active
   const noSession = session.known && !sess
 
+  // The real backend's /v1/ws requires a session — there is no anonymous market-data feed.
+  // The socket connects/reconnects/disconnects as the session changes (join/exit/switch).
+  useEffect(() => {
+    setMarketSession(sess?.sessionId ?? null)
+  }, [sess?.sessionId])
+
   // ---- account half (HTTP poll) — only meaningful inside a session (otherwise it answers 409)
-  const obsQ = useObservation(accountId, !!sess)
+  const obsQ = useObservation(accountId ?? '', !!sess && !!accountId)
   const obs = sess ? obsQ.data : undefined
-  const obsFailed = !!sess && !!obsQ.error
-  const entry = useOrderEntry(accountId, obs, obsQ.dataUpdatedAt)
-  const actions = useOrderActions(accountId)
+  const obsFailed = !!sess && !!obsQ.error && !(obsQ.error instanceof ApiError && obsQ.error.status === 409)
+  const entry = useOrderEntry(accountId ?? '', obs, obsQ.dataUpdatedAt)
+  const actions = useOrderActions(accountId ?? '')
   const [drawer, setDrawer] = useState<OrderDrawerState | null>(null)
   const [modifying, setModifying] = useState<OpenOrder | null>(null)
   const openDrawer = (side: Side, sym: string) => {
+    track('order_drawer_opened', { side, instrument: sym })
     entry.reset()
     setDrawer((d) => ({ side, symbol: sym, n: (d?.n ?? 0) + 1 }))
   }
 
-  const activeSymbol = symbol && book.instruments.some((i) => i.instrument === symbol) ? symbol : book.instruments[0]?.instrument
+  const activeSymbol = symbol && book.instruments.some((i) => i.id === symbol) ? symbol : book.instruments[0]?.id
 
-  // Market state. The UI decides it from its own market clock and the backend's close time (the
-  // session's `closes_at`, and for live the market's `opens_at`); the backend's phase (the snapshots,
-  // then the session / markets list) is only the fallback until the clock is known.
-  const backendPhase = ((activeSymbol && snapshots[activeSymbol]?.phase) || m.market?.live_session.phase || sess?.phase) as
-    | 'preopen' | 'open' | 'closing' | 'closed' | undefined
-  const nowLocal = useMarketClock(m.market?.timezone) // the UI runs the clock itself
+  // Market state. The UI decides it from its own market clock and the session's close time;
+  // the WS snapshot phase (the ONLY place phase is carried at all — no session endpoint has
+  // one, confirmed real-backend shape) is only the fallback until the clock is known.
+  const wirePhase = activeSymbol && snapshots[activeSymbol]?.phase
+  const backendPhase = wirePhase ? fromWirePhase(wirePhase) : undefined
+  const nowLocal = useMarketClock(tz) // the UI runs the clock itself
+  // Live (canonical) has no end-timer from the session itself — fall back to the market's own
+  // schedule; practice (on-demand) carries session_ends_at (a real instant) directly. Kept as
+  // its own variable (not just inlined into closesAtNaive) so ChartTab can tell a real practice
+  // close apart from the canonical-market fallback — its own on-demand exchange runs on a
+  // totally different clock than the canonical market's day session.
+  const practiceClosesAtNaive = sess?.mode === 'practice' && sess.closesAt && tz ? instantToNaiveLocal(sess.closesAt, tz) : undefined
+  const practiceOpensAtNaive = sess?.mode === 'practice' && sess.opensAt && tz ? instantToNaiveLocal(sess.opensAt, tz) : undefined
+  const closesAtNaive =
+    practiceClosesAtNaive ?? (m.market && tz ? instantToNaiveLocal(m.market.session.closes_at, tz) : undefined)
+  const opensAtNaive = sess?.mode === 'live' && m.market && tz ? instantToNaiveLocal(m.market.session.opens_at, tz) : undefined
+  // For the chart's candle history query: practice sessions use the on-demand exchange's actual
+  // open time (warmup_ends_at, when trading started), so historyWindow goes ~30 days before that
+  // instant and liveBucketStart anchors the live bar correctly at the session open.
+  const chartCloseAt = closesAtNaive
+  const chartOpenAt = practiceOpensAtNaive
+    ?? opensAtNaive
+    ?? (m.market && tz ? instantToNaiveLocal(m.market.session.opens_at, tz) : undefined)
   const phase = backendPhase
-    ? clockPhase(
-        nowLocal,
-        sess?.type === 'live' ? m.market?.live_session.opens_at : undefined,
-        sess?.closes_at ?? m.market?.live_session.closes_at,
-        sess?.type === 'practice' ? sess.phase : backendPhase,
-      )
+    ? clockPhase(nowLocal, practiceOpensAtNaive ?? opensAtNaive, closesAtNaive, backendPhase)
     : undefined
   useEffect(() => {
     // A phase change moves "today's" session window: refresh it so the live bar's bucket is right.
     if (backendPhase) void queryClient.invalidateQueries({ queryKey: ['markets'] })
   }, [backendPhase, queryClient])
 
-  const mode = sess?.type
+  const mode = sess?.mode
   const orderBlock = mode ? orderBlockReason(phase, mode) : undefined
-  const closes = closeLabel(sess?.closes_at)
-  // Past the close on the local clock but the backend still says trading: the two disagree (e.g. the
-  // mock's simulated day), so show the close time rather than a misleading 0:00:00.
-  const rawLeft = timeLeft(nowLocal, sess?.closes_at)
+  const closes = closeLabel(closesAtNaive)
+  // Past the close on the local clock but the backend still says trading: the two disagree, so
+  // show the close time rather than a misleading 0:00:00.
+  const rawLeft = timeLeft(nowLocal, closesAtNaive)
   const left = phase === 'closed' ? '0:00:00' : rawLeft === '0:00:00' ? undefined : rawLeft
+  const rawUntilOpen = timeLeft(nowLocal, practiceOpensAtNaive)
+  const timeUntilOpen = rawUntilOpen && rawUntilOpen !== '0:00:00' ? rawUntilOpen : undefined
+
+  // Two sub-phases inside preopen (practice only): "joining" while >60s remain, "warmup" in
+  // the last minute. A reconnect at each transition refreshes subscriptions + bumps epoch so
+  // chart history re-fetches and price snapshots start flowing immediately at open.
+  const preOpenStage: 'joining' | 'warmup' | null =
+    phase === 'preopen' && mode === 'practice'
+      ? (nowLocal && practiceOpensAtNaive && (ordinalMs(practiceOpensAtNaive) - ordinalMs(nowLocal)) / 1000 > 60
+          ? 'joining'
+          : 'warmup')
+      : null
+
+  useEffect(() => {
+    if (preOpenStage === 'warmup') forceReconnect()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preOpenStage])
+
+  useEffect(() => {
+    if (phase === 'open' && mode === 'practice') forceReconnect()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
   const realised = obs && !obs.trades_degraded ? obs.recent_trades.reduce((sum, t) => sum + t.net_pnl, 0) : 0
 
-  const instrumentOf = (sym: string) => book.instruments.find((i) => i.instrument === sym)
+  const instrumentOf = (sym: string) => book.instruments.find((i) => i.id === sym)
   const badge = (id: Tab): number | undefined =>
     id === 'orders' ? obs?.orders.length : id === 'positions' ? obs?.positions.filter((p) => p.qty !== 0).length : undefined
+
+  if (!accountId || !email) return null // requireAccountId/requireEmail already redirected to /signup
 
   return (
     <div className="min-h-screen bg-bg text-ink">
       <TopBar
-        markets={m.market ? [{ code: m.market.code, name: m.market.name }] : []}
-        market={m.market?.code ?? ''}
+        markets={m.market ? [{ code: m.market.tag, name: marketName(m.market.tag) }] : []}
+        market={m.market?.tag ?? ''}
         onMarketChange={() => {}}
         marketsLoading={m.isPending}
-        accountLabel={getAccountId()}
+        accountLabel={accountId}
         accountItems={[
-          { label: 'Home', onSelect: () => window.location.assign('/') },
+          { label: 'Home', onSelect: () => window.location.assign('/app') },
           { label: 'Terminal', onSelect: () => {} },
           { label: 'Record', onSelect: () => window.location.assign('/record') },
+          { label: 'Log out', onSelect: logout },
         ]}
       />
 
       {sess && (
         <SessionBar
-          mode={sess.type}
-          market={m.market?.name ?? sess.market}
-          phase={(phase ?? sess.phase) as 'preopen' | 'open' | 'closing' | 'closed'}
+          mode={sess.mode}
+          market={m.market ? marketName(m.market.tag) : sess.market}
+          phase={phase ?? 'preopen'}
           clock={clockOf(nowLocal)}
           remainingLabel={left ? 'Time left' : 'Closes'}
           remaining={left ?? closes}
-          timezone={m.market?.timezone ?? ''}
+          timezone={tz ?? ''}
           condition={conditionLabel(sess.condition)}
           stats={[
             { label: 'P&L · latest trades', value: <Num kind="signed-money" value={realised} available={!!obs && !obs.trades_degraded} /> },
             { label: 'Open positions', value: <Num kind="qty" value={obs?.positions.filter((p) => p.qty !== 0).length ?? 0} available={!!obs} /> },
           ]}
           actions={
-            <Button
-              variant="ghost"
-              disabled={!!session.busy}
-              onClick={() => (sess.type === 'live' ? window.location.assign('/practice') : void session.enter({ kind: 'live' }))}
-            >
-              {sess.type === 'live' ? 'Start practice' : 'Join live'}
-            </Button>
+            sess.mode === 'live' ? (
+              <Button variant="ghost" disabled={!!session.busy} onClick={() => window.location.assign('/practice')}>
+                Start practice
+              </Button>
+            ) : null
           }
-          confirm={exitCopy(sess.type, closes)}
+          confirm={exitCopy(sess.mode, closes)}
           exiting={session.busy === 'exit'}
           onExit={() => {
             setDrawer(null) // leaving the session closes the order window
@@ -172,7 +232,7 @@ export default function TerminalPage() {
                 key={t.id}
                 type="button"
                 aria-current={tab === t.id ? 'page' : undefined}
-                onClick={() => setTab(t.id)}
+                onClick={() => { setTab(t.id); track('terminal_tab_viewed', { tab: t.id }) }}
                 className={`relative min-h-[56px] whitespace-nowrap px-4 ${tab === t.id ? 'font-semibold text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t-sm after:bg-accent' : 'font-medium text-muted hover:text-ink'}`}
               >
                 {t.label}
@@ -205,7 +265,7 @@ export default function TerminalPage() {
 
         {m.error ? (
           <Banner tone="error" title="Could not load the market">
-            {m.error instanceof Error ? m.error.message : 'Something went wrong.'}
+            Please try again. If the problem continues, try refreshing the page.
           </Banner>
         ) : !m.market || !activeSymbol ? (
           <Card><SkeletonText lines={4} label="Loading" /></Card>
@@ -217,19 +277,30 @@ export default function TerminalPage() {
                 title="Could not check your session"
                 action={<Button variant="ghost" onClick={session.refetch}>Retry</Button>}
               >
-                {session.loadError instanceof Error ? session.loadError.message : 'Something went wrong.'}
+                Please try again. If the problem continues, try refreshing the page.
               </Banner>
             ) : noSession ? (
               <EnterSession
-                marketName={m.market.name}
+                marketName={m.market ? marketName(m.market.tag) : undefined}
                 busy={session.busy === 'enter'}
                 notice={session.notice}
                 onDismiss={session.dismiss}
                 onEnter={(t) => void session.enter(t)}
+                guestRemaining={isGuest ? guestRemaining : undefined}
               />
             ) : (
               <>
                 {session.notice && <Banner tone={session.notice.tone} title={session.notice.title} onDismiss={session.dismiss}>{session.notice.body}</Banner>}
+                {preOpenStage === 'joining' && (
+                  <Banner tone="warn" title="Participants joining.">
+                    Setting up the market. Trading opens{timeUntilOpen ? ` in ${timeUntilOpen}` : practiceOpensAtNaive ? ` at ${practiceOpensAtNaive.slice(11, 16)}` : ' shortly'}.
+                  </Banner>
+                )}
+                {preOpenStage === 'warmup' && (
+                  <Banner tone="warn" title="Order book warming up.">
+                    Almost ready — market opens{timeUntilOpen ? ` in ${timeUntilOpen}` : ' shortly'}.
+                  </Banner>
+                )}
                 {phase === 'closed' && (
                   <Banner tone="info" title="Market closed.">
                     {mode === 'live'
@@ -246,14 +317,13 @@ export default function TerminalPage() {
                 <AccountStrip obs={obs} disabled={!!orderBlock || !obs} onTrade={(side) => openDrawer(side, tab === 'chart' ? activeSymbol : drawer?.symbol ?? activeSymbol)} />
               </>
             )}
-            {obsFailed && (
+            {obsFailed && phase !== 'closed' && (
               <Banner
                 tone="error"
                 title="Could not refresh your account"
                 action={<Button variant="ghost" onClick={() => void obsQ.refetch()}>Retry</Button>}
               >
-                {obsQ.error instanceof Error ? obsQ.error.message : 'Something went wrong.'}
-                {obs ? ' Showing the last numbers we had.' : ''}
+                {obs ? 'Showing the last numbers we had.' : 'Please try again.'}
               </Banner>
             )}
 
@@ -265,6 +335,7 @@ export default function TerminalPage() {
                 onOpenChart={(s) => {
                   setSymbol(s)
                   setTab('chart')
+                  track('terminal_tab_viewed', { tab: 'chart', via: 'market_row' })
                 }}
               />
             ) : tab === 'chart' ? (
@@ -276,6 +347,10 @@ export default function TerminalPage() {
                 onSymbol={setSymbol}
                 timeframe={timeframe}
                 onTimeframe={setTimeframe}
+                sessionOpenAt={chartOpenAt}
+                sessionCloseAt={chartCloseAt}
+                sessionId={sess?.sessionId}
+                phase={phase}
               />
             ) : !sess ? null : !obs ? (
               obsQ.isPending ? <Card><SkeletonText lines={3} label="Loading your account" /></Card> : null
@@ -291,9 +366,9 @@ export default function TerminalPage() {
                 onCancelAll={() => void actions.cancelAll(obs.orders)}
               />
             ) : tab === 'positions' ? (
-              <PositionsTab positions={obs.positions} names={(s) => instrumentOf(s)?.name ?? ''} fmtFor={book.fmtFor} />
+              <PositionsTab positions={obs.positions} names={(s) => instrumentOf(s)?.name ?? ''} fmtFor={book.fmtFor} snapshots={snapshots} />
             ) : tab === 'trades' ? (
-              <TradesTab trades={obs.recent_trades} degraded={obs.trades_degraded} fmtFor={book.fmtFor} tz={m.market.timezone} />
+              <TradesTab trades={obs.recent_trades} degraded={obs.trades_degraded} fmtFor={book.fmtFor} tz={tz ?? 'UTC'} />
             ) : (
               <PnlTab balance={obs.balance} trades={obs.recent_trades} degraded={obs.trades_degraded} />
             )}
@@ -317,7 +392,7 @@ export default function TerminalPage() {
         <ConfirmDialog
           open
           tone="danger"
-          {...switchCopy(session.prompt.from.type, session.prompt.target.kind, closeLabel(session.prompt.from.closes_at))}
+          {...switchCopy(session.prompt.from.mode, session.prompt.target.kind, undefined)}
           cancelLabel="Stay"
           onCancel={session.cancelSwitch}
           onConfirm={() => {

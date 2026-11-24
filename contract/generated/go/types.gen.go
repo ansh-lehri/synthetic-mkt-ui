@@ -84,6 +84,15 @@ const (
 	PlaceOrderRequestTypeMarket PlaceOrderRequestType = "market"
 )
 
+// Defines values for PracticeCondition.
+const (
+	Busy       PracticeCondition = "busy"
+	Calm       PracticeCondition = "calm"
+	Dispersion PracticeCondition = "dispersion"
+	Normal     PracticeCondition = "normal"
+	Thin       PracticeCondition = "thin"
+)
+
 // Defines values for SessionCurrentResponseMode.
 const (
 	Canonical SessionCurrentResponseMode = "canonical"
@@ -414,7 +423,9 @@ type OnDemandInsufficientFundsBodyStatus string
 
 // OnDemandRequest defines model for OnDemandRequest.
 type OnDemandRequest struct {
-	User Identity `json:"user"`
+	// Condition Optional. See PracticeCondition — currently a no-op everywhere it's read.
+	Condition *PracticeCondition `json:"condition,omitempty"`
+	User      Identity           `json:"user"`
 }
 
 // OnDemandWarmingUpBody defines model for OnDemandWarmingUpBody.
@@ -539,6 +550,9 @@ type PositionsResponse struct {
 	Positions []Position `json:"positions"`
 }
 
+// PracticeCondition The Practice setup screen's market-scenario picker. Values map to simulation-agents scenario names: normal=Normal Day, calm=Calm Day, busy=Active Market, thin=Thin Market, dispersion=Two Camps. See BACKEND-INTEGRATION-PLAN.md §4/§6.
+type PracticeCondition string
+
 // ReasonEnvelope defines model for ReasonEnvelope.
 type ReasonEnvelope struct {
 	// Reason snake_case business-reject tag
@@ -560,6 +574,9 @@ type SessionCurrentResponse struct {
 	// SessionEndsAt RFC3339Nano. Populated ONLY when mode=="ondemand".
 	SessionEndsAt *string `json:"session_ends_at"`
 	SessionId     string  `json:"session_id"`
+
+	// SpinupPhase Non-null only when status=="starting" (on-demand spinup in flight). Values: "agents" (BringUp call in flight), "exchange" (exchange construction in flight). Null/absent in all other states.
+	SpinupPhase *string `json:"spinup_phase"`
 
 	// Status Raw SessionState.String() vocabulary — DIFFERENT from /session/status's UI-facing labels for the same states. Do not conflate the two enums.
 	Status SessionCurrentResponseStatus `json:"status"`
@@ -678,7 +695,7 @@ type PostSessionExitParams struct {
 type PostSessionOndemandParams struct {
 	Market string `form:"market" json:"market"`
 
-	// Duration Minutes. Absent/empty defaults to 60. Non-integer or outside [5,120] → 400.
+	// Duration Minutes. Absent/empty defaults to 30. Non-integer or outside [5,60] → 400.
 	Duration *int `form:"duration,omitempty" json:"duration,omitempty"`
 }
 

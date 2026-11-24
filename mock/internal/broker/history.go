@@ -39,7 +39,7 @@ func history(now time.Time) []historyItem {
 		exit := today.AddDate(0, 0, -day-1).Add(time.Duration(exitSlotsIST[slot]) * time.Minute).UTC()
 		entry := exit.Add(-time.Duration(20+(i*7)%50) * time.Minute)
 
-		sym, tick, ref, lot := "ACME", int64(5), int64(10090), int64(1)
+		sym, tick, ref, lot := "SYNTH DEF", int64(5), int64(10090), int64(1)
 		if i%2 == 1 {
 			sym, ref, lot = "BETA", 4995, 10
 		}

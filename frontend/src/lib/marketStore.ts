@@ -19,6 +19,13 @@ export interface MarketState {
   /** Ack errors by subscription key (e.g. "unknown instrument"). */
   ackErrors: Record<string, string>
   seq: number
+  /**
+   * The session_id the socket is scoped to. The real backend's `GET /v1/ws` requires one —
+   * there is NO anonymous market-data feed (a real-backend shape change from the old mock-era
+   * contract, BACKEND-INTEGRATION-PLAN.md). null = no session, no connection at all: nothing
+   * subscribes, status stays 'idle'.
+   */
+  sessionId: string | null
 }
 
 export const initialMarketState: MarketState = {
@@ -30,6 +37,7 @@ export const initialMarketState: MarketState = {
   bars: {},
   ackErrors: {},
   seq: 0,
+  sessionId: null,
 }
 
 export function barKey(instrument: string, timeframe: string): string {
@@ -63,10 +71,17 @@ export const useMarketStore = create<MarketState>(() => ({ ...initialMarketState
 
 let socket: MarketSocket | null = null
 
-function getSocket(): MarketSocket {
+function wsUrl(sessionId: string): string {
+  return `${wsBase()}/v1/ws?session=${encodeURIComponent(sessionId)}`
+}
+
+/** Creates the socket on first use, or retargets it (keeping all wanted subscriptions) if the
+ * session_id changed since the last call. */
+function ensureSocket(sessionId: string): MarketSocket {
+  const url = wsUrl(sessionId)
   if (!socket) {
     socket = new MarketSocket({
-      url: wsBase(),
+      url,
       handlers: {
         onStatus: (status) => useMarketStore.setState({ status }),
         onConnected: ({ market, timezone }) =>
@@ -74,13 +89,43 @@ function getSocket(): MarketSocket {
         onMessage: (msg) => useMarketStore.setState((s) => reduceMessage(s, msg)),
       },
     })
+  } else {
+    socket.setUrl(url)
   }
   return socket
 }
 
-/** Subscribe to streams for as long as the caller wants them; returns the release function. */
+/**
+ * Called once (by the Terminal) whenever the active session changes — on join, exit, or
+ * switch. No session -> no connection: the real backend's `/v1/ws` has nothing to serve
+ * without one, so the socket is torn down entirely rather than looping on reconnect.
+ */
+export function setMarketSession(sessionId: string | null): void {
+  if (useMarketStore.getState().sessionId === sessionId) return
+  if (!sessionId) {
+    socket?.stop()
+    socket = null
+    useMarketStore.setState({ ...initialMarketState, sessionId: null })
+    return
+  }
+  useMarketStore.setState({ sessionId })
+  if (socket) ensureSocket(sessionId) // reconnect any already-wanted subs under the new session
+}
+
+/** Forces the socket to reconnect on the same session (drops + reopens the WS connection).
+ * Bumps `epoch`, which re-fetches chart history and re-sends all subscriptions. Used when
+ * the practice market phase transitions so fresh price snapshots start flowing. */
+export function forceReconnect(): void {
+  socket?.reconnect()
+}
+
+/** Subscribe to streams for as long as the caller wants them; returns the release function.
+ * A no-op release when there is no session yet — callers (useSubscriptions) re-run once
+ * `sessionId` changes, so this is retried automatically. */
 export function retainSubscriptions(subs: Sub[]): () => void {
-  return getSocket().retain(subs)
+  const sessionId = useMarketStore.getState().sessionId
+  if (!sessionId) return () => {}
+  return ensureSocket(sessionId).retain(subs)
 }
 
 export type { SnapshotData, Timeframe, WsBar }

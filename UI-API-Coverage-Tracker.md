@@ -74,9 +74,11 @@ endpoint, idempotently (🔵). Row #5 (balance) and row #8 (low-balance refill) 
 their 🟡/⬜ status but the gating mechanism changes: balance is unreadable pre-session
 via `/v1/account/balance` (409) exactly as before, but a pre-session value is now
 available via the new `GET /v1/account/cash` (🔵) — Phase 4's Home-screen work should
-use that instead of showing "—". Row #10 (practice start) drops its `condition`/
-`length_minutes` body fields entirely — replaced by `POST /session/ondemand?market=&duration=`,
-frontend-only condition state, per `BACKEND-INTEGRATION-PLAN.md` §4.
+use that instead of showing "—". Row #10 (practice start) drops its `length_minutes` body
+field — replaced by `POST /session/ondemand?market=&duration=`. `condition` **is** sent on
+this endpoint's body as of 2026-10-23 (`OnDemandRequest.condition`, `contract/openapi.yaml`),
+but is a documented no-op — neither the mock nor the real backend reads it yet. See
+`BACKEND-INTEGRATION-PLAN.md` §4/§6.
 
 ---
 
@@ -154,7 +156,7 @@ or `{ "active": null }`.
 ### Two product decisions still open on this surface (don't block catalog build)
 
 1. **`exchange_id` handshake** — does the UI ever see/pass `exchange_id`, or is it `account_id`-only like the broker (backend resolves)? The broker's account-only pattern suggests the UI stays dumb. **Leaning: UI sends `account_id` only; backend binds.**
-2. **Condition enum vocabulary** — the practice conditions (normal_day, calm_range, trending_day, whipsaw, unstable_day, thin_liquidity) need stable snake_case strings. Product list to confirm.
+2. **Condition enum vocabulary** — the practice conditions (normal, calm, trending_day, whipsaw, unstable_day, thin_liquidity) need stable snake_case strings. Product list to confirm.
 
 ---
 

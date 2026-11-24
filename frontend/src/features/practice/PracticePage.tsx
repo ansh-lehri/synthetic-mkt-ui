@@ -1,14 +1,27 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMarkets, type PracticeCondition, type PracticeLength } from '../../api'
 import { Banner, Button, Card, Num, TopBar } from '../../components'
-import { getAccountId } from '../../lib/account'
+import { logout, requireAccountId, requireEmail } from '../../lib/identity'
+import { getStoredGuestId, isGuestEmail } from '../../lib/guestIdentity'
+import { postGuestConsume } from '../../api/landing'
+import { marketName } from '../../lib/marketTimezone'
 import { pickMarket, useSelectedMarket } from '../../lib/selectedMarket'
 import { DEFAULT_CONDITION, DEFAULT_LENGTH, PRACTICE_CONDITIONS, PRACTICE_LENGTHS, conditionLabel } from '../../lib/session'
+import { resolveCurrentSession } from '../../lib/sessionRecovery'
+import { track } from '../../lib/analytics'
+import RegisterModal from '../landing/RegisterModal'
 import { TransferDialog } from '../home/TransferDialog'
 import { SwitchConfirm } from '../session/SwitchConfirm'
 import { useSessionFlow } from '../session/useSessionFlow'
 
 const go = (path: string) => window.location.assign(path)
+
+const SPINUP_STEPS = [
+  'Generating agent population…',   // initial / before first poll
+  'Opening trading accounts…',      // spinup_phase = "agents"
+  'Starting the exchange…',         // spinup_phase = "exchange"
+  'Preparing the market…',          // exchange live, warmup about to begin
+]
 
 const radioCard =
   'flex min-h-[44px] w-full cursor-pointer flex-col gap-1 rounded-lg border p-4 text-left peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus'
@@ -20,7 +33,8 @@ const radioCard =
  * the trading balance: profit or loss is not added to it, and nothing is recorded.
  */
 export default function PracticePage() {
-  const accountId = getAccountId()
+  const accountId = requireAccountId()
+  const email = requireEmail()
   const marketsQ = useMarkets({ refetchMs: 15_000 })
   const markets = marketsQ.data?.markets ?? []
   const chosen = useSelectedMarket((s) => s.code)
@@ -32,29 +46,110 @@ export default function PracticePage() {
   const [transferOpen, setTransferOpen] = useState(false)
   const [balance, setBalance] = useState<number>() // known only after a transfer here (see the note on the card)
   const [funded, setFunded] = useState(false) // a transfer went through after a low-balance refusal
+  const [spinupStep, setSpinupStep] = useState(0)
+  const pollingRef = useRef(false)
 
-  const session = useSessionFlow(accountId, market?.code, { onEntered: () => go('/terminal') })
+  // Guest quota gate: true when the consume call returned 409 — triggers the over-limit wall.
+  const [guestLimitReached, setGuestLimitReached] = useState(false)
+  // Consuming is in-flight (prevents double-click between the consume POST and session.enter).
+  const [consuming, setConsuming] = useState(false)
+  const isGuest = email ? isGuestEmail(email) : false
+
+  const session = useSessionFlow(email ?? '', market?.tag, { onEntered: () => go('/terminal') })
   const sess = session.active
   const starting = session.busy === 'enter'
+
+  useEffect(() => {
+    if (!starting) { setSpinupStep(0); return }
+
+    // Timer fallback: advance steps if real poll hasn't arrived yet.
+    const t1 = setTimeout(() => setSpinupStep((s) => Math.max(s, 1)), 1000)
+    const t2 = setTimeout(() => setSpinupStep((s) => Math.max(s, 2)), 2000)
+    const t3 = setTimeout(() => setSpinupStep((s) => Math.max(s, 3)), 3500)
+
+    // Real-phase polling: POST /session/current every 500ms to get spinup_phase.
+    const userId = email ?? ''
+    pollingRef.current = true
+    const tick = async () => {
+      while (pollingRef.current) {
+        try {
+          const s = await resolveCurrentSession(userId)
+          if (!pollingRef.current) break
+          if (s.kind === 'found' && s.status === 'starting') {
+            if (s.spinupPhase === 'exchange') setSpinupStep((prev) => Math.max(prev, 2))
+            else if (s.spinupPhase === 'agents') setSpinupStep((prev) => Math.max(prev, 1))
+          }
+        } catch { /* ignore */ }
+        await new Promise<void>((r) => setTimeout(r, 500))
+      }
+    }
+    void tick()
+
+    return () => {
+      pollingRef.current = false
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3)
+    }
+  }, [starting, email])
+
+  if (!accountId || !email) return null // requireAccountId/requireEmail already redirected to /signup
   const lowBalance = session.notice?.code === 'low_balance' && !funded
   const failed = session.notice?.tone === 'error'
+  const startDisabled = !market || consuming
 
-  const start = () => {
+  const start = async () => {
+    if (startDisabled) return
     setFunded(false)
+
+    // Guests must consume a free-session slot before the practice session opens.
+    // The consume is atomic server-side; a 409 means the limit has been reached.
+    if (isGuest) {
+      const guestId = getStoredGuestId()
+      if (!guestId) return
+      setConsuming(true)
+      try {
+        await postGuestConsume(guestId)
+      } catch (err: unknown) {
+        if ((err as { status?: number }).status === 409) {
+          track('guest_quota_exhausted', { source: 'practice' })
+          setGuestLimitReached(true)
+          return
+        }
+        // Any other error: unblock so the user can retry.
+        return
+      } finally {
+        setConsuming(false)
+      }
+    }
+
     void session.enter({ kind: 'practice', condition, length })
   }
 
   if (starting) {
-    // Honest wait: one spinner and the choice being started. No made-up progress steps.
     return (
       <div className="min-h-screen bg-bg text-ink">
-        <main className="mx-auto flex min-h-screen w-full max-w-[77.5rem] flex-col items-center justify-center gap-6 px-4 text-center">
+        <main className="mx-auto flex min-h-screen w-full max-w-[77.5rem] flex-col items-center justify-center gap-8 px-4 text-center">
           <span aria-hidden="true" className="inline-block h-14 w-14 animate-spin rounded-full border-4 border-line border-t-accent motion-reduce:animate-none" />
-          <div className="space-y-2" role="status">
-            <h1 className="text-2xl font-semibold tracking-tight">Starting your practice session…</h1>
-            <p className="text-muted">
-              {market?.name}, {conditionLabel(condition)}, {length} min
-            </p>
+          <div className="space-y-6" role="status">
+            <div className="space-y-1">
+              <h1 className="text-2xl font-semibold tracking-tight">Starting your practice session…</h1>
+              <p className="text-muted">
+                {market ? marketName(market.tag) : undefined}, {conditionLabel(condition)}, {length} min
+              </p>
+            </div>
+            <ol className="flex w-fit flex-col gap-2 text-left text-sm">
+              {SPINUP_STEPS.map((label, i) => {
+                const done = i < spinupStep
+                const active = i === spinupStep
+                return (
+                  <li key={label} className={`flex items-center gap-2.5 ${done ? 'text-ink' : active ? 'font-semibold text-accent' : 'text-muted'}`}>
+                    <span aria-hidden="true" className="w-4 shrink-0 text-center">
+                      {done ? '✓' : active ? '→' : '·'}
+                    </span>
+                    {label}
+                  </li>
+                )
+              })}
+            </ol>
           </div>
         </main>
       </div>
@@ -64,19 +159,20 @@ export default function PracticePage() {
   return (
     <div className="min-h-screen bg-bg text-ink">
       <TopBar
-        markets={markets.map((m) => ({ code: m.code, name: m.name }))}
-        market={market?.code ?? ''}
+        markets={markets.map((m) => ({ code: m.tag, name: marketName(m.tag) }))}
+        market={market?.tag ?? ''}
         onMarketChange={selectMarket}
         marketsLoading={marketsQ.isPending}
         accountLabel={accountId}
         accountItems={[
-          { label: 'Home', onSelect: () => go('/') },
+          { label: 'Home', onSelect: () => go('/app') },
           { label: 'Terminal', onSelect: () => go('/terminal') },
           { label: 'Record', onSelect: () => go('/record') },
+          { label: 'Log out', onSelect: logout },
         ]}
       />
       <main className="mx-auto flex w-full max-w-[77.5rem] flex-col gap-6 px-4 pb-12 pt-6 sm:px-6">
-        <a href="/" className="inline-flex min-h-[44px] items-center gap-1 self-start text-sm font-semibold text-accent hover:underline">
+        <a href="/app" className="inline-flex min-h-[44px] items-center gap-1 self-start text-sm font-semibold text-accent hover:underline">
           <span aria-hidden="true">←</span> Home
         </a>
         <div className="space-y-1">
@@ -87,7 +183,7 @@ export default function PracticePage() {
         {sess && (
           <Banner
             tone="info"
-            title={`You're in a ${sess.type} session.`}
+            title={`You're in a ${sess.mode} session.`}
             action={<Button variant="ghost" onClick={() => go('/terminal')}>Return to session</Button>}
           >
             Starting practice will ask you to leave it first.
@@ -95,7 +191,7 @@ export default function PracticePage() {
         )}
         {marketsQ.error && !marketsQ.data && (
           <Banner tone="error" title="Could not load the markets" action={<Button variant="ghost" onClick={() => void marketsQ.refetch()}>Retry</Button>}>
-            {marketsQ.error instanceof Error ? marketsQ.error.message : 'Something went wrong.'}
+            Please try again. If the problem continues, try refreshing the page.
           </Banner>
         )}
 
@@ -140,7 +236,7 @@ export default function PracticePage() {
             <h2 id="sum-h" className="text-base font-semibold">Your practice</h2>
             <dl className="divide-y divide-line text-sm">
               {[
-                ['Market', market?.name ?? '—'],
+                ['Market', market ? marketName(market.tag) : '—'],
                 ['Conditions', conditionLabel(condition) ?? '—'],
                 ['Length', `${length} min`],
               ].map(([k, v]) => (
@@ -174,7 +270,9 @@ export default function PracticePage() {
             {lowBalance ? (
               <Button variant="primary" fullWidth onClick={() => setTransferOpen(true)}>Transfer money</Button>
             ) : (
-              <Button variant="primary" fullWidth disabled={!market} onClick={start}>{failed ? 'Try again' : 'Start practice'}</Button>
+              <Button variant="primary" fullWidth disabled={startDisabled} loading={consuming} onClick={() => void start()}>
+                {consuming ? 'Checking…' : failed ? 'Try again' : 'Start practice'}
+              </Button>
             )}
             <p className="text-sm text-muted">
               You trade with a copy of your trading balance. Profit or loss here is not added to your balance. Not recorded.
@@ -197,6 +295,12 @@ export default function PracticePage() {
         onUnknown={() => undefined}
       />
       <SwitchConfirm session={session} />
+      <RegisterModal
+        source="free_limit_wall"
+        open={guestLimitReached}
+        onClose={() => setGuestLimitReached(false)}
+        wallMessage="You've used all your free sessions. Register for full access — it's free."
+      />
     </div>
   )
 }

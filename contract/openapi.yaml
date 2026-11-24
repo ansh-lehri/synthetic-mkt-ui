@@ -534,8 +534,9 @@ paths:
       summary: >
         Spin up a one-user ephemeral market instance. A HELD request — does not
         return until the full setup pipeline completes or fails (SetupTimeout 90s
-        default). No condition field exists on this endpoint; the scenario picker is
-        frontend-only state (BACKEND-INTEGRATION-PLAN.md §4).
+        default). Request body carries an optional `condition` (the scenario picker)
+        ahead of backend support — see OnDemandRequest/PracticeCondition; it is a
+        documented no-op until the backend reads it (BACKEND-INTEGRATION-PLAN.md §4/§6).
       parameters:
         - name: market
           in: query
@@ -544,8 +545,8 @@ paths:
         - name: duration
           in: query
           required: false
-          schema: { type: integer, default: 60, minimum: 5, maximum: 120 }
-          description: Minutes. Absent/empty defaults to 60. Non-integer or outside [5,120] → 400.
+          schema: { type: integer, default: 30, minimum: 5, maximum: 60 }
+          description: Minutes. Absent/empty defaults to 30. Non-integer or outside [5,60] → 400.
       requestBody:
         required: true
         content:
@@ -1061,11 +1062,21 @@ components:
         participant_id: { type: string }
         status: { type: string, enum: [active], description: always the literal "active" on 200 }
 
+    PracticeCondition:
+      type: string
+      enum: [normal, calm, busy, thin, dispersion]
+      description: >
+        The Practice setup screen's market-scenario picker. Values map to simulation-agents
+        scenario names: normal=Normal Day, calm=Calm Day, busy=Active Market, thin=Thin Market,
+        dispersion=Two Camps. See BACKEND-INTEGRATION-PLAN.md §4/§6.
     OnDemandRequest:
       type: object
       required: [user]
       properties:
         user: { $ref: '#/components/schemas/Identity' }
+        condition:
+          allOf: [{ $ref: '#/components/schemas/PracticeCondition' }]
+          description: Optional. See PracticeCondition — currently a no-op everywhere it's read.
     OnDemandWarmingUpBody:
       type: object
       required: [status, session_id, warmup_ends_at, session_ends_at]
@@ -1121,6 +1132,7 @@ components:
           description: 'Raw SessionState.String() vocabulary — DIFFERENT from /session/status''s UI-facing labels for the same states. Do not conflate the two enums.'
         warmup_ends_at: { type: string, nullable: true, description: RFC3339Nano. Populated ONLY when mode=="ondemand"; canonical sessions never carry this. }
         session_ends_at: { type: string, nullable: true, description: RFC3339Nano. Populated ONLY when mode=="ondemand".}
+        spinup_phase: { type: string, nullable: true, description: 'Non-null only when status=="starting" (on-demand spinup in flight). Values: "agents" (BringUp call in flight), "exchange" (exchange construction in flight). Null/absent in all other states.' }
 
     SessionExitResponse:
       type: object
